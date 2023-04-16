@@ -1,0 +1,39 @@
+Update header files and resource.c/h
+V86 interface
+Memory manager (per-process memory mapping and VMEM)
+
+Should memory mapping use handles? Unix uses the address of the mapping.
+
+Changing CR3 will always flush the cache.
+
+If there is no FPU, coprocessor not present should terminate the process.
+
+Add resource reserve feature (from Win95)
+
+Sending interrupts to a multitasking DOS task?
+
+When the page table is changed in the i386, the entire TLB must be invalidated.
+On the i486 and above, the pages modified can be evicted from the TLB using INVLPG
+
+======== 2023 Todo ========
+
+* Finish exception handler code
+* Test virtual 8086 mode
+
+I need to have the differentiate parameter because the ISR is zero when there is a spurious interrupt. Do not change the current structure of the dispatcher.
+
+Exceptions are now dispatched with a branch table. This is simpler and saves code size. The lower half handlers are apparently very complicated so I cannot just repeat them.
+
+Leave the IOPB. I need it for V86. Or not?
+
+I can merge DOS.c with Scheduler.
+
+Tue March 28:
+
+Am I linking old object files?
+
+Sun Apr 2 2023
+
+Look for anything that has a macro minus one. That is sus.
+
+The for condition represents the count, not the limit of the index.
