@@ -9,6 +9,7 @@
 */
 
 
+#include <Platform/IO.h>
 #include <PnP_Mgr.h>
 #include <Linker.h>
 #include <Type.h>
@@ -84,13 +85,9 @@ STATUS SetInterruptEntry(
     PDRIVER_HEADER  owner
 ){
 
-    EnterCriticalSecttion();
-
     interrupts.handlers[irq] = handler;
     interrupts.owners[irq] = owner;
     interrupts.lvl_bmp |= lvl << (irq * 2);
-
-    ExitCriticalSection();
 
     return OS_OK;
 }
@@ -155,11 +152,12 @@ STATUS InAcquireLegacyIRQ(
 // This is not the same as requesting control of a device. This will
 // simply segment a bus.
 //
-STATUS APICALL InRequestBusIRQ(PDRIVER_HEADER bus,
-                               PDRIVER_HEADER client,
-                               VINT vi,
-                               FP_IRQ_HANDLR handler)
-{
+STATUS KERNEL InRequestBusIRQ(
+    PDRIVER_HEADER  bus,
+    PDRIVER_HEADER  client,
+    VINT            vi,
+    FP_IRQ_HANDLR   handler
+){
 }
 
 //
@@ -170,7 +168,7 @@ STATUS APICALL InRequestBusIRQ(PDRIVER_HEADER bus,
 // Plug and Play Bios communication support, refferences code in PnP_Mgr.asm
 ////////////////////////////////////////////////////////////////////////////////
 
-VOID APICALL PnBiosCall()
+VOID KERNEL PnBiosCall()
 {
 }
 
@@ -223,7 +221,7 @@ STATUS KernelEventHandler(PDRIVER_EVENT_PACKET)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Add a new port/memory mapped resource entry
-STATUS APICALL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
+STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
 {
     if (cur_iorsc >= MAX_IO_RSC)
         return -1;
@@ -232,7 +230,7 @@ STATUS APICALL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
     return 0;
 }
 
-STATUS APICALL Bus_AllocateIO(WORD size, BYTE align)
+STATUS KERNEL Bus_AllocateIO(WORD size, BYTE align)
 {
 }
 
@@ -268,7 +266,7 @@ STATUS APICALL Bus_AllocateIO(WORD size, BYTE align)
 //
 static VOID Init_DetectFreeInt(VOID)
 {
-    BYTE imr0 = pic_inb(0x21);
+    BYTE imr0 = delay_inb(0x21);
 
     if (InGetInterruptLevel(2) == RECL_16)
     {
@@ -319,11 +317,4 @@ VOID InitPnP(VOID)
     // PnP manager should not be initialized if interrupts are on
     // The scheduler is initialized after the PnP manager sets up IRQs
     // Right now, interrupts must be off.
-
-    if ((GetEflags() >> 9) & 1)
-    {
-        TRACE("Cannot initialize PnP with interrupts on\n\t");
-        FatalError(0x100000AA);
-    }
-
 }

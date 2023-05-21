@@ -1,30 +1,9 @@
 #ifndef TYPE_H
 #define TYPE_H
 
-#define VOID void
-
-// IMUSTR is a constant pointer to a constant string. The compiler
-// will generate only the string when optimizing and no pointer.
-//
-// PIMMUTABLE_STRING is a double pointer type. It makes strings simpler because
-// it uses the & operator to get the address, which is always the actual data
-// of the IMMUTABLE_STRING and constistent with other types.
-//
-// There is no reason to modify a C string. An array/buffer should be used
-// to handle string processing rather than a C string.
-//
-// Examples:
-// IMUSTR str = "Hello, world!\n";
-// PIMUSTR pstr = &str;
-
-// printf("%s", *pstr);
-
-typedef const char*const IMUSTR;
-
-//
-// Pointer to IMUSTR may change, but the IMUSTR itself must not.
-//
-typedef IMUSTR *PIMUSTR;
+///////////////////////////////////////////////
+// K e r n e l   A P I   E x i t   C o d e s //
+///////////////////////////////////////////////
 
 enum {
 OS_OK,
@@ -44,41 +23,27 @@ OS_FEATURE_NOT_SUPPORTED,
 OS_OUT_OF_MEMORY
 };
 
-
-// Assembly-style address plus offset addressing without using casts
-// and impeding readability
-//
-// This will automatically get the address of the variable supplied.
-// Should work on an array by just passing the name.
-//
-#define BYTE_PTR(var, off) *(PBYTE) (&var+off)
-#define WORD_PTR(var, off) *(PWORD) (&var+off)
-#define DWORD_PTR(var,off) *(PDWORD)(&var+off)
-
-#define offsetof(st, m) ((DWORD)&(((st *)0)->m))
-
-#define ZERO_STRUCT {0}
-
-#define IN   /* This argument is a pointer to an input value*/
-#define OUT  /* output */
-
-#define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
-#define NULL ((PVOID)0L)
+/////////////////////////////////////////////////////////////////////////////
+// I n l i n e   A s s e m b l y   a n d   A s s e m b l y   L i n k a g e //
+/////////////////////////////////////////////////////////////////////////////
 
 #define ASNL "\n\t"
-
 #define ASM_LINK __attribute__(( regparm(0) ))
-#define APICALL  __attribute__(( regparm(0) ))
 
-#define APICALL_REGPARM(x) __attribute__(( regparm(x) ))
+////////////////////////////////////////////////////
+// F u n c t i o n   R e l a t e d   M a c r o s  //
+////////////////////////////////////////////////////
 
-// A function with this attribute is reentrant and can execute successfully
-// even if it is interrupted. ISRs can ONLY call reentrant functions.
-#define ASYNC_APICALL APICALL
+#define KERNEL  __attribute__(( regparm(0), cdecl, noinline ))
+#define KERNEL_ASYNC KERNEL
+#define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) |\
+((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
 
-// The BSWAP instruction is only supported by i486 and above
-// but this is only a macro. I figured this out myself :)
-#define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) | ((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
+#define UNUSED_PARM(x) (VOID)x
+
+///////////////////////////////////////////
+// M i s c e l a n e o u s   M a c r o s //
+///////////////////////////////////////////
 
 // Volatile variables can change at any time without the
 // compiler being aware. This applies to ISRs and drivers
@@ -87,39 +52,62 @@ OS_OUT_OF_MEMORY
 #define INTVAR volatile /* Used by interrupt handler  */
 #define MCHUNX volatile /* May change unexpectedly */
 
-#define __PACKED   __attribute__( (packed) )
-#define __ALIGN(x) __attribute__( (aligned(x)) )
+#define ALIGN(x) __attribute__( (aligned(x)) )
 
-typedef unsigned char  BYTE;
-typedef unsigned short WORD;
-typedef unsigned long  DWORD;
+#define FENCE __asm__ volatile ("":::"memory")
 
-typedef char	SBYTE;
-typedef short	SWORD;
-typedef long	SDWORD;
-typedef	long long SQWORD;
-typedef	unsigned long long QWORD;
+#define offsetof(st, m) ((DWORD)&(((st *)0)->m))
+#define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
-typedef VOID*	  PVOID;
-typedef WORD*     PWORD;
-typedef BYTE*     PBYTE;
-typedef DWORD*    PDWORD;
-typedef QWORD*	  PQWORD;
+/////////////////////////////////////
+// T y p e   D e f i n i t i o n s //
+/////////////////////////////////////
 
-typedef _Bool   BOOL;
-typedef DWORD  STATUS;
-typedef SDWORD HANDLE;
+#define VOID void
 
-typedef WORD PID;
+#define BYTE unsigned char
+#define WORD unsigned short
+#define DWORD unsigned long
+#define QWORD unsigned long long
 
-// Abstract type representing an interrupt vector
-// or virtual interrupt
-typedef DWORD VINT;
+#define SBYTE char
+#define SWORD short
+#define SDWORD long
+#define SQWORD long long
 
+#define PVOID VOID*
+#define PWORD WORD*
+#define PDWORD DWORD*
+#define PBYTE BYTE*
 
-// Builtin functions use inline x86 string operations
-// making them way faster that doing it in C.
-// string operand size can also be deduced by the compiler
+#define BOOL _Bool
+#define STATUS DWORD
+#define HANDLE SDWORD
+
+#define PID WORD;
+#define VINT DWORD
+
+typedef const char*const IMUSTR;
+
+// Pointer to IMUSTR may change, but the IMUSTR itself must not.
+typedef IMUSTR *PIMUSTR;
+
+#define NULL ((PVOID)0L)
+
+#define tstruct   typedef struct
+#define tpkstruct typedef struct __attribute__((packed))
+
+/////////////////////////////////////////////////////////////////////
+// A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //
+/////////////////////////////////////////////////////////////////////
+
+#define BYTE_PTR(var, off) *(PBYTE) (&var+off)
+#define WORD_PTR(var, off) *(PWORD) (&var+off)
+#define DWORD_PTR(var,off) *(PDWORD)(&var+off)
+
+/////////////////////////////
+// G C C   B u i l t i n s //
+/////////////////////////////
 
 static inline VOID *C_memcpy(VOID *d, VOID *s, DWORD c)
 {
@@ -140,7 +128,5 @@ static inline VOID C_memset(PVOID a, DWORD val, DWORD count)
 {
     __builtin_memset(a,val,count);
 }
-
-#define FENCE __asm__ volatile ("":::"memory")
 
 #endif /* TYPE_H */

@@ -17,17 +17,6 @@ VOID MmDeleteBlock();
 //
 PVOID AllocDosMem(WORD pgr)
 {
-    DWORD parm[RD_NUM_DWORDS];
-
-    parm[RD_EAX] = 0x4800;
-    parm[RD_EBX] = (DWORD)pgr;
-
-    ScVirtual86_Int(parm, 0x21);
-
-    if (parm[RD_EFLAGS] & 1)
-        return (PVOID)(parm[RD_EAX] << 4);
-    else
-        return NULL;
 }
 
 VOID MmResizeDosMem(WORD segment)

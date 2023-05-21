@@ -31,11 +31,11 @@
 // D: Output
 // W: Word
 //
-static BOOL ScDecodePortOp(
-    const PBYTE         opcode,
+BOOL ScDecodePortOp(
+    PBYTE               opcode,
     BOOL                bits32,
-    PDECODED_PORT_OP    dec)
-{
+    PDECODED_PORT_OP    dec
+){
     BOOL  size_ovr = 0;
     BOOL  rep_prefix = 0;
     PBYTE op = opcode;
@@ -118,3 +118,16 @@ static BOOL ScDecodePortOp(
     }
     return 0;
 }
+
+// By default, the PIT is set to pitifully slow intervals, clocking at
+// about 18.4 Hz (or IRQs per second). This is unsuitable
+// for pre-emptive multitasking. We must configure this to a
+// more satifactory frequency. We will set it to something way higher.
+//
+// Setting it to the max is tempting, but that would mean the ratio of
+// timer clocks to CPU clocks for an i386 would be about 1:12, which
+// means that every 12 CPU clocks, the CPU is interrupted and forced to
+// run potentially hundreds of clocks to switch tasks and whatnot.
+//
+// Instead, we will set it to something more reasonable (not in MHz range).
+//

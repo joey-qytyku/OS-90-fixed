@@ -1,5 +1,6 @@
 #include <Type.h>
 
+
 VOID KeEnableBitArrayEntry(PDWORD array, DWORD inx)
 {
     DWORD bit_offset  = inx & 31;
@@ -8,7 +9,7 @@ VOID KeEnableBitArrayEntry(PDWORD array, DWORD inx)
     array[dword_index] |= 1 << bit_offset;
 }
 
-VOID APICALL_REGPARM(2) KeDisableBitArrayEntry(PDWORD array, DWORD inx)
+VOID KERNEL KeDisableBitArrayEntry(PDWORD array, DWORD inx)
 {
     DWORD bit_offset  = inx & 31;
     DWORD dword_index = inx / 32;
@@ -16,7 +17,7 @@ VOID APICALL_REGPARM(2) KeDisableBitArrayEntry(PDWORD array, DWORD inx)
     array[dword_index] &= ~(1 << bit_offset);
 }
 
-BOOL APICALL_REGPARM(2) KeGetBitArrayEntry(PDWORD array, DWORD inx)
+BOOL KERNEL KeGetBitArrayEntry(PDWORD array, DWORD inx)
 {
     DWORD bit_offset  = inx & 31;
     DWORD dword_index = inx / 32;
@@ -24,6 +25,9 @@ BOOL APICALL_REGPARM(2) KeGetBitArrayEntry(PDWORD array, DWORD inx)
     return x86BitTestD(array[dword_index], bit_offset);
 }
 
+//
+// Not for driver use
+//
 VOID KeEnableBitArrayRange(PDWORD array, DWORD base_inx, DWORD count)
 {
     for (DWORD i = 0; i < count; i++)
@@ -103,9 +107,9 @@ STATUS KeAllocateBits(
 //
 STATUS AllocateOneBit(
     PDWORD array,
-    DWORD array_bounds
+    DWORD  array_bounds
 ){
-    for (DWORD i = array_bounds-1; i >= 0; i--)
+    for (DWORD i = array_bounds-1; i != 0; i--)
     {
         BOOL bit = KeGetBitArrayEntry(array, i);
         if (!bit)

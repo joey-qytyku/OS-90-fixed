@@ -52,14 +52,4 @@ extern VOID Low13();
 extern VOID Low14();
 extern VOID Low15();
 
-
-// In the assembly file, there are instructions for
-// each bottom third ISR that save the IRQ number.
-// The opcodes: EB 02 6A 08
-//
-#define BOTTOM_ISR_TABLE_LEN 4
-
-// Defined in Intr_Trap.asm
-extern DWORD GetErrCode(VOID);
-
 #endif /* INTR_TRAP_H */

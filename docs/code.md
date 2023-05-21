@@ -149,10 +149,10 @@ Unlocking can be used with the intention of locking it again and reusing the blo
 
 x86 assembly code must be compatible with the Netwide Assembler.
 * Tabs should be used between instructions and operands.
-  * Tab size is 8 spaces
+* Tab size is 8 spaces
 * No spaces after the comma
-* Cases same as C
-* No instructions after a label
+* Cases same as C for procedures
+* No instructions after a label on same line
 
 Local variables are not really a concern here.
 
@@ -164,7 +164,7 @@ Variables should use Hungarian case because assembly is typeless, but this is no
 i{any type}Name - Signed
 wName - Word
 bName - Byte
-lName - Long, aka dwordsw
+lName - Long, aka dword
 qName - Quad word
 sName - String of bytes
 wfpName 16-bit far pointer (SEG:OFF16)

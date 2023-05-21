@@ -32,7 +32,7 @@
         TYPE_LDT        EQU     0x2
         TYPE_TSS        EQU     0x9
 
-        IRQ_BASE        EQU     20h
+        IRQ_BASE        EQU     A0h
         ICW1            EQU     1<<4
         LEVEL_TRIGGER   EQU     1<<3
         ICW1_ICW4       EQU     1
@@ -48,6 +48,7 @@
         extern LowBoundRangeExceeded, LowInvalidOp, LowDevNotAvail
         extern LowDoubleFault, LowSegOverrun, LowInvalidTSS, LowSegNotPresent
         extern LowStackSegFault, LowGeneralProtect, LowPageFault, LowAlignCheck
+        extern LowHandleIntV86Reflection
 
         extern Low7, Low15, LowRest
 
@@ -138,37 +139,6 @@ IdtInfo:
 
         section .text
 
-%if 0
-static STATUS SetupX87(VOID)
-{
-    // The Native Exceptions bit, when set, the FPU
-    // exception is sent to the dedicated vector
-    // otherwise, an IRQ is sent. IRQ#13 is hardwired
-
-    DWORD cr0;
-    __asm__ volatile ("mov %%cr0, %0":"=r"(cr0)::"memory");
-
-    // If the EM bit is turned on at startup it
-    // is assumed that the FPU is not meant to be used
-
-    BOOL fpu_not_present = cr0 & CR0_EM != 0;
-
-    // The 80287 did not native exceptions (obviously), so the NE bit
-    // should not be set if that is installed
-
-    BOOL using_80387_or_better = cr0 & CR0_ET != 0;
-
-    if (fpu_not_present)
-        return 0;
-
-    if (using_80387_or_better)
-    {
-        // Are native exceptions supported?
-        // If so, enable and mask IRQ#13
-    }
-}
-%endif
-
 ;Virtual 8086 runs in ring 3, and it may need to access IO ports directly.
 ;This cannot be done with IOPL. The IOPB is set to an invalid offset to deny
 ;all ports. It is set to 104 to allow all.
@@ -191,16 +161,6 @@ GetESP0:
 SetESP0:
         mov     dword[adwTaskStateSegment+4],eax
         ret
-
-;-------------------------------------------------------------------------------
-; System calls use a call gate where the offset is treated as the function
-; code. The high-level system call handler is in C and GCC cannot handle
-; far call stack frames, so we must implement a thunk. The high-level
-; handler will basically be the same as any other interrupt handler.
-;
-LowSyscall:
-
-        retf
 
 ; Different bits tell OCWs and ICWs appart in CMD port
 ; Industry standard architecture uses edge triggered interrupts
@@ -231,6 +191,39 @@ RemapPIC:
         out     0A1h,al
         ret
 
+;-------------------------------------------------------------------------------
+;Arguments on cdecl stack:
+;       WORD    selector
+;
+;Assumes LDT, this does not work on GDT.
+;
+GetDescriptorBaseAddress:
+        ; Descriptors are perfectly valid offsets to the LDT when the DPL
+        ; and GDT/LDT bits are masked off.
+
+        mov     ebx,[esp+4]
+        and     ebx,~11b
+        add     ebx,aqwLocalDescriptorTable
+
+        ; EBX is now the address of our descriptor
+
+        ; Let us put the segment descriptor address confusion to rest
+        ; The first address field is 16-bit.
+        ; It is equal to TheFullAddress & 0xFFFF. Nuff said.
+        ;
+        ; The last two fields are bytes. To make the high address word
+        ; we left shift by 8 the 31..24 field
+        ; then we OR it with the 23..16
+        mov     eax,[ebx+2]
+        movzx   ecx,byte [ebx+3]
+        mov     edx,byte [ebx+7]        ; 31..24
+        shl     edx,8
+        or      ecx,edx
+        or      eax,ecx
+
+        ;EAX now contains the address, we are done.
+        ret
+
 IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
         push    ebp
         mov     ebp,esp
@@ -248,7 +241,6 @@ IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
         leave
         ret
 
-        ;CDECL(DWORD index, DWORD attributes, DWORD)
 _SetIntVector:
         mov     edx,[esp+12]
         movzx   eax,byte[esp+8]
@@ -263,21 +255,55 @@ _SetIntVector:
         mov     [ebx+6],ax
         ret
 
+        ; This procedure is not cdecl compliant, but it is called by
+        ; InitIA32, so it has to save some registers
 FillIDT:
-        push    esi
-        mov     esi,_SetIntVector
+        push    edi
 
         mov     ecx,17
 .ExceptLoop:
         push    dword [Exceptions + ecx*4]
-        push    byte 0Fh
+        push    byte 0Eh
         push    ecx
-        call    esi
+        call    _SetIntVector
         add     esp,12
         dec     ecx
         jnz     .ExceptLoop
 
-        mov     ecx,16
+
+        ; Offset 15..0 -----------------------------
+        mov     ebx,qIdtValue
+        mov     eax,LowHandleIntV86Reflection
+        mov     [ebx],ax
+
+        ; Selector ---------------------------------
+        mov     word [ebx+2],(GDT_KCODE<<3)
+
+        ; Attributes
+        mov     [ebx+4],1_00_01110_000_00000b
+
+        ; Offset 31..16 ----------------------------
+        mov     eax,LowHandleIntV86Reflection
+        shr     eax,16
+        mov     [ebx+6],ax
+
+        mov     ecx,256-17
+        mov     edi,aqwInterruptDescriptorTable+(17*8)
+        cld
+.SwiLoop:
+        ;For the reflection handler, we will write the exact same value every
+        ;time to each entry after the exceptions. We do not need _SetIntVector
+        ;in order to do this. We will generate two double words and just write
+        ;write them directly
+
+        mov     eax,[ebx]
+        stosd
+        mov     eax,[ebx+4]
+        stosd
+
+        dec     ecx
+        jnz     .SwiLoop
+
 .IrqLoop:
         mov     eax,IRQ_BASE
         add     eax,ecx
@@ -285,7 +311,7 @@ FillIDT:
         push    LowRest
         push    byte 0Eh
         push    eax
-        call    esi
+        call    _SetIntVector
         add     esp,12
         dec     ecx
         jnz     .IrqLoop
@@ -294,21 +320,21 @@ FillIDT:
         push    Low7
         push    byte 0Eh
         push    IRQ_BASE+7
-        call    esi
+        call    _SetIntVector
 
         push    Low15
         push    byte 0Eh
         push    IRQ_BASE+15
-        call    esi
+        call    _SetIntVector
 
-        pop     esi
+        pop     edi
         ret
+
+qIdtValue: DD 0,0
 
 InitIA32:
         call    FillIDT
         call    RemapPIC
-
-        push    edi
 
         ;Set IOPB in the TSS to an out-of-bounds offset.
         ;This will make all ring-3 IO port access a security violation,
@@ -344,7 +370,8 @@ InitIA32:
         ret
 
 
-section .init
+        section .init
+
         extern LKR_END_PROG_DATA
         extern LKR_END
         extern KernelMain
@@ -398,7 +425,6 @@ Cont:
         push    dword [eax+_cs]
         push    dword [eax+_eip]
         iret                            ; Goodbye!
-
 
 section	.bss
         ;The initialization stack is used only for startup

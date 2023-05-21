@@ -11,11 +11,11 @@ The idea is that all requests to hardware from the userspace will be handled by 
 32-bit software can also function as an abstraction layer on the stack, e.g. USB host and USB device.
 ```
 High Level
-[  User Request  ]=\\
-[  OS/90 Kernel  ]-||
-[ Driver |   Bus ]-||
-[   DOS Kernel   ]-||
-[  PC BIOS traps ] \/
+[  User Request  ]==\\
+[  OS/90 Kernel  ]->||
+[ Driver |   Bus ]->||
+[   DOS Kernel   ]->||
+[  PC BIOS traps ]  \/
 Low level
 ```
 
@@ -38,8 +38,6 @@ Features:
 * Page cache disable/enable
 * Locking pages
 
-DPMI has special functions for demand paging, evicting, and locking.
-
 # Fileystem and Disk Access
 
 Upon startup, filesystem and disk access is immediately possible through the V86 mode interface. Drivers can trap real mode interrupts and IRQs to implement 32-bit disk access.
@@ -61,7 +59,7 @@ Instead of starting the regular DOS kernel, a replacement kernel sets up the ent
 
 ### Analysis
 
-This design makes legacy compatibility difficult because of the isolation between DOS VMs. THe entire DOS kernel would have to be emulated, including the filesystem and the BIOS. The advantage would be more consistent design with less bugs. To avoid difficulties, the backup DOS kernel could be loaded in a virtual machine and get restricted access to hardware resources.
+This design makes legacy compatibility difficult because of the isolation between DOS VMs. The entire DOS kernel would have to be emulated, including the filesystem and the BIOS. The advantage would be more consistent design with less bugs. To avoid difficulties, the backup DOS kernel could be loaded in a virtual machine and get restricted access to hardware resources.
 
 One question wuld be how devices can be accessed by DOS. Emulation could be possible, but in cases where the real device needs to use a DOS driver, the kernel would have to differentiate between supervisory virtual machines and regular machines, with an organized method of passing interrupts. It could also have to "lie" to DOS-based drivers about direct hardware access. This would be quite complicated. To what extent will a DOS driver be able to integrate itself in the system?
 
@@ -75,7 +73,7 @@ A device driver can be installed that loads the 32-bit kernel and enters it. The
 
 The issue with this design is that the TSRs and other programs executed in the AUTOEXEC process must be given special rights, somehow. Should programs forked by this initial DOS VM be split into separate processes? Probably.
 
-## The OS/90
+## The OS/90 Kernel
 
 DOS is accessible to the kernel and all DOS VMs. Programs have a userspace API and interrupt call interface to access the 32-bit kernel services similar to unistd.h. Drivers can capture DOS interrupts and form an interrupt chain for sharing multiple sub-functions.
 
@@ -85,8 +83,18 @@ There are two types of drivers, bus and device. Bus drivers can request IO, DMA,
 
 I chose this design because it offered compatibility and ease of programing at the cost of overall design cleanliness. It also allows for easier user troubleshooting when drivers malfunction.
 
-# Executables
+# Toolchain and Compiling
 
-## MZ
+A GCC-compatile toolchain is required. CLANG may by possible, but a GCC cross compiler or DJGPP is prefferable. A unix environment is currently a requirement as well.
 
-The relocation table is a list of seg:off pointers. The value pointed to must be added with the target code segment of the program.
+Dependencies include:
+* bochs
+* qemu
+* DOSBox
+* GCC cross compiler for at least i386
+* make
+* git
+
+Always use a cross compiler so that code generated does not assume a linux environment.
+
+Compiler arguments must eliminate any instructions that are not i386-compatible. Never use -mrtd because assembly code assumes caller cleanup. mtune can be modified for any architecture, but march must remain i386. Avoid -O3 optimization.

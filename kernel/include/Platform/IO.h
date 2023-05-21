@@ -41,4 +41,24 @@ static inline void rep_outsw(PVOID mem, DWORD count, WORD port)
 {__asm__ volatile ("rep outsw"::"esi"(mem),"ecx"(count),"dx"(port) :"esi","edi","dx");
 }
 
+/**
+ * Output with delay
+ *
+ * Only present for i386 support. The 80486 and above
+ * do not require the delay and it is kind of useless.
+ * It is probably not required since we will be interleaving IO,
+ * aka outputting to different ports (faster than using the same ports).
+ */
+static inline VOID delay_outb(WORD port, BYTE val)
+{
+    outb(port, val);
+    outb(0x80, 0); // Output to unused port for delay
+}
+
+static inline BYTE delay_inb(WORD port)
+{
+    outb(0x80, 0);
+    return inb(port);
+}
+
 #endif /* IO_H */

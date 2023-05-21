@@ -18,7 +18,7 @@
 
 // GCC builtin always refers to the glibc function for some reason
 // so I have to implement it manually
-DWORD APICALL StrLen(PIMUSTR ps)
+DWORD KERNEL StrLen(PIMUSTR ps)
 {
     DWORD i = 0;
     while ((*ps)[i] !=0)
@@ -33,11 +33,11 @@ DWORD APICALL StrLen(PIMUSTR ps)
 // https://www.quora.com/What-are-the-most-obscure-useless-x86-assembly-instructions?
 //
 
-VOID APICALL Hex32ToString(DWORD value,  PBYTE obuffer)
+VOID KERNEL Hex32ToString(DWORD value,  PBYTE obuffer)
 {
 }
 
-VOID APICALL Uint32ToString(DWORD value, PBYTE obuffer)
+VOID KERNEL Uint32ToString(DWORD value, PBYTE obuffer)
 {
     DWORD digit, digit_divisor;
     DWORD buff_off = MAX_STR_LENGTH_OF_UINT32 - 2;
@@ -86,7 +86,7 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 // It is the output driver's responsibility to handle ascii sequences
 // Logf sends the character when it is not a format escape
 //
-VOID APICALL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
+VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
 {
     BYTE printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     va_list ap;
@@ -137,6 +137,6 @@ VOID _KernelPutchar(BYTE ch)
     outb(0xE9, ch);
 }
 
-VOID FatalError(DWORD error_code)
+VOID KERNEL FatalError(DWORD error_code)
 {
 }

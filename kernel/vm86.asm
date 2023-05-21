@@ -15,10 +15,10 @@
 ;   with OS/90. If not, see <https://www.gnu.org/licenses/>.
 ;===============================================================================
 
-%include "include/Kernel.inc"
+        %include "include/Kernel.inc"
 
-        global  ScEnterV86
-        global  ScReenterCallerV86
+        global  EnterV86_16
+        global  ContinueCallerV86
         section .text
 
 ;--------------------------------------------------------------
@@ -29,7 +29,7 @@
 ; This is a very complicated function (along with ShootdownV86). It is callable
 ; from C and enters V86. It is not called by the scheduler to run regular
 ; software and is only for calling DOS software. Because of this, any call to
-; this procedure HAS to be coupled with a re-entry call in an exception
+; this procedure HAS to be coupled with a continue call in an exception.
 ;
 ; The output registers are copied by the GP handler from the trap frame to the
 ; context provided to EnterV86.
@@ -38,65 +38,28 @@
 ; before writing the value.
 
         extern  SetESP0, GetESP0    ; Argument goes in EAX
-ScEnterV86:
-        ;The cdecl ABI requires that registers EBP, EDI, EBX, ESI
-        ;are not clobbered, the rest are up to the caller
-        ;after a function call. The other ones can be clobbered.
 
-        pushf
-        push    ebx
-        push    esi
-        push    edi
-        push    ebp
-        ;Stack grew by 20 bytes. Get the PTR arg
-        mov     ebx,[esp+20+4]
+EnterV86_16:
+        ; We cannot use a critical section here.
 
-        mov     eax,esp
-        call    SetESP0
+        lea     ebx,[esp+4]
 
-        mov     eax,[ebx + TF._eax]
-        mov     ecx,[ebx + TF._ecx]
-        mov     edx,[ebx + TF._edx]
-        mov     esi,[ebx + TF._esi]
-        mov     edi,[ebx + TF._edi]
-        mov     ebp,[ebx + TF._ebp]
+        ;Save cdecl callee saved registers to stack
 
-        ; Set up the IRET frame to enter V86
-        push    dword [ebx + TF._gs]
-        push    dword [ebx + TF._fs]
-        push    dword [ebx + TF._ds]
-        push    dword [ebx + TF._es]
-
-        push    dword [ebx + TF._ss]
-        push    dword [ebx + TF._esp]
-
-        pushf
-        or      dword [esp],1<<17
-
-        push    dword [ebx + TF._cs ]
-        push    dword [ebx + TF._eip]
-
-        mov     ebx,[ebx + TF._ebx]
-
-        ;Set the last switched flag to user before entering. This is because
-        ;virtual 8086 is a ring 3 context.
-        mov     byte [last_mode],CTX_USER
-
-        ; [hacker voice] I'm in
         iret
 
 ;-------------------------------------------------------------------------------
-;     Re-enter caller of ScEnterV86
+;     Continue caller of ScEnterV86
 ;
-; The only sane place to use ScOnExceptRetReenterCallerV86
+; The only sane place to use OnExceptRetReenterCallerV86
 ; is an exception handler, like #GP. It does not have to be at level one.
 ; It could be at at any call level within an exception handler.
 ;
 ; This will not immediately switch to the context. The exception must exit
 ; normally. This will only change the context to get back to the caller
 ;
-global ScOnExceptRetReenterCallerV86
-ScOnExceptRetReenterCallerV86:
+global OnExceptRetReenterCallerV86
+OnExceptRetReenterCallerV86:
         ;I do not know where the stack is right now, but I will get the address
         ;saved to the TSS. That will allow me to pull the necessary values
         call    GetESP0

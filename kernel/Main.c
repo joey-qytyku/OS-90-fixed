@@ -8,6 +8,10 @@
     You should have received a copy of the GNU General Public License along with OS/90. If not, see <https://www.gnu.org/licenses/>.
 */
 
+#if !defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#warning OS/90 requires C99 compiler support.
+#endif
+
 #include <Platform/IA32.h>
 #include <Scheduler.h>
 #include <Debug.h>

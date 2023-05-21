@@ -2,43 +2,38 @@
 
 The most powerful feature of OS/90 is the driver model. It is designed to be used for programming devices, buses (PCI, ISA, VLB, etc.), and anything requiring ring zero access to the system. The driver architceture allows bus driver to manage interrupts and other resosurces through the kernel. Device drivers can then communicate with the bus driver to control individual devices and recieve interrupts and events.
 
-DM90 is intended to be somewhat portable to other operating systems. It is also intended to support the limitations of 90's hardware.
-
-# Definitions
-
-Interrupt: A signal from an external device is typically called an interrupt in this document and elsewhere unless specified otherwise.
-
-Trap: A software interrupt, generated with the INT imm8 instruction (or INTO/INT3)
-
 # What is a Driver in OS/90
 
 Drivers are 32-bit relocatable NXF files. The entry point is the driver descriptor block. Drivers are loaded flat into the kernel space after relocation. Drivers can be inserted and removed at any time, or at least they will be in the future.
 
-# The Job of Drivers
+## The Job of Drivers
 
 A driver usually implements the intended function of a certain device, real or virtual, and allows other parts of the system to access it. OS/90 is a hybrid 32/16-bit system. Because of this, it needs a uniform interface so that it decides which components should be used. This is analogous to Windows 9x VxD drivers, howver, the entire design is clean-house and has many differences. The driver model is what makes OS/90 a true operating system, rather than a protected mode extention to DOS.
 
-# Comparison Between VxD and DM/90
+## Comparison Between VxD and DM/90
 
-VxDs are designed around assembly language and require thunking to use services from C. OS/90 uses C calling conventions and supports C and assembly.
+* VxDs are designed around assembly language and require thunking to use services from C. OS/90 uses C calling conventions and supports C and assembly.
+* VxDs and OS/90 use a practically identical method of hooking 16-bit INT calls.
+* VxDs allow hooking exception vectors but OS/90 does not, though it lets programs set local exception vectors.
+* OS/90 supports plug-and-play while VxD requires extra software for PnP.
+* VxD has a concept of a system virtual machine and interrupts can be owned by a virtual machine. OS/90 has fake interrupts for processes that need them which can be scheduled by an actual IRQ.
+* The VMM of Win386 and the KERNL386.EXE of OS/90 can both be described as non-reentrant.
+* VMM appears to have a more complex scheduler and synchronization architecture.
+* VxDs have a real mode initialization segment. OS/90 does not have this.
+* VMM supports monotasking a single process while OS/90 only allows a process to be blocked, running, or terminated.
+* VMM allows critical sections to service interrupts if specifically requested. OS/90 does not because it will never schedule other software within kernel mode.
 
-VxDs and OS/90 use a practically identical method of hooking 16-bit INT calls.
+# The Kernel API
 
-VxDs allow hooking exception vectors but OS/90 does not, though it lets programs set local exception vectors.
+The kernel API uses cdecl calling conventions. stdcall was considered but it turns out that x86 has an `add eax,imm8` instruction, which makes `ret imm16` useless except if we want a one-byte gain for every procedure and extra confusion when using different compiler parameters.
 
-OS/90 supports plug-and-play while VxD requires extra software for PnP.
+## Callbacks
 
-VxD has a concept of a system virtual machine and interrupts can be owned by a virtual machine. OS/90 has fake interrupts for processes that need them which can be scheduled by an actual IRQ.
+All callbacks passed to and from the kernel use cdecl and should also be marked with `KERNEL`. Functions passed by callback can be `static` as long as they are marked `KERNEL` so that they are not inlined and are forced to use `cdecl` conventions.
 
-The VMM of Win386 and the KERNL386.EXE of OS/90 can both be described as non-reentrant.
+## KLXTRN
 
-VMM appears to have a more complex scheduler and synchronization architecture.
-
-VxDs have a real mode initialization segment. OS/90 does not have this.
-
-VMM supports monotasking a single process while OS/90 only allows a process to be blocked, running, or terminated.
-
-VMM allows critical sections to service interrupts if specifically requested. OS/90 does not because it will never schedule other software within kernel mode.
+KLXTRN sets the
 
 # General Notes
 
@@ -48,7 +43,7 @@ Never assume the position of elements in structures. Always use provided structu
 
 Interrupt request handlers are called with interrupts disabled. The kernel can be interrupted at any time by an IRQ, and is non-reentrant.
 
-Functions marked with ASYNC can be called within an IRQ.
+Functions marked with KERNEL_ASYNC can be called within an IRQ.
 
 # Plug-and-Play Support
 
@@ -155,10 +150,11 @@ A 32-bit driver for an non-PnP ISA card uses InAcquireLegacyIRQ to change it fro
 
 ```
 STATUS APICALL InInsertBusDispatchVector(
-                               PDRIVER_HEADER bus,
-                               PDRIVER_HEADER client,
-                               VINT vi,
-                               FP_IRQ_HANDLR handler)
+   PDRIVER_HEADER bus,
+    PDRIVER_HEADER client,
+    VINT vi,
+    FP_IRQ_HANDLR handler
+)
 ```
 
 The point of `InInsertBusDispatchVector` is to obtain an interrupt vector that can be allocated to device drivers by a bus driver. This is will claim the interrupt as BUS_INUSE and set the owner to `client`, if it is given permission.
@@ -192,13 +188,30 @@ The kernel never allows ports to be read or written to directly. All IO port ins
 
 The first method of arbitrating IO would be first come first serve, and block any process that is trying to access the device besides the current user. This is easy to implement. A boolean lock and a PID variable are all that is needed. This type of emulation is not particularly fast despite the simplicity because port IO still has to be decoded and executed by the kernel and only after it has gone through the device chain.
 
-The second method is to fully emulate the hardware interface. Separate emulation contexts must be created for each process that is accessing it. A queue can be used to store requests and send it to real hardware. Worker threads are ideal for doing this sort of IO, but there is slight latency involvedd.
+The second method is to fully emulate the hardware interface. Separate emulation contexts must be created for each process that is accessing it. A queue can be used to store requests and send it to real hardware.
 
 # Programming
 
 There is a range of functions provided by the kernel that drivers can use. These are exposed through the kernel symbol tree, a list of absolute addresses with 28-character names and 32-bit addresses, making each entry 32 bytes in size. The symbol table is static and does not change.
 
 The driver model permits dynamic loading and unloading, which could be implemented in the future. A driver should be prepared to handle an unload event.
+
+## Kernel Fibers
+
+OS/90 does not support kernel threads. It instead uses cooperatively scheduled fibers. The implementation details and API for fibers is specified in Scheduler.md. Here we will discuss the use cases for fibers.
+
+### Terminal Output
+
+Some DOS calls will block the system by default. For example, INT 21H AH=9. This is unacceptable for a multitasking operating system, especially when we have multiple windows with DOS programs open.
+
+Reasons why this is bad:
+* If we run DIR on both windows quickly, we have to wait for one to finish before the other one completes
+* The system cannot do ANYTHING while we are running DIR besides interrupt requests.
+* We do not know the X and Y of the terminal before we started OS/90, so even virtual framebuffers will have distorted outputs, so we have to trap terminal output anyway
+
+This means we have to emulate terminal output. It involves nothing more than more than memory copying and writing to a virtual framebuffer.
+
+If kernel threads were possible, we could create a separate thread for each program requesting the IO.
 
 ## ISA DMA
 
@@ -237,7 +250,7 @@ This function will return the seg:off value.
 
 ## Allocating Memory
 
-Allocating memory can be done with the heap API or page frame allocation. It is also possible to allocate conventional memory, but this should be avoided because conventional memory is a scarce resource and the system will need a decent amount of it to run normally. As a general rule of thumb, there should be at least 72 KB free at all times.
+Allocating memory must be done with page frame allocation or INT 21H. It is possible to allocate conventional memory, but this should be avoided because conventional memory is a scarce resource and the system will need a decent amount of it to run normally. As a general rule of thumb, there should be at least 72 KB free at all times in case the kernel itself needs to use it.
 
 Page frame allocation should be prefered for large structures. It can be safely used with heaps. Contiguous memory that is safe for DMA can also be allocated.
 
@@ -251,12 +264,68 @@ Wait what about RECL_16?
 
 Interrupts owned by the bus are signaled by the kernel, and the bus uses callbacks to signal the final handler function.
 
+Make the ID a pointer?
+
 Device drivers can request a device on a bus by signaling the bus driver with the appropriate ID. The exact format of the ID can be anything that fits in a 256-bit number and must be known by the busdrv and devdrv. A driver can support the same device with different capabilities, such as native mode IDE vs legacy IDE. It can call the request function several times to probe the capabilities, but this should be avoided and the driver should support all possible cases.
 
 Duplicate devices are possible and must be handled by the bus. It does not technically matter which one a device ends up using, but the duplicates should be accounted and reported so that the device driver can control both devices if possible. In the case of PCI, the vendor and device ID would classify a device, rather than the prog-if of capabilities. Example, two PCI-IDE controllers.
 
+## Sending PnP Events
+
+Events can be sent from kernel-to-kernel or they can be sent from a userspace process to the kernel.
+
+## Handling PnP Events
+
+PnP events are sent using a driver event packet. A major code is followed by a minor. Other parameters to the the event are stored as five double words.
+
+PnP events are defined in the following format in documentation:
+```
+Major | Minor
+
+<arg1> ...
+<arg2> ...
+<arg3> ...
+<arg4> ...
+
+OUT:
+    ...
+```
+
+The exit value of an event is stored in the request header and can be anything not already defined by OS/90.
+
+### Interrupt Hooks
+
+Faking interrupts does not require a driver to own the real vector, as there is isolation between real and virtual devices. The kernel has a chain of virtual devices which can have their own interrupt vectors.
+
+The local IVT will always be modified, but the driver must be informed so that it can create an emulation context and fake IRQs for the process.
+
+Real mode IRQ hook:
+```
+BUS_PROC_IHOOK | BUS_PROC_IHOOK_RM
+
+<CS:IP> Pointer to the new ISR in seg:off form.
+<PID>   Process ID of the requesting process
+<V>     The actual vector
+<Bus>   Pointer to bus header of owner
+OUT:
+    EV_OK, if handled
+```
+
+For protected mode, CS and EIP are expanded into two values in the same location and RM is replaced with PM for the event code. This event must return EV_OK, even if the process made an invalid access to the IRQ.
+
+```c
+static VOID KERNEL EventHandler(PDRIVER_EVENT_PACKET evp)
+{
+    PDRIVER_EVENT_PACKET_IHOOK evp_ih = evp;
+
+    // We will be rude to the process
+    if (evp_ih->major == BUS_PROC_IHOOK)
+    {
+        ScProcCtl(SCH_TERMINATE_CUR, &NULL);
+    }
+}
+```
+
 # Initialization Order
 
-Drivers must be loaded in a specific order in many cases. Drivers for non-PnP devices or PnP drivers with such features disabled must be loaded first to ensure that fixed resources are captured on startup.
-
-
+Drivers must be loaded in a specific order in many cases. Drivers for non-PnP devices or PnP drivers with such features disabled must be loaded first to ensure that fixed resources are captured on startup and do not interfere with plug and play devices.

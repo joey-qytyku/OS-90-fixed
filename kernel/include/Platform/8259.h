@@ -21,40 +21,19 @@
 #define ICW4_8086 1
 #define ICW4_SLAVE 1<<3
 
-
 /*
  * The last exception that I need to use is #XF because it
  * is supported by the Pentium III from 1999, only x64 CPUs
  * support VMX which is the next exception after that
  * This number must not conflict with vector 0x31 because that is DPMI
  */
-#define IRQ_BASE 0x20
+#define IRQ_BASE 0xA0
 #define DPMI_VECTOR 0x31
 #define NON_SYSTEM_VECTORS DPMI_VECTOR
 
 #if DPMI_VECTOR <= IRQ_BASE+16 && DPMI_VECTOR >= IRQ_BASE
 #error IRQ BASE OVERLAPS WITH DPMI VECTOR
 #endif
-
-/**
- * Output with delay
- *
- * Only present for i386 support. The 80486 and above
- * do not require the delay and it is kind of useless.
- * It is probably not required since we will be interleaving IO,
- * aka outputting to different ports (faster than using the same ports).
- */
-static inline VOID pic_outb(WORD port, BYTE val)
-{
-    outb(port, val);
-    outb(0x80, 0); // Output to unused port for delay
-}
-
-static inline BYTE pic_inb(WORD port)
-{
-    outb(0x80, 0);
-    return inb(port);
-}
 
 //
 // Memory clobber causes the statement to not be moved elsewhere to
@@ -83,17 +62,9 @@ static inline WORD InGetInService16(void)
 {
     WORD in_service;
 
-    in_service  = pic_inb(0x20);
-    in_service |= pic_inb(0xA0) << 8;
+    in_service  = delay_inb(0x20);
+    in_service |= delay_inb(0xA0) << 8;
     return in_service;
-}
-
-// At least one bit must be set for this to work properly
-static inline DWORD BitScanFwd(DWORD val)
-{
-    DWORD ret;
-    __asm__ ("bsfl %0, %1":"=r"(ret):"r"(val));
-    return ret;
 }
 
 #endif /* _8259_H */

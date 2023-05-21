@@ -1,15 +1,17 @@
-# When to use volatile (MCHUNX)
+# The Basic Principle
+
+If you think you need `volatile`, think again because you are probably wrong.
+
+# When to use volatile (MCHUNX/INTVAR)
 
 MCHUNX is a type qualifier equivalent to volatile in OS/90 C. Volatile disables optimizations which can cause bugs when a variable is changed outside the compiler's control.
 
-Interrupt service routines, for example, must use volatile for variables because:
-1. Access to that variable may be underway by other code
-2. ISRs are themselves interruptible.
+Interrupt service routines for example, should use volatile for variables because access to that variable may be underway by other code.
 
-# Library Functions and Volatile Variables
+If an ISR has exclusive write access to the variable, there should be no need for volatile.
 
-The kernel exposes library functions to drivers that use data structures and variables. The question is, if other software can access API calls and indirectly modify variables, do API variables have to be marked volatile?
+# When to NOT Use Volatile
 
-The answer is that such variables DO NOT NEED TO BE. Kernel code, including drivers, is non-interruptible. By the next time a function related to a data structure is called, all modifications will have been flushed. Even if an outside program modified a variable in the kernel, it would not be a problem if it is not part of an ISR, as all functions in the kernel are entered regularly. Putting volatile everywhere makes everything harder and causes "discarded qualifier" errors.
+Lock functions are serialized at the compiler level. Once a lock is held, the data being protected can be accessed for whatever purpose desired and there is simply no need for `volatile` because the data is safe from external modification. This means that `volatile` is useless in almost every situation and when used alongside a lock it just removes optimization.
 
-API calls which can be used inside an ISR will use volatile when appropriate. Most calls, however, cannot be called in the interrupt context, and generate fatal errors if this is done.
+Mutex locks theselves are not even volatile and do not need to be because only lock acqure and release macros wil leven modify them, and they will do so atomically. Volatile does nothing to garauntee thread safety.

@@ -1,15 +1,12 @@
 # Preface
 
-KERNL386 has the following properties:
-* Preemptive multitasking using time slices
-* Non-preemtible kernel
-* Non-reentrant
+KERNL386 does:
+* Preemptive multitasking
+* Kernel preemption
 
 ## Terms to Know
 
 Trap frame: When any sort of switch to kernel mode takes place, the registers will be saved on the stack.
-
-Requester/focus/current process: The process to whom the trap frame belongs to. This process is the one that invoked the kernel or was interrupted by an IRQ or exception.
 
 # Interrupts and Exceptions
 
@@ -33,7 +30,16 @@ IRQ#13 may be used to recieve FPU errors.
 
 ## IRQ#13
 
-If a program sets this vector, it expects the FPU to be in native mode. The operating system will send FPU exceptions using the IRQ#13 vector.
+If a program sets this vector, it expects the FPU to be not be in native mode. The operating system will send FPU exceptions using the IRQ#13 vector.
+
+# States of the CPU and Last Context Type
+
+The current context type is always known by the code running, but the kernel needs to know what it just switched out of.
+
+The last context type can be:
+* User
+* Kernel
+* Exception
 
 # Process Control Block
 
@@ -48,21 +54,21 @@ All processes are DPMI/DOS applications and can run in one of the following mode
 * Protected mode 16-bit
 * Protected mode 32-bit
 
-# Events
+# Exceptions
 
-I should change the event system. Maybe I can make the kernel non-reentrancy less of an issue.
+Basic facts about exceptions in OS/90:
+* Exceptions cannot be nested
+* Are indexed using a high-level handler
+* Preemption is blocked __regardless of the current critical section state__
+* Registers of the context that caused it are saved in the register save area
 
-# Worker Threads
+## Entry and Exit
 
-The kernel has a reserve of private worker threads. These threads are invisible to the rest of the system, but are executed with every scheduler tick. Worker threads can be requested by the kernel API. The callback will run once and is pre-emtible. The thread takes a single PVOID argument.
-
-Worker threads can safely call kernel procedures with no concerns of reentrancy.
-
-Some IO operations are tied to worker threads, which produces latency due to having to wait for the next IRQ#0 for it to be scheduled. The advantage is enhanced multitasking.
+This is slightly different from the V86 reflection handler. The register save structure is still used, but because the kernel or user can cause the exception, both contexts are relevant.
 
 # IRQ#0
 
-## PIT COnfiguration
+## PIT Configuration
 
 The timer is configured to fire much faster than default, as the default 18.4 Hz frequency is pathetic for multitasking. Currently it is 1 tick per milisecond, but this can be made even higher.
 
@@ -74,59 +80,199 @@ counter
 
 counter is initialized to the same value as time_slice when a process starts. Every tick reduces the counter by 1. When counter is found to be zero on another IRQ, counter is reassigned to time_slice.
 
-# Fibers
+# Rationale for Kernel Preemtion
 
-Kernel threads are impossible to implement in a non-reentrant and non-preempting kernel, so a different strategy is used. A fiber is a cooperatively tasked version of a thread. They are lightweight and easy to implement. Fibers allow different parts of the kernel space software to give each other time to perform a task without blocking the system.
+I have been perpetually vexed by the idea of having two DOS windows open, and typing DIR into both of them. What happens next? Do we have to wait for one to complete or do they do it simultaneously? Obviously, we want multitasking support, so the latter is the only acceptible solution. Kernel preemtion may not seem necessary just yet, but I __HAVE__ to do it.
 
-The first fiber is the kernel itself. The fibers form a chain and the chain is executed by an IRQ#0 only if the IRQ#0 interrupted user code. If the IRQ#0 interrupted kernel code, it will not run the fibers. This ensures safe reentrance of kernel API calls.
+The inherent problem with V86 calls is that they must complete in their entirety and cannot be preemtped by other processes if the kernel cannot preempt itself. This does not solve the console output program yet.
 
-The register dump of the fiber is slightly different because the segments do not need to be stored. The flags are saved, however.
+We will have idle loop procedures called by IRQ#0 available to all drivers and the kernel. This means that IO can actually be preempted within the driver, with the idle loop being the signal to move on to the next in the queue.
 
-An OS/90 fiber is represented by a structure called KERNEL_FIBER. It contains a simple register dump, local store buffer, and pointer to the next fiber. The fiber procedure takes a pointer to its structure and a pointer to its local storage. The stack pointer in the saved context points to the one provided in this structure. The stack of a fiber is restricted to 256 bytes.
+So basically:
+* I want simultaneous console IO
+* I am going to have an idle loop for kernel mode software to do this
+* The idle loop does us no good for multitasking if all other processes are blocked. What benefit is there to outputting text to two DOS boxes if all other programs are stopped, lagging the whole system?
 
-## Fiber Local Storage (FLS)
+It should be clear by now that OS/90 must support the preemption of kernel code in order to become a truly multitasking operating system. The question is not about if, but how.
 
-Fibers may be instances of the same procedure, so a method of storing local variables is provided. The first parameter to a fiber is a void pointer to the FLS, which can be replaced by a structure pointer if desired. This means that a procedure can be written without having to access the FLS in the fiber structure directly. The FLS is garaunteed to be 128 bytes long.
+# Interrupt Service Routines
 
-## Uses of Fibers
+# The Trap Frame Dillema
 
-A fiber can be used to do certain IO or call API functions that an ISR cannot.
+Each process will get a dedicated kernel stack that is 4096 bytes large. Upon entering the kernel, the stack pointer and stack segment are set on entry to this stack. Because PCBs house two thread contexts, we need to store the registers in two specific fields, user or kernel. The very end of the stack contains the register save structure.
+callcall
+When a reflection vector is called, the assembly stub will enter the kernel mode environment with the IRET instruction. When a process is initialized, the location to enter is the address in which we continue to the kernel.
 
-## Implementation Details
+# Task State Segment
 
-### Yield
+When switching to a user mode context, ESP0 must be set to the value of ESP we want to restore before pusing IRET values onto the stack.
 
-The yield command will use the fiber struct pointer to get the address of the context to switch from. Returning with a FIB_YIELD will save the context and let the fiber controller execute the next fiber.
+# V86 INT Calls and Virtual IDT/IVT
 
-## Examples
+Only one program can have the kernel enter real mode on its behalf at a given point in time, as DOS and the BIOS cannot handle reentrance. This is not referring to processes already in real mode, but processes requesting a service that is in real mode.
 
-```c
+Virtual 8086 mode emulation of special instructions like INT requires the general protection handler, so how are we supposed to make this work if OS/90 cannot schedule tasks while handling an exception? The answer is that we do NOT use #GP for INT imm8 at all.
 
-KERNEL_FIBER kf;
+To solve this problem, we set the IOPL to three for all processes and the IOPB denies all access. The IOPL does not override the IOPB, but it does allow for calling IDT entries directly from virtual 8086 mode. Each IDT entry points to a procedure that will pass it through the V86 chain. This does not involve an exception, which means that the kernel can preempt itself while doing this.
 
-//
-// This fiber will never terminate.
-//
-VOID FiberProc(PKERNEL_FIBER self, PVOID fls)
+One potential problem is where the IRQ vectors will be. These vectors are impossible to call from userspace software due to being ring 0, and if they were callable using #GP emulation, preemption would be off due an exception context needed for INT emulation. The base vectors of the PIC are set to avoid the vectors typically used by DOS (21H, 31H, etc).
+
+Another issue is the fact that DPMI requires that real mode and protected mode interrupts are "separated," This would only require us to check the current mode of the process. If a hook exists for the current process mode, it will be called instead. The V86 interface can only apply to calls to real mode.
+
+The INT instruction saves the EIP to return to, which is AFTER the INT instruction.
+
+The vectors used for exceptions and IRQs cannot be modified with the generic modify IDT entry operation and are reported by the DPMI get version call. The fake IRQ vectors get special treatment.
+
+## Calling INT from Kernel Mode
+
+To call INT from kernel mode, a function called ScVirtual86_Int is used. It is a wrapper for EnterV86.
+
+Here is the issue: We need the kernel context to be saved before we enter V86 and the context must be restored afterward. One solution is to have yet another process-local context. The problem is, direct access to real mode cannot be threaded anyway, so this is a waste of previous space in the process control block.
+
+Directly accessing real mode with EnterV86 must block preemption. If we do not and instead call a hook procedure, the system is still in protected mode and can be preempted.
+
+Therefore, the correct solution is to save registers using a pointer parameter to a stack-allocated structure. The register output of the command is reflected in this structure.
+
+There are two version of EnterV86. One uses 16-bit parameters and the other is 32-bit. This is to save stack space because almost all DOS functions use 16-bit registers.
+
+## EnterV86 Implementation
+
+We can safely clobber EAX, EBX, ECX, and EDX. ESI, EDP, and EBP must be saved onto the stack by EnterV86 before entry.
+
+## ExitV86
+
+The only way we can exit V86 is by any external or internal interrupt. To go back to the caller of EnterV86 is by a #GP exception caused by executing IRETW. The ESP0 of the TSS is set so that the stack is exactly in the state that it was before calling IRET and entering V86.
+
+## Chaining to the Old Handler?
+
+DOS programs would hook interrupts by saving the old vector and setting a new one. The new one would check the "signature" of the function call (often in AH or AX) and handle the interrupt itself or simply enter the next handler otherwise by pushing the IRET frame on the stack and jumping to the old vector.
+
+It is unlikely that a program will set an interrupt handler for nothing more than using it to call its own code. We may need a way to handle chaining, and in a way local to each process.
+
+# Preemption Points
+
+There are two ways that a program can cause the CPU to enter kernel mode
+* Exceptions
+* INT imm8 calls
+
+Exceptions are entered with interrupts off. Preemption is always off even when interrupts are enabled because a process could cause an exception while another is being handled. This would __not__ lead to a double fault, as nested exceptions are allowed on x86, but OS/90 does not support this at all.
+
+System calls will certainly allow for kernel preemption unless a critical section blocks it.
+
+One way to do this is to allow multiple programs to be in kernel mode, but use a big kernel lock to prevent access to the kernel while it is busy. The kernel will attempt to acquire the lock before doing anything else. Switching tasks could then enter a different kernel context where it will also try to acquire the lock.
+
+The disadvantage of the BKL is the high latency. If a program enters kernel mode and the kernel is currently busy, it is a terrible idea to simply wait until the next IRQ#0 decides to switch context because it wastes a huge amount of CPU time.
+
+## Solutions to Kernel Lock Latency
+
+Here are some solutions to the latency of a big kernel spinlock. These are not all mutually exclusive.
+
+### Solution #1: Manually Yield Time Slice
+
+One solution is to yield the kernel time slice and let another process run if the lock cannot be acquired. Linux for example, allows kernel threads to yeild their time slice with `sched_yield`. This would involve manually switching the context to another thread independently of the scheduler tick procedure.
+
+Advantages:
+* It basically solves the problem
+Disadvantages:
+* How do I implement this? (TBD)
+
+### Solution #2: Lock Granularity
+
+We could avoid a BKL by using fine-grain locks for thing like the process list and the memory manager. This way, the CPU can get work done by running the reentrant parts of the kernel. I think this might be a bit complicated and hard to get right.
+
+# Process Control Block and Preemption
+
+## Structure
+
+The process control block is garaunteed to be 8192 bytes long and aligned to an 8K boundary. It contains a register dump of the kernel thread and user thread, as well information about the process. The process control blocks form a circular linked list.
+
+The first 4096 bytes is garaunteed to contain process information, with register dumps of the kernel and user thread being at the start. The second 4096 bytes are the kernel stack.
+
+## Bimodal Threads
+
+The process control block implements something that I call "bimodal thread." This means that the PCB contains two thread contexts, one for the kernel and one for the user. A process can be in kernel mode or in user mode.
+
+## The Current Process
+
+The current process is the process that has caused a switch to kernel mode. This does not include interrupt requests. The PCB can be obtained by simply and'ing the stack pointer with `~0x1FFF`.
+
+## Kernel Stack
+
+Each program gets an independent kernel stack. This is a requirement because there can be more than one kernel thread. The task state segment has an entry called ESP0 that defines where the stack pointer will be set to when the CPU enters ring zero from ring three. This is always saved to the TSS when entering the program in user mode.
+
+The kernel stack is the last part of the process control block.
+
+# Changing Process Focus
+
+# States of Processes
+
+Keeping track of the process states is slightly more complicated in a preemptible kernel because multiple programs can enter the kernel concurrently.
+
+|Name|Definition|
+-|-
+PS_ACTIV   | Active
+PS_BLOCK | Blocked
+PS_KERNL | In kernel mode
+|
+PS_FINTS | Scheduled for fake IRQ on next time slice
+PS_FIINP | Currently handling fake IRQ
+|
+PS_FXNTS | Scheduled for exception hook on next time slice
+PS_FXINP | Currently handling exception hook
+
+If an active process is scheduled, it will be executed for the duration of the time slice.
+
+A blocked process will never be scheduled until it is unblocked.
+
+IRQ and exception hooks will be scheduled normally, but these operations can never be interrupted by anything else, so we need to know if we are currently within it.
+
+A process that is currently in kernel mode will be scheduled but within the ring zero context. A kernel thread does not get blocked, we have the global lock for that.
+
+# Critical Sections
+
+Critical sections can turn off interrupts and preemption by proxy, or only turn off preemption.
+
+But what happens if a critical section is called while in another? Enabling interrupts when they are turned off or enabling preemtion when it is turned off cannot be allowed because this would jeapardize the intended atomicity of the original critical section. Basically, we can turn stuff off, but we cannot turn it back on until we reach the highest level. We do not want to leave something off when transfering to the higher level because we should not have to disable interrupts for the rest of one procedure just because another one needs them off.
+
+It could be possible that in one critical section we can have interrupts but no preemption, but in a nested section we need interrupts disabled too. Once we exit a nested context like this, we should be able to restore the original critical state so that the expected behavior takes place.
+
+Here is how it works:
+```c++
+VOID ExampleFunction(VOID)
 {
-    KeLogf("Hello, fiber world!\n\r");
-    while (1) return FIB_YIELD;
-}
+    EnterCriticalRegion(CR_NT | CR_NI);
 
-VOID SetupFiber()
-{
-    STATUS stat = ScRegisterFiber(&kf, FiberProc);
-    if (stat == OS_ERROR_GENERIC)
-    {
-        KeLogf("Failed to register fiber\n\r");
-    }
-}
+    KeLogf("Hehe, you can't interrupt me!\n\r");
 
+    ExitCriticalRegion(CR_NT | CR_NI);
+}
 ```
 
-## Fiber Control
+## When Critical Sections are NOT Used
 
-Saving the context requires pushing many values to the stack, which is not efficient. The call instruction allows us to save the
+Exception handlers never enter critical sections. Exceptions enter with interrupts off and keep them. Exceptions get special treatment and the preemption count is simply ignored.
+
+# Spinlocks
+
+There is no need for the LOCK instruction because anything on a single processor system that runs in one instruction is garaunteed to be atomic.
+
+```c
+#define AcquireMutex(m)\
+__asm__ volatile (\
+    "spin%=:\n\t"\
+    "bts $0,%0\n\t"\
+    "jc spin%="\
+    :"=m"(m)\
+    :"m"(m)\
+);
+
+#define ReleaseMutex(m)\
+__asm__ volatile (\
+    "btr $0,%0":"=m"(m)::"memory"\
+);
+```
+
+# The IRQ#0 Handler
 
 # Starting the Scheduler
 
@@ -137,7 +283,7 @@ The kernel exits the KernelMain function and goes back to IA32.asm, with the sta
 # IO Scheduling
 
 DOS has the following predefined file handles:
-* STDIN  (0)
+* STDIN (0)
 * STDOUT (1)
 * STDERR (2)
 * STDAUX (3)
@@ -158,67 +304,6 @@ Protected mode DOS programs cannot execute subprocesses and will be terminated i
 
 # Reenterancy of the Kernel
 
-The kernel is non-reentrant, meaning only one thread can run in kernel mode. Non-reentrancy means that a piece of code will break if it is interrupted by another invokation of itself in another thread. ISR's are fully atomic and do not reenter, but exceptions can interrupt ISRs and vice versa. We need to be able to call certain functions within interrupt contexts that cannot be implemented in a pure reentrany way, so a simple critical section is used by the callee. Interrupts are blocked while inside, which makes reentrance completely impossible and allows non-reentrant routines to be called from interrupts. Some functions can be safely called from an ISR and are marked with an ASYNC_APICALL in their header declaraction. Within an interrupt service routine, only such functions may be called.
-
-Critical sections are implemented as the following:
-```c
-#define KeUseCritical DWORD __critical_eflags
-
-#define KeBeginCritSec \
-    __asm__ volatile(              \
-        "pushfd" ASNL              \
-        "pop %0" ASNL              \
-        "cli"                      \
-        :"=rm"(__critical_eflags)::);
-
-#define KeEndCritSec \
-    __asm__ volatile(\
-        "push %0" ASNL\
-        "popfd"   ASNL\
-        ::"rm"(__critical_eflags));
-
-```
-
-Example of this being used:
-```c
-PTHREAD ASYNC_APICALL ScGetCurrentPCB(VOID)
-{
-    PTHREAD ret;
-    UseCritical;
-
-    KeBeginCritSec;
-    ret = current_pcb;
-    KeEndCritSec;
-
-    return ret;
-}
-```
-
-Using a critical section to run a non-reentrant kernel function from an interrupt does NOT garauntee safety, because the non-reentrant function may have began to execute and interrupts were not off when it started. Any exception generated from a critical section will potentially jeopardize the atomic nature of the section.
-
-Not all asynconous events have atomic context concerns. For example, the system call ISR can call whatever functions it wants to because it will only be called by the user.
-
-Memory allocation, for example, cannot be invoked in an ISR, so it is not implemented with critical sections.
-
-# Interrupt Service Routines
-
-An ISR is defined as a routine that runs when the CPU calls an IDT entry. There are three sources of interruptions:
-* Exception
-* Software interrupt
-* External hardware
-
-IRQs are index dispatched and use high-level handlers. From an IRQ ISR, the kernel is not reentrant.
-IRQs are a restricted context. The may not:
-* Cause a fault
-* Access virtual memory
-* Allocate memory
-* Call any function that is not marked ASYNC
-* Enable interrupts
-
-An asynchronous event does not imply non-reentrancy of the kernel. In the case of exceptions, they can reenter if they switched from userspace. If the kernel were to, for example, cause a page fault by accessing virtual memory, there is no possibility of reentrancy issues since virtual memory functions use critical sections when needed.
-
-Software interrupts can be called directly by userspace only and are always reentrant-safe.
-
-## PIC Emulation
+# PIC Emulation
 
 The programmable interrupt controller must be emulated to a certain degree because software that uses an IRQ will have to communicate with it directly. ICWs are currently ignored, but the IMR and ISR are supported. EOI has no special significance.

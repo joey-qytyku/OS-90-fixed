@@ -8,6 +8,10 @@
         "debug.h": "c",
         "farcall.h": "c",
         "bitarray.h": "c",
-        "8259.h": "c"
+        "8259.h": "c",
+        "*.def": "cpp",
+        "*.inc": "asm-intel-x86-generic",
+        "ia32.h": "c",
+        "*.tcc": "cpp"
     }
 }

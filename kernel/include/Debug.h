@@ -8,10 +8,11 @@
 
 typedef VOID (*OUTPUT_DRIVER)(BYTE);
 
-extern VOID APICALL Hex32ToString(DWORD, PBYTE);
-extern VOID APICALL Uint32ToString(DWORD, PBYTE);
-extern VOID APICALL KeLogf(OUTPUT_DRIVER, IMUSTR restrict, ...);
-extern VOID FatalError(DWORD);
+extern VOID KERNEL Hex32ToString(DWORD, PBYTE);
+extern VOID KERNEL Uint32ToString(DWORD, PBYTE);
+extern VOID KERNEL KeLogf(OUTPUT_DRIVER, IMUSTR restrict, ...);
+extern VOID KERNEL FatalError(DWORD);
+
 extern VOID KeWriteAsciiz(OUTPUT_DRIVER, IMUSTR);
 extern VOID _KernelPutchar(BYTE ch);
 

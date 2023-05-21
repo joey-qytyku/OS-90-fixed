@@ -24,9 +24,10 @@
 
 ;Requires the error code to be
 ;pushed off stack for exceptions that use it
+
+; remove bogus esp, will this break something
 %macro SaveTrapRegs 0
         push    ebp
-        push    esp ; Meaningless
         push    edi
         push    esi
         push    edx
@@ -42,7 +43,6 @@
         pop     edx
         pop     esi
         pop     edi
-        add     esp,4
         pop     ebp
 %endm
 
@@ -281,23 +281,117 @@ ContAsyncISR:
         RestTrapRegs
         iret
 
-[section .data]
+;===============================================================================
+; Entered with interrupts disabled by IDT. This will only be caused if the INT
+; instruction was called. This is the only way for a process to enter kernel
+; mode with preemption enabled. This will enter the kernel mode thread using
+; the process-local stack which contains the register save structure.
+; These vectors should never be called by ring-0 software or a fatal error
+; will occur.
+;
+; This assembly stub is meant to be reentrant. It only uses thread local data.
+; VERY performance sensitive!
+;
+;
+        align   64
+LowHandleIntV86Reflection:
+        ;The stack is assumed to be what it would look like if a switch to
+        ;ring 0 from 3 happened. In the case of virtual 8086 mode, segment
+        ;registers were pushed on the stack first. If it was protected mode
+        ;we still have to save the segment registers.
 
-[section .bss]
-global _ErrorCode, _ExceptIndex, _bWasV86
+        SaveTrapRegs
 
-_global_trap_frame RESD 1
+        mov     ebx,esp
+        and     ebx,~1FFFh
+
+        test    dword [ss:esp+IFRAME._eflags],(1<<17)
+        setnz   [ss:ebx+RSAVE.u_was_v86]
+        jnz     .WasV86
+
+        ; Not V86
+
+        ; We need to save the segment registers
+        mov     [ss:ebx+RSAVE.u_gs],gs
+        mov     [ss:ebx+RSAVE.u_es],es
+        mov     [ss:ebx+RSAVE.u_fs],fs
+        mov     [ss:ebx+RSAVE.u_ds],ds
+
+        ; Go back to the user mode thread
+
+.WasV86:
+        ; Here, we have to copy the data segment registers from the stack
+        ; and place them in RSAVE
+
+
+.RestOfProcedure:
+
+        ; Regardless of V86 or not, we need to set our data segment registers
+        ; to the proper values.
+        mov     eax,ss
+        mov     ds,eax
+        mov     es,eax
+        mov     gs,eax
+        mov     fs,eax
+
+        ; Move EFLAGS, CS, SS, and EIP to the register save area
+        ; The order in rsave is the same as on the stack rn.
+        lea     esi,[esp+IFRAME._eip]
+        lea     edi,[ebx+RSAVE.u_eip]
+        mov     ecx,4
+        cld
+        rep     movsd
+
+        push    ebx     ; Save EBX, we will need it later
+        sti
+        call    HandleIntV86Reflection
+        cli
+        pop     ebx
+
+        ; Likely branch assumed to be V86. Will this matter though?
+        cmp     dword [ebx+RSAVE.u_was_v86],0
+        jnz     .ReturnToPM
+
+.ReturnToV86:
+
+        ; If we were in V86 mode, we need to place the current segment registers
+        ; into the V86 IRET stack frame. Sometimes, segment registers
+        ; are modified by V86 hooks. We can just string copy them
+        mov     ecx,4                           ; 5
+        lea     esi,[ebx+RSAVE.u_dsegs]         ; 4
+        lea     edi,[esp+IFRAME._dsegs]         ; 4
+        cld                                     ; 1
+        rep     movsd                           ; 2
+
+        ; We cannot do this for protected mode, so skip to the common procedure
+        jmp     .ReturnCommon
+.ReturnToPM:
+        ; We must manually write the data segment registers
+        ; Moving them directly works as long as we do DS last
+        mov     es,word [ebx+RSAVE.u_es]
+        mov     fs,word [ebx+RSAVE.u_fs]
+        mov     gs,word [ebx+RSAVE.u_gs]
+        mov     ds,word [ebx+RSAVE.u_ds]
+
+.ReturnCommon:
+        ;Write EFLAGS, CS, SS, EIP onto the stack
+        ;The data segment registers may be destroyed here, so we must
+        ;use a segment override.
+
+        mov     ecx,4
+        lea     esi,[ss: ebx+RSAVE.u_eip]
+        lea     edi,[ss: esp+IFRAME._eip]
+        rep     movsd
+
+        RestTrapRegs
+        iret
+
+        section .bss
+
+        global _ErrorCode, _ExceptIndex
 
 _dwErrorCode    RESD    1
 _dwExceptIndex  RESD    1
-_bWasV86        RESB    1
-_bSregs32       RESB    1   ; LOCAL
-
-old_es:         RESW    1
-old_ds:         RESW    1
-old_fs:         RESW    1
-old_gs:         RESW    1
 
 ; DO NOT MAKE THIS GLOBAL
-dwActualIRQ:
-    RESD    1
+dwActualIRQ     RESD    1
