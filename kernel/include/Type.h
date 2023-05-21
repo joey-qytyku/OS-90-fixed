@@ -44,8 +44,18 @@ OS_FEATURE_NOT_SUPPORTED,
 OS_OUT_OF_MEMORY
 };
 
-#define offsetof(st, m) \
-    ((size_t)&(((st *)0)->m))
+
+// Assembly-style address plus offset addressing without using casts
+// and impeding readability
+//
+// This will automatically get the address of the variable supplied.
+// Should work on an array by just passing the name.
+//
+#define BYTE_PTR(var, off) *(PBYTE) (&var+off)
+#define WORD_PTR(var, off) *(PWORD) (&var+off)
+#define DWORD_PTR(var,off) *(PDWORD)(&var+off)
+
+#define offsetof(st, m) ((DWORD)&(((st *)0)->m))
 
 #define ZERO_STRUCT {0}
 
@@ -58,7 +68,9 @@ OS_OUT_OF_MEMORY
 #define ASNL "\n\t"
 
 #define ASM_LINK __attribute__(( regparm(0) ))
-#define APICALL ASM_LINK
+#define APICALL  __attribute__(( regparm(0) ))
+
+#define APICALL_REGPARM(x) __attribute__(( regparm(x) ))
 
 // A function with this attribute is reentrant and can execute successfully
 // even if it is interrupted. ISRs can ONLY call reentrant functions.
@@ -67,7 +79,6 @@ OS_OUT_OF_MEMORY
 // The BSWAP instruction is only supported by i486 and above
 // but this is only a macro. I figured this out myself :)
 #define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) | ((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
-
 
 // Volatile variables can change at any time without the
 // compiler being aware. This applies to ISRs and drivers
@@ -129,5 +140,7 @@ static inline VOID C_memset(PVOID a, DWORD val, DWORD count)
 {
     __builtin_memset(a,val,count);
 }
+
+#define FENCE __asm__ volatile ("":::"memory")
 
 #endif /* TYPE_H */

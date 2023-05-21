@@ -11,14 +11,13 @@
 
 #include <PnP_Mgr.h>
 #include <Linker.h>
-#include <Atomic.h>
 #include <Type.h>
 #include <Debug.h>
 
 #define PNP_ROM_STRING BYTESWAP(0x24506e50) /* "$PnP" */
 #define NUM_INT 16 /* For consistency */
 
-static IMUSTR driver_name = "Kernl386.exe";
+static IMUSTR driver_name = "KERNL386.EXE";
 static IMUSTR description = "Kernel plug-and-play support";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,9 +126,10 @@ FP_IRQ_HANDLR InGetInterruptHandler(VINT irq)
 // The owner will be the kernel. This does not matter much because the device
 // is legacy.
 //
-STATUS InAcquireLegacyIRQ(VINT fixed_irq,
-                          FP_IRQ_HANDLR handler)
-{
+STATUS InAcquireLegacyIRQ(
+    VINT fixed_irq,
+    FP_IRQ_HANDLR handler
+){
     if (InGetInterruptLevel(fixed_irq) == BUS_INUSE)
     {
         return OS_ERROR_GENERIC;

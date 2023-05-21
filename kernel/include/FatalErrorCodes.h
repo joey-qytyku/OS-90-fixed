@@ -1,0 +1,6 @@
+#ifndef FATAL_ERROR_H
+#define FATAL_ERROR_H
+
+#define EXTDOS_FATAL_ERROR 0xDEADABCD
+
+#endif

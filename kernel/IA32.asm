@@ -5,7 +5,6 @@
 
 %define ACCESS_RIGHTS(present, ring, type) (present<<7 | ring<<6 | type)
 
-
 ; END DEFINES
 ;===============================================================================
 
@@ -108,23 +107,11 @@ aqwGlobalDescriptorTable:
         DB      ACCESS_RIGHTS(1,0,TYPE_LDT)
 
 Exceptions:
-        DD      LowDivide0
-        DD      LowDebug
-        DD      LowNMI
-        DD      LowBreakpoint
-        DD      LowOverflow
-        DD      LowBoundRangeExceeded
-        DD      LowInvalidOp
-        DD      LowDevNotAvail
-        DD      LowDoubleFault
-        DD      LowSegOverrun
-        DD      LowInvalidTSS
-        DD      LowSegNotPresent
-        DD      LowStackSegFault
-        DD      LowGeneralProtect
-        DD      LowPageFault
-        DD      0
-        DD      LowAlignCheck
+        %assign i 0
+%rep 17
+        DD      LowE %+ i
+        %assign i i+1
+%endrep
 
         section .bss
 
@@ -147,6 +134,7 @@ GdtInfo:
 IdtInfo:
         DW      (256*8)-1
         DD      aqwInterruptDescriptorTable
+
 
         section .text
 
@@ -190,10 +178,10 @@ static STATUS SetupX87(VOID)
 ;virtualize IO in ring 3, so it must be reset after changing.
 
 IaUseDirectRing3IO:
-        mov word [adwTaskStateSegment+64h],104
+        mov     word [adwTaskStateSegment+64h],104
         ret
 IaUseVirtualRing3IO:
-        mov word [adwTaskStateSegment+64h],0FFFFh
+        mov     word [adwTaskStateSegment+64h],0FFFFh
         ret
 
 GetESP0:
@@ -204,11 +192,20 @@ SetESP0:
         mov     dword[adwTaskStateSegment+4],eax
         ret
 
+;-------------------------------------------------------------------------------
+; System calls use a call gate where the offset is treated as the function
+; code. The high-level system call handler is in C and GCC cannot handle
+; far call stack frames, so we must implement a thunk. The high-level
+; handler will basically be the same as any other interrupt handler.
+;
+LowSyscall:
+
+        retf
+
 ; Different bits tell OCWs and ICWs appart in CMD port
 ; Industry standard architecture uses edge triggered interrupts
 ; 8-byte interrupt vectors are default (ICW[:2] = 0)
 ; which is correct for protected mode.
-
 RemapPIC:
         ;ICW1 to both PIC's
         mov     al,ICW1 | ICW1_ICW4
@@ -251,8 +248,8 @@ IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
         leave
         ret
 
+        ;CDECL(DWORD index, DWORD attributes, DWORD)
 _SetIntVector:
-        ;ECX=Vector, EDX=EIP, AL=Attributes
         mov     edx,[esp+12]
         movzx   eax,byte[esp+8]
         mov     ecx,[esp+4]
@@ -392,14 +389,6 @@ Cont:
         ;We will now enter the first process
         ;The return value of KernelMain is the address to the PCB of the
         ;INIT program
-
-    ._eip:   RESD 1
-    ._cs:    RESD 1
-    ._eflags:RESD 1
-
-    ._esp:   RESD 1
-    ._ss:    RESD 1
-
 
         ;Create the IRET frame
         push    dword [eax+_ss]

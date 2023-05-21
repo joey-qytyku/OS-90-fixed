@@ -1,39 +1,39 @@
 %ifndef KERNEL_INC
 %define KERNEL_INC
 
-STRUC TF
-    ._eax:   RESD 1
-    ._ebx:   RESD 1
-    ._ecx:   RESD 1
-    ._edx:   RESD 1
-    ._esi:   RESD 1
-    ._edi:   RESD 1
-    ._ebp:   RESD 1
-    .__esp:  RESD 1
+%define CTX_USER   1
+%define CTX_KERNEL 0
 
-    ._eip:   RESD 1
-    ._cs:    RESD 1
-    ._eflags:RESD 1
+STRUC REG_DUMP
+._pm_es
+._pm_ds
+._pm_fs
+._pm_gs
+._eax:          RESD 1
+._ebx:          RESD 1
+._ecx:          RESD 1
+._edx:          RESD 1
+._esi:          RESD 1
+._edi:          RESD 1
+._ebp:          RESD 1
+.__esp:         RESD 1
 
-    ._esp:   RESD 1
-    ._ss:    RESD 1
+._eip:          RESD 1
+._cs:           RESD 1
+._eflags:       RESD 1
 
-    ._es:    RESD 1
-    ._ds:    RESD 1
-    ._fs:    RESD 1
-    ._gs:    RESD 1
+._esp:          RESD 1
+._ss:           RESD 1
 
-    ._size:  RESD 1
+._rm_es:        RESD 1
+._rm_ds:        RESD 1
+._rm_fs:        RESD 1
+._rm_gs:        RESD 1
+
+._size:  RESD 1
 ENDSTRUC
 
 %endif
-
-%define KERNEL_DSEC section .data
-%define KERNEL_CSEC section .text
-
-%define END_KERNEL_DSEC
-%define END_KERNEL_CSEC
-
 
 %macro retif 1
         j%-1    %%Skip

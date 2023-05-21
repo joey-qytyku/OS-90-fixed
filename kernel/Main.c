@@ -19,13 +19,4 @@ PVOID KernelMain(VOID)
 {
     TRACE("hello\n\r");
     InitIA32();
-
-    DWORD regparm[RD_NUM_DWORDS];
-    regparm[RD_EAX] = (0xE << 8) | 'A';
-    regparm[RD_EBX] = 0;
-    regparm[RD_SS]  = 0x9000;
-    regparm[RD_GS]  = 0xBEEF;
-    regparm[RD_ESP] = 0xFFFE;
-
-    ScVirtual86_Int(regparm, 0x10);
 }

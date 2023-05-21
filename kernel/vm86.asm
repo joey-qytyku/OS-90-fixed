@@ -15,19 +15,11 @@
 ;   with OS/90. If not, see <https://www.gnu.org/licenses/>.
 ;===============================================================================
 
-%include "Kernel.inc"
+%include "include/Kernel.inc"
 
-global ScEnterV86
-global ScReenterCallerV86
-
-[section .text]
-
-;-----------------------------
-;Re-enter caller of ScEnterV86
-
-;16-bit pre-emptive VM -> INT 21H -> 32-bit kernel -> Serviced in VM86
-;Stack frame is not created using ENTER because
-;ESP+4 is the first argument
+        global  ScEnterV86
+        global  ScReenterCallerV86
+        section .text
 
 ;--------------------------------------------------------------
 ; Brief: Enter V86
@@ -39,17 +31,17 @@ global ScReenterCallerV86
 ; software and is only for calling DOS software. Because of this, any call to
 ; this procedure HAS to be coupled with a re-entry call in an exception
 ;
+; The output registers are copied by the GP handler from the trap frame to the
+; context provided to EnterV86.
+;
 ; ESP points to the last pushed element. Pushing first decrements by 4
 ; before writing the value.
-;
 
         extern  SetESP0, GetESP0    ; Argument goes in EAX
 ScEnterV86:
         ;The cdecl ABI requires that registers EBP, EDI, EBX, ESI
         ;are not clobbered, the rest are up to the caller
         ;after a function call. The other ones can be clobbered.
-
-        xchg bx,bx
 
         pushf
         push    ebx
@@ -85,11 +77,17 @@ ScEnterV86:
         push    dword [ebx + TF._eip]
 
         mov     ebx,[ebx + TF._ebx]
-        ; [hacker voice] I'm in
 
+        ;Set the last switched flag to user before entering. This is because
+        ;virtual 8086 is a ring 3 context.
+        mov     byte [last_mode],CTX_USER
+
+        ; [hacker voice] I'm in
         iret
 
-
+;-------------------------------------------------------------------------------
+;     Re-enter caller of ScEnterV86
+;
 ; The only sane place to use ScOnExceptRetReenterCallerV86
 ; is an exception handler, like #GP. It does not have to be at level one.
 ; It could be at at any call level within an exception handler.
@@ -129,4 +127,6 @@ ScOnExceptRetReenterCallerV86:
 
         ret
 
-[section .data]
+        section .data
+
+        section .bss

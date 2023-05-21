@@ -67,7 +67,7 @@ typedef VOID (*FP_EVENT_HANDLER) (PVOID);
 // The parameters are passed using regparm(2)
 
 __attribute__(( regparm(2) ))
-typedef VOID (*FP_IRQ_HANDLR)(PDWORD);
+typedef VOID (*FP_IRQ_HANDLR)(VOID);
 typedef BYTE RESOURCE_INF;
 
 #define CREATE_IRQ_HANDLER(name) __attribute__(( regparm(2) )) name

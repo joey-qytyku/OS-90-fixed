@@ -37,3 +37,16 @@ Sun Apr 2 2023
 Look for anything that has a macro minus one. That is sus.
 
 The for condition represents the count, not the limit of the index.
+
+== 29 Apr 2023 ==
+
+Now I need a proper plan so that I can finish OS/90 at some point and not turn it into a time sink.
+
+The steps I will take:
+* Get V8086 to work
+* Get interrupt captures to work
+* Make the scheduler and interrupt handling to work
+
+== 2 May 2023
+
+I must admit that I have a SERIOUS code quality problem in Scheduler.c. It is a complete mess. Maybe the comment subsections that I made are only creating more problems. It is time that I separate the file. V86 can stay in the same file, but other things have to go elsewhere.

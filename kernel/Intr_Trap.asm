@@ -52,9 +52,8 @@
 ;===============================================================================
 ; IMPORTS
         EXTERN  last_mode
-        EXTERN  InMasterDispatch
-        EXTERN  ScExceptionDispatch
-
+        EXTERN  ExceptionDispatch
+        EXTERN  InterruptDispatch
 ; END IMPORTS
 ;===============================================================================
 
@@ -66,125 +65,6 @@
 ;===============================================================================
 
 [section .text]
-
-;------------------------------------------------------------------
-;In case of a spurious interrupt, the ISR will be zero in the PIC
-;chip that caused it, so the computer cannot differentiate between
-;interrupts unless different ISRs are used
-;
-;We only need to know the actual IRQ of #15 and #7 because those vectors
-;are the only ones capable of spurious interrupts. The second parameter
-;passed to the master dispatcher will be zero if any other IRQ or 15/7.
-;Otherwise, it is not important, we get it from the PICs ISR.
-;------------------------------------------------------------------
-;Each handler is aligned to four bytes.
-
-        align   4
-Low7    push byte 7
-        jmp short ContinueIRQ
-Low15   push byte 15
-        jmp short ContinueIRQ
-LowRest:
-        push byte 0
-
-ContinueIRQ:
-    pop     dword [dwActualIRQ]
-    SaveTrapRegs
-    lea     eax,[esp+48]
-    mov     edx,[dwActualIRQ]
-    call    InMasterDispatch
-
-    RestTrapRegs
-    iret
-
-global LowDivide0
-LowDivide0:
-    push    byte 0
-    jmp     short ContinueExcept
-
-global LowDebug
-LowDebug:
-    push    byte 1
-    jmp     short ContinueExcept
-
-global LowNMI
-LowNMI:
-    push    byte 2
-    jmp     short ContinueExcept
-
-global LowBreakpoint
-LowBreakpoint:
-    push    byte 3
-    jmp     short ContinueExcept
-
-global LowOverflow
-LowOverflow:
-    push    byte 4
-    jmp     short ContinueExcept
-
-global LowBoundRangeExceeded
-LowBoundRangeExceeded:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 5
-    jmp     short ContinueExcept
-
-global LowInvalidOp
-LowInvalidOp:
-    push    byte 6
-    jmp     short ContinueExcept
-
-global LowDevNotAvail
-LowDevNotAvail:
-    push    byte 7
-    jmp     short ContinueExcept
-
-global LowDoubleFault
-LowDoubleFault:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 8
-    jmp     short ContinueExcept
-
-global LowSegOverrun
-LowSegOverrun:
-    push    byte 9
-    jmp     short ContinueExcept
-
-global LowInvalidTSS
-LowInvalidTSS:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 10
-    jmp     short ContinueExcept
-
-global LowSegNotPresent
-LowSegNotPresent:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 11
-    jmp     short ContinueExcept
-
-global LowStackSegFault
-LowStackSegFault:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 12
-    jmp     short ContinueExcept
-
-global LowGeneralProtect
-LowGeneralProtect:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 13
-    jmp     short ContinueExcept
-
-global LowPageFault
-LowPageFault:
-    pop     dword [ss:_dwErrorCode]
-    push    byte 14
-    jmp     short ContinueExcept
-
-global LowFloatError
-LowFloatError:
-    push    byte 16
-    jmp     short ContinueExcept
-global LowAlignCheck
-LowAlignCheck:
 
 ;-------------------------------------------------------------------------------
 ; Segment registers are destroyed after exiting virtual 8086 mode. It is the
@@ -234,84 +114,179 @@ LowAlignCheck:
 ;   RESTORE SREGS
 ;   RESTORE REGS
 ;   IRET
+;
 ;-------------------------------------------------------------------------------
-; New idea for exceptions. Just index a table of handlers in C like with IRQ.
-; Much cleaner that way and it saves some code space.
-; According to my calculations, defining each individually would take up
-; about 510 bytes of code while the other way takes only 136 bytes.
+; Another algorithm that does not avoid segment register loads on ring switches
+; Pseudocode
+; {
+; SAVE REGS
+; SAVE SREGS            -- Even if they are zero, not including stack of course
+; SET KERNEL DSEGS
+;
+; EAX <- ESP + 16
+; CALL HANDLER
+;
+; RESTORE SREGS FROM STACK
+; IRET
+; -- This does actually work, even if they are zeroed
+; -- If we are returning to V86, the correct values
+; -- are automatically loaded upon IRET
+; -- If we are returning to protected mode, the sregs
+; -- are popped off the stack.
+; }
+;
+; The standard register dump structure will have protected mode and real mode
+; segment registers. (DO not use the negative offset?)
+; The PM sregs are pushed to the stack even if they are invalid.
+;
+;IA32 will always flush segment caches upon loads, which is slow, but this
+;algorithm is much simpler and has less branching. In fact, memory is accessed to
+;execute the complex avoidance code, so it may be a lesser of two evils.
 ;-------------------------------------------------------------------------------
-ContinueExcept:
-        ;Serialization is needed for accessing the last mode
-        cli
 
-        ;Only the stack segment is garaunteed to be valid right now
-        ;The selector is the same as the data segment, so use an override
-        pop     dword[ss:_dwExceptIndex]
-        test    dword[ss:esp+8],1<<17
-        setnz   [ss:_bWasV86]
+;------------------------------------------------------------------
+;In case of a spurious interrupt, the ISR will be zero in the PIC
+;chip that caused it, so the computer cannot differentiate between
+;interrupts unless different ISRs are used
+;
+;We only need to know the actual IRQ of #15 and #7 because those vectors
+;are the only ones capable of spurious interrupts. The second parameter
+;passed to the master dispatcher will be zero if any other IRQ or 15/7.
+;Otherwise, it is not important, we get it from the PICs ISR.
+;------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------
+; This code section handles exceptions and IRQs. It then passes control to a high-level
+; dispatcher. The ISRs themselves are different in order to tell them apart.
+; Each entry point must be registered with the IDT as IRQ so that IF=0 on entry.
+; We will enable interrupts later on for exceptions.
+
+    align   4
+LowE0:
+    push    byte 0C0h
+    jmp     ContAsyncISR
+LowE1:
+    push    byte 0C1h
+    jmp     ContAsyncISR
+LowE2:
+    push    byte 0C2h
+    jmp     ContAsyncISR
+LowE3:
+    push    byte 0C3h
+    jmp     ContAsyncISR
+LowE4:
+    push    byte 0C4h
+    jmp     ContAsyncISR
+LowE5:
+    push    byte 0C5h
+    jmp     ContAsyncISR
+LowE6:
+    push    byte 0C6h
+    jmp     ContAsyncISR
+LowE7:
+    push    byte 0C7h
+    jmp     ContAsyncISR
+LowE8:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0C8h
+    jmp     ContAsyncISR
+LowE9:
+    push    byte 0C9h
+    jmp     ContAsyncISR
+LowE10:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0CAh
+    jmp     ContAsyncISR
+LowE11:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0CBh
+    jmp     ContAsyncISR
+LowE12:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0CCh
+    jmp     ContAsyncISR
+LowE13:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0CDh
+    jmp     ContAsyncISR
+LowE14:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0CEh
+    jmp     ContAsyncISR
+LowE15:
+    push    byte 0CFh
+    jmp     ContAsyncISR
+LowE16:
+    push    byte 0D0h
+    jmp     ContAsyncISR
+LowE17:
+    pop     dword [ss:_dwErrorCode]
+    push    byte 0F1h
+    jmp     ContAsyncISR
+Low15:
+    push    byte    8Fh
+    jmp     ContAsyncISR
+Low7:
+    push    byte    87h
+    jmp     ContAsyncISR
+
+ContAsyncISR:
+        pop     byte [ss: .smc+1]
         SaveTrapRegs
-        jz      .NotV86
 
-        ;If it was V86, the sregs are already saved on the stack now
-        jmp     .SetSregs
+        push    gs
+        push    fs
+        push    ds
+        push    es
 
-.NotV86:
-        ;If the interrupt happened while kernel was running, the segments
-        ;are exactly what I want them to be
-        ;If it happened during userspace, they could be anything
-        ;and I cannot clobber them
+        ; Set kernel segment registers to what they should be
+        mov     eax,ss
+        mov     es,eax
+        mov     ds,eax
+        mov     fs,eax
+        mov     gs,eax
 
-        ;Was the context kernel?
-        cmp     byte[ss:last_mode],0
-        setne   [ss:_bSregs32]
-        ;If not, we have to save the segment registers and set selectors
-        je      .SaveAndSetSregs
+.smc:
+        mov     al,0    ; Self-modifying code for the lulz
+        movzx   eax,al
 
-        ;If so, the SREGS are what they should be
-        ;We go straight to the handler
-        mov     byte[ss:_bSregs32],0
-        jmp     .HandleException
+        ; Test if we exited from virtual 8086
+        mov     edx,[esp + REG_DUMP._eflags]
+        bt      edx,17
+        setc    [_bWasV86]
 
-        ;We can either save the sregs and set the kernel selectors
-        ;set them without saving, or just handle directly
-.SaveAndSetSregs:
-        mov     [old_es],es
-        mov     [old_ds],ds
-        mov     [old_fs],fs
-        mov     [old_gs],gs
+        mov     [_global_trap_frame],esp
 
-.SetSregs:
-        mov     ax,ss
-        mov     ds,ax
-        mov     es,ax
-        mov     fs,ax
-        mov     gs,ax
+        ; We have two procedures that we may need to call:
+        ; - ExceptionDispatch
+        ; - InterruptDispatch
+        ; They use regparm(1), so EAX is the first argument
 
-.HandleException:
-        mov     eax,esp
-        call    ScExceptionDispatch
-.End:
-        ;Did we save the segment registers?
-        ;If so, restore them now
-        cmp     byte[_bSregs32],1
-        jne     .NotSaved
-        mov     es,[old_es]
-        mov     ds,[old_ds]
-        mov     fs,[old_fs]
-        mov     gs,[old_gs]
+        bt      eax,6
+        jc      .Exception
+        jmp     .IRQ
 
-.NotSaved:
-        ;Interrupts will go back to their previous state
+.Except:
+        and     al,11000000b
+        call    ExceptionDispatch
+.IRQ:
+        and     al,11000000b
+        call    InterruptDispatch
+
+        pop     es
+        pop     ds
+        pop     fs
+        pop     gs
+
+        RestTrapRegs
         iret
-
-;------------------------------------;
-; Other IA32 exceptions are not used ;
-;------------------------------------;
 
 [section .data]
 
 [section .bss]
 global _ErrorCode, _ExceptIndex, _bWasV86
+
+_global_trap_frame RESD 1
 
 _dwErrorCode    RESD    1
 _dwExceptIndex  RESD    1

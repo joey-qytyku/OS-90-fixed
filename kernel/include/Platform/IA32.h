@@ -41,22 +41,22 @@ typedef DWORD PAGE;
 ///////////////////////////
 
 #define MkTrapGate(vector, dpl, address)\
-    _SetIntVector(vector, 0x80 | dpl<<4 | IDT_INT386, address);
+    {_SetIntVector(vector, 0x80 | dpl<<4 | IDT_INT386, address);}
 
 #define MkIntrGate(vector, address)\
-    _SetIntVector(vector, 0x80 | IDT_INT386, address);
+    {_SetIntVector(vector, 0x80 | IDT_INT386, address);}
 
 #define PnSetBiosDsegBase(base)\
-    IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNP_BIOS_DS*8,\
-    base);
+    {IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNP_BIOS_DS*8,\
+    base);}
 
 #define PnSetOsDsegBase(base)\
-    IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNP_OS_DS*8\
-    (DWORD)base);
+    {IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNP_OS_DS*8\
+    (DWORD)base);}
 
 #define PnSetBiosCsegBase(base)\
-    IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNPCS*8,\
-    (DWORD)base);
+    {IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNPCS*8,\
+    (DWORD)base);}
 
 #define KERNEL_RESERVED_MEM_ADDR _KernelReserved4K
 
@@ -71,37 +71,59 @@ enum {
         GDT_PNPCS       =     7,
         GDT_PNP_OS_DS   =     8,
         GDT_PNP_BIOS_DS =     9,
-        GDT_ENTRIES     =     10
+        GDT_SYSCALL     =     10,
+        GDT_ENTRIES     =     11
 };
 
 // Previously, I used a interrupt frame structure. Instead of using that bloat,
 // I just have an array of DWORDs and index them with this. Less code and does
 // exactly the same thing. These are array indices. They are NOT offsets.
 // Not all values are valid, depending on the context.
+//
+// When exiting ring 3, we need to save the segment registers. If it was V86
+// the data segment registers are allready pushed to the stack. If not, they
+// have to be manually saved.
+//
+// The solution here is slightly unusual, but most of the time, we will know
+// exactly segmetn register ones should be accessed, and we have to check if
+// it was a real mode or protected mode client.
+//
+// For example, a V86 handler can be written knowing that it will use real mode
+// segments. In cases where there is ambiguity, it will be necessary to check
+// which mode it exited.
+//
 enum {
-    RD_EAX = 0,
-    RD_EBX = 1,
-    RD_ECX = 2,
-    RD_EDX = 3,
-    RD_ESI = 4,
-    RD_EDI = 5,
-    RD_EBP = 6,
-    _RD_ESP = 7,
-    RD_EIP = 8,
-    RD_CS  = 9,
+    RD_PM_ES = 0,
+    RD_PM_DS = 1,
+    RD_PM_FS = 2,
+    RD_PM_GS = 3,
+    RD_EAX   = 4,
+    RD_EBX   = 5,
+    RD_ECX   = 6,
+    RD_EDX   = 7,
+    RD_ESI   = 8,
+    RD_EDI   = 9,
+    RD_EBP   = 10,
+    _RD_ESP  = 11,
+    RD_EIP   = 12,
+    RD_CS    = 13,
 
-    RD_EFLAGS = 10,
+    RD_EFLAGS = 14,
 
     // In case of inter-segment switch, there are valid indices
-    RD_ESP = 11,
-    RD_SS  = 12,
+    RD_ESP = 15,
+    RD_SS  = 16,
 
     // In case of inter-segment switch and VM=1, these are pushed to stack
-    // before entry and saved on stack when exiting
-    RD_ES = 13,
-    RD_DS = 14,
-    RD_FS = 15,
-    RD_GS = 16,
+    // by the CPU
+    //
+    // In case of inter-segment switch and VM=0, the protected mode segment
+    // selectors must be saved. The will be stored in a different location.
+    //
+    RD_V86_ES = 17,
+    RD_V86_DS = 18,
+    RD_V86_FS = 19,
+    RD_V86_GS = 20,
     RD_NUM_DWORDS
 };
 
@@ -118,6 +140,18 @@ extern VOID ASM_LINK IaAppendAddressToDescriptor(
     PVOID gdt_entry,
     DWORD address
 );
+
+static inline BOOL x86BitTestD(DWORD value, BYTE bit_inx)
+{
+	BOOL ret;
+	__asm__ volatile (
+		"bt %1, %0"
+		:"=ccc"(ret)
+		:"ri"(bit_inx)
+        :"cc"
+		);
+    return ret;
+}
 
 extern VOID IaUseDirectRing3IO(VOID);
 extern VOID IaUseVirtualRing3IO(VOID);

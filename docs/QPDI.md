@@ -2,6 +2,8 @@
 
 I have decided that allowing a program to access the standard syscall interface along with the DOS is a bad design choice. The goal of native OS/90 applications is to abstract the DOS interface and avoid such redundancies. For that reason, I will maintain support for DPMI, but will also allow programs to be native and not use DPMI at all.
 
+I did some investigation with WfW 3.11. I called INT 10H AX=3 to change to text mode, and it switched to text mode. I was even able to print a hello world string.
+
 # QPDI
 
 I have canceled DPMI support and instead concentrated efforts QPDI, which is incompatible and supports the internal structure of OS/90 better.

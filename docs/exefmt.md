@@ -1,8 +1,10 @@
+# DEPRECATION NOTE
+
+OS/90 is not using its own executable format any more. We are going to use the Windows Portable Executable instead.
+
 # Executable Format
 
-OS/90 uses a special executable that is meant to be simple like the Windows PE/COFF while removing the Microsoft-specific things. It supports dynamic load libraries. Programs that have special requirements that do not fit this format can use DPMI to setup their environment differently.
-
-The file naming conventions are NXF for executables, LIB for libraries, and DRV for drivers. The format is called OS90_NXF (native executable format). NXF files can be executed from the DOS prompt because the loader for all executable types is 32-bit and notices the NXF extention.
+OS/90 uses a special executable that is meant to be simple like the Windows PE/COFF while removing the Microsoft-specific things. It supports dynamic load libraries. NXF is only meant to be used within OS/90 for userspace software or drivers.
 
 Structure:
 |NXF Format|
@@ -10,29 +12,13 @@ Structure:
 Header
 Relocation Table
 Symbol table
-Real mode stub
 Program Data
-
-## DOS Stub
-
-Each file has a DOS stub which is always executed upon program entry. The stub is right after the header. It is executed first and the rest of the executable is not in memory until the loading process is initiated.
-
-NXF uses a non-standard file extension, which means the DOS stub does not need to be the begining.
-
-### Procedures for the Stub
-
-This section describes what all executables must do in the stub. The stub must enter protected mode eventually using the INT 0FFh API. It does NOT need to print a message for when it is run in DOS mode because NXF cannot execute on actual DOS. The loading process is already completed when an NXF is executed, and the only thing needed is to enter the environment.
-
-OS/90 drivers enter protected mode immediately based on the driver header. They do not use the stub at all. LIBs do not use the real mode stub either because they are not executable.
 
 ## Header
 
 ```c
 typedef struct {
     DWORD       magic; /* 'JQJQ' */
-
-    // Where to load the program, prefered base address
-    DWORD       load_address;
     DWORD       prog_pages;
 
     // Number of pages to allocate for uninitialized memory
@@ -45,7 +31,6 @@ typedef struct {
     WORD        heap_size_init_pages;
 
     // The symbol table is part of the program data.
-    //
     WORD        symtab_rva;
     WORD        symtab_size_bytes;
 
@@ -59,7 +44,7 @@ typedef struct {
 }OS_EXE_HEADER;
 ```
 
-The NF format uses relative virtual addresses, refered to as RVA in the docs. Originally, I planned to make all addresses file-relative, but this proved to be unnecessary and made conversion from PE more complicated.
+The NXF format uses relative virtual addresses, refered to as RVA in the docs. Originally, I planned to make all addresses file-relative, but this proved to be unnecessary and made conversion from PE more complicated.
 
 The stack is a location in the BSS section. The size is defined in the header. The entry point of the driver simply points to the driver header, it is not the real entry point. The RVA is relative to the program data section, or in other words, relative to were the file is loaded in memory.
 
@@ -72,9 +57,11 @@ There are three "sections":
 * BSS
 * HEAP
 
-Heap and BSS do not exist in the executable, but their boundaries are defined in the header. The stack can be located anywhere. The size does not need to be specified, as the BSS section should be large enough to handle it.
+Heap and BSS do not exist in the executable, but their boundaries are defined in the header. The stack can be located anywhere. The size does not need to be specified, as the BSS section should be large enough to handle it. BSS is always zeroed.
 
 ## Imports and Exports
+
+Static libraries require the use of the import
 
 ## Symbols
 
@@ -103,19 +90,6 @@ The address actually in the program before loading are relative to the load addr
 Drivers make use of relocations as they may be loaded anywhere in the kernel address space.
 
 ## Dynamic Libraries
-
-LIB functions are accessible using a single symbol which acts as a struct pointer with function pointer entries.
-
-```c
-#include <Core.h>
-
-DWORD Main(DWORD argc, PIMUSTR argv[])
-{
-    $CORE.Logf("Hello, world!\n\r");
-}
-```
-
-This solution has performance problems like the ELF global offset table. When loading the library, the addresses still have to be rebased, but there is no need to resolve symbols in the requesting executable, as they can be referenced through the structure. Global variables can be exported using libraries, but this obviously should be avoided.
 
 ## EXETOOL
 
@@ -147,7 +121,7 @@ The file name must not have spaces.
 
 ### EXETOOL Implementation
 
-PE and NF both use RVAs. PE allows sections to be loaded at any address as long as there is no overlap. NF does not. EXETOOL will simply require that .code and .data sections are merged into one and aligned at a 4K boundary.
+PE and NXF both use RVAs. PE allows sections to be loaded at any address as long as there is no overlap. NF does not. EXETOOL will simply require that .code and .data sections are merged into one and aligned at a 4K boundary.
 
 ## The Execution Control Specification
 
@@ -155,84 +129,47 @@ INT 0FFh is used by OS/90 to access certain features. It is used to automate pro
 
 All registers not specified as clobbered for outputs are preserved unless stated otherwise.
 
-### Execute Native Format in Protected Mode
-
-```
-Inputs:
-    AX    = 8010h
-    ES:BX = Program segment prefix
-Outputs:
-    All registers destroyed. Segment registers are loaded with flat model selectors (including ES,FS,GS). Program will run the entry point.
-```
-
-Normally, DPMI programs allocate memory blocks and set segment descriptors up to point to them. Internally, OS/90 will simply use page frame allocation to map the data to the load location.
-
-The segment selectors will be set to the GDT entries for userspace programs. The LDT is only used if the program explicitly request LDT entries.
-
-### Driver: Insert Kernel Symbols
-
-Drivers do not use DLL files and that sort of dynamic linking. They use a fixed kernel symbol table with names of functions and their addresses.
-
-Make sure to give exported functions original names or errors may happen.
-
-```
-Inputs:
-    EAX = 8011h
-    ECX = Driver header
-    EBX = Pointer to symbol list
-    EDX = Number of symbols to add to table
-
-Outputs:
-    None
-
-Must be called in protected mode by a driver.
-```
-
-This function can be safely called before initializing dynamic linking. Symbol entries have the following format:
-
-```c
-typedef struct
-{
-    DWORD   address;
-    DWORD   address_of_name;
-};
-```
-The name refers to the symbol table in memory.
-
-### Driver: Initialize Dynamic Link
-
-This will paste the symbols for each null symbol table entry into the code. Call this before using any kernel API features (besides KeExeCtlProc). By default, missing symbols are set to point to a procedure that should print an error message.
-
-```
-Inputs:
-    AX      = 8012h
-Outputs:
-    None
-
-Must be called in protected mode by a driver.
-```
-
-### User: Load Library
-
-```
-Inputs:
-    EAX = 8013h
-    EBX = Name of library control symbol (null terminated, no longer than 24)
-    ECX = Filespec (null terminated)
-
-Outputs:
-    EAX = FFFFFFFF if failed
-          0 if successful
-    EBX = Actual load address
-
-
-The program must be in protected mode.
-```
-
-### User: Detach Library
-
-# Rationale for NF Executable Format
+# Rationale for NXF
 
 PE could have worked fine, but I found it to be far too bloated. It contains a lot of data that is irrelevant for OS/90. I also did not see the point in having named sections with independent virtual addresses. I created NF as a sort of 32-bit extention of the MZ format with dynamic library capability.
 
 NXF files cannot be executed by DOS, so I was able to put the header at the start of the file.
+
+## Ideas
+
+Dynamic loading is like many other things in computer science. There are pros and cons to every solution. In this section, I list solutions that I considered for implementing dynamic load libraries and their possible pros and cons.
+
+### Interrupt
+
+One idea for implementing libraries is to use an interrupt vector to initate dynamic linking and generate a fixup. A near call with an immediate operand is created. Note that x86 uses relative near jumps.
+
+This would be difficult to implement in C. Calling a procedure naturally would be basically impossible and some kind of wrapper would be required. This is no greater in overhead to dlsym on Unix, however. Once the symbol has been resolved, the program will call it normally.
+
+The implication of this method is that the executable does not need to have unresolved symbols in the file. They can be part of the program data.
+
+```
+    INT     40h
+    DD      LookupName
+
+LookupName:
+    DB      "HelloWorldProc",0
+```
+
+Example in C:
+```
+
+const char *YieldCPU = "YieldCPU";
+
+USTAT MainProc(DWORD argc, PBYTE argv)
+{
+    LCALL(0, YieldCPU);
+}
+```
+
+The macro for calling the procedure is complicated. It needs to support C calling conventions. Is it even possible?
+
+The better way to do this is to include a header with wrapper definitions into the source code. The header would have something like this:
+
+### The Old-fasioned way (What we are doing)
+
+The normal way is to implement getting addresses dynamically and to have static library linking at run time. Static library imports must be known at load time. The advantage of static linking is that procedures can be called without any wrappers and there is no runtime performance loss.

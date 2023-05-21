@@ -18,7 +18,27 @@ High Level
 [  PC BIOS traps ] \/
 Low level
 ```
+
 # What Type of Kernel?
+
+Monolithic modular.
+
+# Features
+
+The OS/90 is a preemtive multitasking DPMI host with special driver support and a system call interface for accessing its features.
+
+## Memory Manager
+
+Features:
+* Demand Paging
+* Virtual address space allocation
+* Page frame pool allocation (fixed blocks)
+* Evicting pages
+* Cleaning, marking pages for writeback
+* Page cache disable/enable
+* Locking pages
+
+DPMI has special functions for demand paging, evicting, and locking.
 
 # Fileystem and Disk Access
 

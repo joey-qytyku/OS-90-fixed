@@ -5,36 +5,31 @@ DWORD MmAllocateBlock(HANDLE heap_hnd, DWORD bytes);
 
 VOID MmDeleteBlock();
 
-PVOID MmFreezeMem(HANDLE heap_hnd, HANDLE block_hnd);
-VOID MmReleaseMem(HANDLE heap_hnd, HANDLE block_hnd);
-
-HANDLE MmCreateHeap(PVOID virtual_addr);
-
+// BRIEF:
+//      Allocate memory in the conventional memory region.
+// RETURN:
+//      A 32-bit pointer to the location. If it fails, this is NULL.
+//      In DOS, the allocate function returns the maximum size of a block if
+//      it cannot allocate all of it. Here, we use a separate call for that.
 //
-// Note: NOT THREAD SAFE. Do not execute in an ISR.
-// If fails, segment returned is FFFF, or -1
+//      Only allocate DOS memory unless data must be exchanged underneath 1M.
+//      For example, ISA DMA and API call translation.
 //
-WORD MmAllocateDosMemory(WORD paragraphs)
+PVOID AllocDosMem(WORD pgr)
 {
-    DWORD regparm[RD_NUM_DWORDS];
+    DWORD parm[RD_NUM_DWORDS];
 
-    regparm[RD_EAX] = 0x4800;
-    regparm[RD_EBX] = paragraphs;
+    parm[RD_EAX] = 0x4800;
+    parm[RD_EBX] = (DWORD)pgr;
 
-    // INIT TRAP FRAME!
+    ScVirtual86_Int(parm, 0x21);
 
-    ScVirtual86_Int(regparm, 0x21);
-
-    if (regparm[RD_EFLAGS] & 1)
-    {
-        // If the DOS call fails, it returns the maximum block size
-        // with available memory. This function assumes the caller wants that
-        // exact amount of memory
-        return 0xFFFF;  // Error
-    }
-    return regparm[RD_EAX];
+    if (parm[RD_EFLAGS] & 1)
+        return (PVOID)(parm[RD_EAX] << 4);
+    else
+        return NULL;
 }
 
-VOID MmFreeDosMemory(WORD segment)
+VOID MmResizeDosMem(WORD segment)
 {
 }

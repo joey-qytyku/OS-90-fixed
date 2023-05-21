@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "extdos.h": "c",
+        "scheduler.h": "c",
+        "memory.h": "c",
+        "type.h": "c",
+        "pnp_mgr.h": "c",
+        "debug.h": "c",
+        "farcall.h": "c",
+        "bitarray.h": "c",
+        "8259.h": "c"
+    }
+}

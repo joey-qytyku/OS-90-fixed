@@ -24,21 +24,21 @@ VxDs are designed around assembly language and require thunking to use services 
 
 VxDs and OS/90 use a practically identical method of hooking 16-bit INT calls.
 
-VxDs allow hooking exception vectors but OS/90 does not.
+VxDs allow hooking exception vectors but OS/90 does not, though it lets programs set local exception vectors.
 
 OS/90 supports plug-and-play while VxD requires extra software for PnP.
 
 VxD has a concept of a system virtual machine and interrupts can be owned by a virtual machine. OS/90 has fake interrupts for processes that need them which can be scheduled by an actual IRQ.
 
-The VMM of Win386 and KERNL386.EXE of OS/90 can both be described as non-reentrant.
+The VMM of Win386 and the KERNL386.EXE of OS/90 can both be described as non-reentrant.
 
 VMM appears to have a more complex scheduler and synchronization architecture.
 
 VxDs have a real mode initialization segment. OS/90 does not have this.
 
-VMM supports monotasking a single process while OS/90 only allows a process to be blocked or running.
+VMM supports monotasking a single process while OS/90 only allows a process to be blocked, running, or terminated.
 
-VMM allows critical sections to service interrupts if specifically requested. OS/90 does not because it will never schedule other software within kernel mode anyway.
+VMM allows critical sections to service interrupts if specifically requested. OS/90 does not because it will never schedule other software within kernel mode.
 
 # General Notes
 
@@ -48,7 +48,7 @@ Never assume the position of elements in structures. Always use provided structu
 
 Interrupt request handlers are called with interrupts disabled. The kernel can be interrupted at any time by an IRQ, and is non-reentrant.
 
-Functions marked with ASYNC can be called within an aynchronous event like an IRQ.
+Functions marked with ASYNC can be called within an IRQ.
 
 # Plug-and-Play Support
 
@@ -169,8 +169,6 @@ InAcquireLegacyIRQ();
 
 This function will claim a BUS_FREE or RECL_16 as BUS_INUSE and set the owner to kernel. Plug-and-play drivers will know not to use this vector. This can be used to replace 16-bit interrupts to allow for a seamless transition between environments.
 
-Drivers for non-PnP devices must be loaded first to ensure there is no conflict.
-
 The driver should be passed a parameter to select the IRQ.
 
 ```
@@ -184,15 +182,17 @@ Some devices are embedded to the system board, while others are attached to a bu
 
 # Virtual Devices and Fake Interrupts
 
-All programs are DOS virtual machines and can access the DOS interfaces. They can also access ports and memory-mapped IO, as well as set interrupt vectors that are local in scope. This is entirely emulated.
+All programs are DOS virtual machines and can access the DOS interfaces. They can also access ports and memory-mapped IO, as well as set interrupt vectors that are local in scope. This is entirely emulated. Memory-mapped IO can only use direct buffers, so emulating devices that require getting each read/write is not supported.
 
 See dosvm.md for the full specification.
 
 ## Methods of Emulating Device IO
 
-The first method of arbutrating IO would be first come first serve, and block any process that is trying to access the device. This is easy to implement.
+The kernel never allows ports to be read or written to directly. All IO port instructions are decoded and executed in protected mode by the kernel on the behalf of a driver.
 
-THe second method is to fully emulate the hardware interface. Separate emulation contexts must be created for each process that is accessing it. A queue can be used to store requests.
+The first method of arbitrating IO would be first come first serve, and block any process that is trying to access the device besides the current user. This is easy to implement. A boolean lock and a PID variable are all that is needed. This type of emulation is not particularly fast despite the simplicity because port IO still has to be decoded and executed by the kernel and only after it has gone through the device chain.
+
+The second method is to fully emulate the hardware interface. Separate emulation contexts must be created for each process that is accessing it. A queue can be used to store requests and send it to real hardware. Worker threads are ideal for doing this sort of IO, but there is slight latency involvedd.
 
 # Programming
 
@@ -223,6 +223,8 @@ To add a new capture, a function returning dword and taking a trap frame with ex
 
 Trap handlers are only called when DOS calls the INT instruction. IRQs are handled separately, although there is no reason to call an ISR with INT.
 
+Note that the chain works differently than it would in DOS. Hooking an interrupt will not cause the new handler to run first, but last, thus hooking a vector cannot override another hook. Make sure to check the signature carefully to avoid problems.
+
 ## Callback Hooks
 
 Some DOS APIs use far pointer callbacks rather than interrupts in order to achieve interoperability with high-level languages. These can be hooked as with interrupts. The implementation is described in dosvm.md.
@@ -252,3 +254,9 @@ Interrupts owned by the bus are signaled by the kernel, and the bus uses callbac
 Device drivers can request a device on a bus by signaling the bus driver with the appropriate ID. The exact format of the ID can be anything that fits in a 256-bit number and must be known by the busdrv and devdrv. A driver can support the same device with different capabilities, such as native mode IDE vs legacy IDE. It can call the request function several times to probe the capabilities, but this should be avoided and the driver should support all possible cases.
 
 Duplicate devices are possible and must be handled by the bus. It does not technically matter which one a device ends up using, but the duplicates should be accounted and reported so that the device driver can control both devices if possible. In the case of PCI, the vendor and device ID would classify a device, rather than the prog-if of capabilities. Example, two PCI-IDE controllers.
+
+# Initialization Order
+
+Drivers must be loaded in a specific order in many cases. Drivers for non-PnP devices or PnP drivers with such features disabled must be loaded first to ensure that fixed resources are captured on startup.
+
+
