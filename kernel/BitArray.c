@@ -1,3 +1,4 @@
+#include <Platform/BitOps.h>
 #include <Type.h>
 
 
@@ -22,7 +23,7 @@ BOOL KERNEL KeGetBitArrayEntry(PDWORD array, DWORD inx)
     DWORD bit_offset  = inx & 31;
     DWORD dword_index = inx / 32;
 
-    return x86BitTestD(array[dword_index], bit_offset);
+    return BIT_IS_SET(array[dword_index], bit_offset);
 }
 
 //
@@ -47,10 +48,10 @@ VOID KeEnableBitArrayRange(PDWORD array, DWORD base_inx, DWORD count)
 //      Ignore references to the LDT in comments. This is for any bit array.
 //
 STATUS KeAllocateBits(
-    PDWORD  array,          // Address of array
-    DWORD   array_bounds,   // Number of bits, multiple of 4
-    DWORD   to_alloc,       // Number to allocate
-    PDWORD  out_base_index  // Where to store the base index returned by function//
+    PDWORD  array,         // Address of array
+    DWORD   array_bounds,  // Number of bits, multiple of 4
+    DWORD   to_alloc,      // Number to allocate
+    PDWORD  out_base_index // Where to store the base index returned by function
 ){
     DWORD entry;
 

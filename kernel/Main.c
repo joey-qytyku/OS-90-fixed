@@ -12,8 +12,9 @@
 #warning OS/90 requires C99 compiler support.
 #endif
 
-#include <Platform/IA32.h>
-#include <Scheduler.h>
+#include <Scheduler/Core.h>
+#include <IA32/Core.h>
+
 #include <Debug.h>
 #include <Type.h>
 

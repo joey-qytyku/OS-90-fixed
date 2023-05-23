@@ -11,8 +11,6 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include <Platform/IA32.h>
-
 #define PG_SHIFT 12
 
 // walkpgdir from xv6?
@@ -24,6 +22,8 @@
 #define PG_USER  (1<<2)
 #define PG_RDWR  (1<<1)
 #define PG_PRES  (1<<0)
+
+#define PG_LOCK
 
 #define CH_USER        (1<<0)
 #define CH_INIT_LOCKED (1<<1)
@@ -42,11 +42,11 @@ typedef struct __PACKED
     BYTE    bf_user:1;
 }BLOCK,*PBLOCK;
 
+typedef DWORD PAGE;
+
 static inline VOID i486_invlpg(PAGE addr)
 {
     __asm__ volatile ("invlpg (%0)"::"r"(addr) :"memory");
 }
 
-extern PVOID AllocDosMem(WORD);
-extern VOID MmResizeDosMem(WORD);
 #endif /* MEMORY_H */

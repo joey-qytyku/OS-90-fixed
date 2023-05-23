@@ -57,7 +57,6 @@ OS_OUT_OF_MEMORY
 #define FENCE __asm__ volatile ("":::"memory")
 
 #define offsetof(st, m) ((DWORD)&(((st *)0)->m))
-#define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
 /////////////////////////////////////
 // T y p e   D e f i n i t i o n s //

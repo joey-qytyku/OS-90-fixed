@@ -8,12 +8,12 @@
     You should have received a copy of the GNU General Public License along with OS/90. If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include <DriverLib/Drivers.h>
-#include <Scheduler.h>
-#include <Linker.h>
-#include <Memory.h>
-#include <Config.h>
+#include <Scheduler/V86M.h>
+#include <Memory/Memory.h>
+#include <Misc/Linker.h>
 #include <Type.h>
+
+#define MEM_BLOCK_SIZE (16*1024)
 
 #define CHECK_ALIGN(address, if_unaligned)\
 if ((DWORD)address & 0xFFF != 0)\
@@ -32,7 +32,7 @@ static DWORD memory_after_1M;  // Extended memory between hole and 1M
 // Processes only use 384 entries in the PD, so we save memory by giving
 // the PCBs unaligned parts of it, which are copied to the real PD
 
-static __ALIGN(4096) DWORD global_page_directory[4096];
+static ALIGN(4096) DWORD global_page_directory[4096];
 
 static DWORD  num_total_blocks = 0;
 static PBLOCK block_list = NULL;

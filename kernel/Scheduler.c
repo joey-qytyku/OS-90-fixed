@@ -27,17 +27,23 @@
 // This means that INTERRUPT is not a valid previous context.
 // We only have kernel and user now
 
+#include <Scheduler/Core.h>
+
 #include <Platform/BitOps.h> /* Bit scan forward */
 #include <Platform/8259.h>   /* Reading in service register */
-#include <Platform/IA32.h>   /* Segment descriptor procedures */
-#include <Scheduler.h>
-#include <BitArray.h>        /* Bit array procedures for LDT managment */
-#include <PnP_Mgr.h>         /* Getting interrupt information */
-#include <Debug.h>
+
+#include <IA32/TSS.h>
+#include <IA32/Segment.h>    /* Reading LDT segment descriptors */
+#include <Misc/BitArray.h>   /* Bit array procedures for LDT managment */
+#include <PnP/Resource.h>    /* Getting interrupt information */
+
 #include <Type.h>
 
 LOCK global_kernel_lock = 0;
 
+//
+// Does this HAVE to be volatile?
+//
 INTVAR P_PCB current_pcb;
 INTVAR P_PCB first_pcb; // The first process
 
@@ -50,15 +56,13 @@ INTVAR DWORD number_of_processes = 0;
 // Do not modify without memory fencing and interrupts off.
 INTVAR BYTE last_mode = CTX_KERNEL;
 
-#include <Platform/IA32.h>
-#include <Type.h>
-
 // BRIEF:
 //      Sometimes, you need to access process memory. This will take into
 //      account segmentation and performs calculations automatically
 //      based on the current processor mode
 //
 //
+
 PVOID KERNEL ProcSegmentToLinearAddress(
     P_PCB   proc,
     WORD    seg,
@@ -336,7 +340,7 @@ static inline void SendEOI(BYTE vector)
 {
     delay_outb(0x20, 0x20);
     if (vector > 7)
-        pic_outb(0xA1, 0x20);
+        delay_outb(0xA1, 0x20);
 }
 
 //
@@ -374,7 +378,7 @@ VOID InterruptDispatch(DWORD diff_spurious)
 
     if (InGetInterruptLevel(irq) == BUS_INUSE)
     {
-        InGetInterruptHandler(irq)();
+//        InGetInterruptHandler(irq)();
         SendEOI(irq);
     }
     else if (RECL_16)

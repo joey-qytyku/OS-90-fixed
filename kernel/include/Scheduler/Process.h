@@ -3,11 +3,26 @@
 
 #include <Type.h>
 
-// Bitness of programs is determined by how they are initialized, not by their
-// code segment descriptor size. If a program enters 32-bit DPMI, it will be
-// recognized as 32-bit and some function calls are slightly different.
+#define CTX_KERNEL 0
+#define CTX_USER   1
 
 enum {
+    PS_ACTIV,
+    PS_BLOCK,
+    PS_KERNL,
+    PS_FINTS,
+    PS_FIINP,
+    PS_FXNTS,
+    PS_FXINP
+};
+
+enum {
+    // Bitness of programs is determined by how they are initialized, not by their
+    // code segment descriptor size. If a program enters 32-bit DPMI, it will be
+    // recognized as 32-bit and some function calls are slightly different.
+
+    // Even if a program raw switches to real mode
+
     PROGRAM_PM_32,      // DOS program in 32-bit PM
     PROGRAM_PM_16,      // DOS program in 16-bit PM
     PROGRAM_V86,        // DOS program in real mode
@@ -29,7 +44,6 @@ tstruct {
     DWORD  _was_v86; // For internal use, do not touch
 }UREGS;
 
-// How do we fix ScVirtual_Int? Separate V86 context?
 //
 // Context of a kernel thread. Segment registers are omitted because the kernel
 // is garaunteed to use the flat model
@@ -42,50 +56,12 @@ tstruct {
     DWORD eflags; DWORD eip;
 }KREGS;
 
-// In the 8086, if we fetch the little endian value
-// AD DE from the memory, AH will be DE and AL will be AD.
-tpkstruct {
-    union {
-        struct {
-            BYTE al;
-            BYTE ah;
-        };
-        WORD ax;
-    };
-    union {
-        struct {
-            BYTE bl;
-            BYTE bh;
-        };
-        WORD bx;
-    };
-    union {
-        struct {
-            BYTE cl;
-            BYTE ch;
-        };
-        WORD cx;
-    };
-    union {
-        struct {
-            BYTE dl;
-            BYTE dh;
-        };
-        WORD dx;
-    };
-    WORD si;
-    WORD di;
-    WORD bp;
-
-    WORD es;
-    WORD ds;
-
-    WORD ip;
-    WORD cs;
-    WORD flags;
-    WORD sp;
-    WORD ss;
-}DREGW,*P_DREGW;
+typedef struct PACKED
+{
+    DWORD   handler_eip;
+    BYTE    type            :3;
+    WORD    handler_cseg    :13;
+}LOCAL_PM_IDT_ENTRY;
 
 ///////////////////////////////////////////////////////////////////
 // P r o c e s s   C o n t r o l   B l o c k   S t r u c t u r e //
@@ -149,5 +125,17 @@ tpkstruct {
 }PCB,*P_PCB;
 
 //static int x = sizeof(PCB);
+
+static inline P_PCB GetCurrentPCB(VOID)
+{
+    register DWORD sp __asm__("sp");
+    return (P_PCB)(sp & (~0x1FFF));
+}
+
+PVOID KERNEL ProcSegmentToLinearAddress(
+    P_PCB,
+    WORD,
+    DWORD
+);
 
 #endif /* SCHEDULER_PROC_H */

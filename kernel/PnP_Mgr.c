@@ -8,12 +8,13 @@
     You should have received a copy of the GNU General Public License along with OS/90. If not, see <ttps://www.gnu.org/licenses/>.
 */
 
+#include <IA32/PnpSeg.h>
 
-#include <Platform/IO.h>
-#include <PnP_Mgr.h>
-#include <Linker.h>
-#include <Type.h>
+#include <Platform/IO.h>    /* Accessing interrupt mask register */
+#include <Misc/Linker.h>    /* Accessing the PnP BIOS structure */
+#include <PnP/Core.h>
 #include <Debug.h>
+#include <Type.h>
 
 #define PNP_ROM_STRING BYTESWAP(0x24506e50) /* "$PnP" */
 #define NUM_INT 16 /* For consistency */
@@ -50,12 +51,16 @@ DRIVER_HEADER kernel_bus_hdr =
 // information indirectly with function calls, there is no
 // need for volatile because that would not be unexpected and
 // kernel code cannot be interrupted by a process or driver
+//
+// But it can now. We will need a critical section for that then. Or not because
+// of the global lock.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-static MCHUNX DWORD       cur_iorsc = 0;
-static MCHUNX IO_RESOURCE resources[MAX_IO_RSC];
-static MCHUNX WORD        mask_bitmap = 0xFFFF; // Update this!
-static MCHUNX INTERRUPTS  interrupts = { 0 };
+static DWORD       cur_iorsc = 0;
+static IO_RESOURCE resources[MAX_IO_RSC];
+static WORD        mask_bitmap = 0xFFFF; // Update this!
+static INTERRUPTS  interrupts;
 
 /*
 Supported operations with interrupts:
@@ -81,7 +86,7 @@ Get operations:
 STATUS SetInterruptEntry(
     VINT            irq,
     INTERRUPT_LEVEL lvl,
-    FP_IRQ_HANDLR   handler,
+    FP_IRQ_HANDLER  handler,
     PDRIVER_HEADER  owner
 ){
 
@@ -96,10 +101,10 @@ STATUS SetInterruptEntry(
 // A driver or the kernel can voluntarily give an interrupt back to DOS
 // Potentially to unload.
 //
-VOID InSurrenderInterrupt()
+VOID KERNEL InSurrenderInterrupt()
 {}
 
-INTERRUPT_LEVEL InGetInterruptLevel(VINT irq)
+INTERRUPT_LEVEL KERNEL InGetInterruptLevel(VINT irq)
 {
     return interrupts.lvl_bmp >>= irq * 2;
 }
@@ -107,7 +112,7 @@ INTERRUPT_LEVEL InGetInterruptLevel(VINT irq)
 //
 // Get the address of the handler
 //
-FP_IRQ_HANDLR InGetInterruptHandler(VINT irq)
+FP_IRQ_HANDLER KERNEL InGetInterruptHandler(VINT irq)
 {
     return interrupts.handlers[irq];
 }
@@ -123,9 +128,9 @@ FP_IRQ_HANDLR InGetInterruptHandler(VINT irq)
 // The owner will be the kernel. This does not matter much because the device
 // is legacy.
 //
-STATUS InAcquireLegacyIRQ(
+STATUS KERNEL InAcquireLegacyIRQ(
     VINT fixed_irq,
-    FP_IRQ_HANDLR handler
+    FP_IRQ_HANDLER handler
 ){
     if (InGetInterruptLevel(fixed_irq) == BUS_INUSE)
     {
@@ -156,17 +161,13 @@ STATUS KERNEL InRequestBusIRQ(
     PDRIVER_HEADER  bus,
     PDRIVER_HEADER  client,
     VINT            vi,
-    FP_IRQ_HANDLR   handler
+    FP_IRQ_HANDLER   handler
 ){
 }
 
 //
 // Note to self: How will I implement requesting the IRQ based on device ID?
 //
-
-////////////////////////////////////////////////////////////////////////////////
-// Plug and Play Bios communication support, refferences code in PnP_Mgr.asm
-////////////////////////////////////////////////////////////////////////////////
 
 VOID KERNEL PnBiosCall()
 {
@@ -314,7 +315,11 @@ static VOID DetectCOM(VOID)
 
 VOID InitPnP(VOID)
 {
-    // PnP manager should not be initialized if interrupts are on
-    // The scheduler is initialized after the PnP manager sets up IRQs
-    // Right now, interrupts must be off.
+    // Clear all interrupt and resource entries. Zeroing them ensures they
+    // are recognized as not in use.
+    C_memset(&interrupts, 0U, sizeof(INTERRUPTS));
+    C_memset(&resources,  0U, sizeof(IO_RESOURCE) * MAX_IO_RSC);
+
+    Init_DetectFreeInt();
+    DetectCOM();
 }

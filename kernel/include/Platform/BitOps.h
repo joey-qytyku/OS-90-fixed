@@ -3,17 +3,8 @@
 
 #include <Type.h>
 
-static inline BOOL x86BitTestD(DWORD value, BYTE bit_inx)
-{
-	BOOL ret;
-	__asm__ volatile (
-		"bt %1, %0"
-		:"=ccc"(ret)
-		:"ri"(bit_inx)
-        :"cc"
-		);
-    return ret;
-}
+// This is a macro
+#define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
 // At least one bit must be set for this to work properly
 static inline DWORD BitScanFwd(DWORD val)

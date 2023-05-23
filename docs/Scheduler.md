@@ -95,6 +95,8 @@ So basically:
 
 It should be clear by now that OS/90 must support the preemption of kernel code in order to become a truly multitasking operating system. The question is not about if, but how.
 
+I could have te ability to yield the CPU to a process on a non-preempting kernel, but that would really just make things harder. Using yields correctly and managing IO jobs would be more dificult in the long-term.
+
 # Interrupt Service Routines
 
 # The Trap Frame Dillema

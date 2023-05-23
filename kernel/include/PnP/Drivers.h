@@ -21,4 +21,18 @@ typedef struct
 
 typedef VOID (*FP_EVENT_HANDLER) (PVOID);
 
+#define DRV_IMPLEMENT_BUS        1
+#define DRV_IMPLEMENT_DEV_PNP    2
+#define DRV_IMPLEMENT_DEV_LEGACY 3
+
+typedef struct {
+    PIMUSTR     driver_name;
+    PIMUSTR     description;
+    PBYTE       cmdline;
+    DWORD       driver_flags;
+    PVOID       next_driver;
+    FP_EVENT_HANDLER event_handler;
+}DRIVER_HEADER,*PDRIVER_HEADER;
+
+
 #endif /* PNP_EVENT_H */

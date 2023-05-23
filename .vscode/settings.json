@@ -12,6 +12,10 @@
         "*.def": "cpp",
         "*.inc": "asm-intel-x86-generic",
         "ia32.h": "c",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "resource.h": "c",
+        "bitops.h": "c",
+        "segment.h": "c",
+        "memory_resource": "c"
     }
 }

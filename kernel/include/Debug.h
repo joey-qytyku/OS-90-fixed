@@ -27,6 +27,6 @@ extern VOID _KernelPutchar(BYTE ch);
     );\
     KeWriteAsciiz(_KernelPutchar,"\x1b[0m");
 
-#define BREAK __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
+#define BREAK() __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
 
 #endif

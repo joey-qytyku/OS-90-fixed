@@ -10,5 +10,4 @@ extern STATUS KERNEL KeAllocateBits(PDWORD,DWORD,DWORD,PDWORD);
 
 extern VOID KeEnableBitArrayRange(PDWORD,DWORD,DWORD);
 
-
 #endif

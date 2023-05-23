@@ -11,7 +11,6 @@
 #ifndef _8259_H
 #define _8259_H
 
-#include <Platform/IA32.h>
 #include <Platform/IO.h>
 
 #define ICW1 1<<4
@@ -21,21 +20,6 @@
 #define ICW4_8086 1
 #define ICW4_SLAVE 1<<3
 
-/*
- * The last exception that I need to use is #XF because it
- * is supported by the Pentium III from 1999, only x64 CPUs
- * support VMX which is the next exception after that
- * This number must not conflict with vector 0x31 because that is DPMI
- */
-#define IRQ_BASE 0xA0
-#define DPMI_VECTOR 0x31
-#define NON_SYSTEM_VECTORS DPMI_VECTOR
-
-#if DPMI_VECTOR <= IRQ_BASE+16 && DPMI_VECTOR >= IRQ_BASE
-#error IRQ BASE OVERLAPS WITH DPMI VECTOR
-#endif
-
-//
 // Memory clobber causes the statement to not be moved elsewhere to
 // the compiler's convenience, useful for ensuring that memory access
 // happens in the exact order specified rather than where GCC wants.

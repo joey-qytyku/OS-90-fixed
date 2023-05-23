@@ -2,6 +2,7 @@
 #define PNP_RESOURCE_H
 
 #include <Type.h>
+#include "Drivers.h"
 
 typedef enum {
     UNDEFINED = 0,
@@ -38,6 +39,8 @@ typedef enum {
 #define ACCESS_16 1
 #define ACCESS_32 2
 
+typedef VOID (*FP_IRQ_HANDLER)(VOID);
+
 typedef struct __attribute__((packed))
 {
     DWORD          start;
@@ -60,19 +63,17 @@ typedef struct __attribute__((packed))
     // a single 32-bit DWORD
 
     DWORD           lvl_bmp;
-    FP_IRQ_HANDLR   handlers[16];
+    FP_IRQ_HANDLER  handlers[16];
     PDRIVER_HEADER  owners[16];
 }INTERRUPTS,
 *PINTERRUPTS;
 
-typedef VOID (*FP_IRQ_HANDLER)(VOID);
+extern STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE);
 
-extern STATUS PnAddIOMemRsc(PIO_RESOURCE);
-
-extern VOID InSurrenderInterrupt();
-extern VOID InRegainInterrupt();
-extern INTERRUPT_LEVEL InGetInterruptLevel(VINT);
-extern FP_IRQ_HANDLR InGetInterruptHandler(VINT);
-extern STATUS InAcquireLegacyIRQ(VINT, FP_IRQ_HANDLR);
+extern VOID             KERNEL  InSurrenderInterrupt();
+extern VOID             KERNEL  InRegainInterrupt();
+extern INTERRUPT_LEVEL  KERNEL  InGetInterruptLevel(VINT);
+extern FP_IRQ_HANDLER   KERNEL  InGetInterruptHandler(VINT);
+extern STATUS           KERNEL  InAcquireLegacyIRQ(VINT, FP_IRQ_HANDLER);
 
 #endif /* PNP_RESOURCE_H */

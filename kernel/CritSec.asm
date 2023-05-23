@@ -20,6 +20,9 @@
 ; This function disables interrupts while it is running because it will
 ; break if reentered by another kernel thread and the atomicity of the
 ; increments will be jeopardized.
+
+;
+; EXCEPTION NO-OP!
 ;
 EnterCriticalRegion:
         pushf
@@ -56,7 +59,7 @@ ExitCriticalRegion:
         test    al,CR_NT
         jz      .Skip1
         dec     word [_wPreemptCount]
-
+.Skip1:
         popf
         ret
 

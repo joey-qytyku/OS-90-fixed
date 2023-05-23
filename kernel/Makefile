@@ -16,7 +16,7 @@ ASOURCE=$(wildcard *.asm)
 OBJ=$(patsubst %.c,%.c.o,$(wildcard *.c)) $(patsubst %.asm,%.asm.o,$(wildcard *.asm))
 
 AS=nasm
-ASFLAGS=-felf -Ox
+ASFLAGS=-felf -Ox -I include/Asm
 
 # -Ox will enable multipass assembly for more optimized code
 

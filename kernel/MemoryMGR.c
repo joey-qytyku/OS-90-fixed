@@ -1,5 +1,5 @@
-#include <Scheduler.h>
-#include <Memory.h>
+#include <Scheduler/V86M.h>
+#include <Memory/Memory.h>
 
 DWORD MmAllocateBlock(HANDLE heap_hnd, DWORD bytes);
 

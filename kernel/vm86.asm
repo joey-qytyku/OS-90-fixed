@@ -51,15 +51,14 @@ EnterV86_16:
 ;-------------------------------------------------------------------------------
 ;     Continue caller of ScEnterV86
 ;
-; The only sane place to use OnExceptRetReenterCallerV86
+; The only sane place to use ContinueCallerV86
 ; is an exception handler, like #GP. It does not have to be at level one.
 ; It could be at at any call level within an exception handler.
 ;
 ; This will not immediately switch to the context. The exception must exit
 ; normally. This will only change the context to get back to the caller
 ;
-global OnExceptRetReenterCallerV86
-OnExceptRetReenterCallerV86:
+ContinueCallerV86:
         ;I do not know where the stack is right now, but I will get the address
         ;saved to the TSS. That will allow me to pull the necessary values
         call    GetESP0

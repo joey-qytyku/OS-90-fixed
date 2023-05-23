@@ -1,4 +1,5 @@
-#include <Scheduler.h>
+#include <Scheduler/IoDecode.h>
+#include <Platform/BitOps.h>
 
 // This file contains helper functions for the scheduler code
 

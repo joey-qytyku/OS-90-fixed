@@ -5,18 +5,18 @@
 
     OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License along with OS/90. If not, see <https://www.gnu.org/licenses/>. 
+    You should have received a copy of the GNU General Public License along with OS/90. If not, see <https://www.gnu.org/licenses/>.
 %endif
 
 ;===============================================================================
 ; The following code allows for calling the protected mode Plug-and-Play BIOS
 ; This is because the real mode interface may not be complete. QEMU for example
-; does not support any functions in real mode but seems to work fine in PM
+; does not support any functions in real mode but seems to work fine in PM.
 ;===============================================================================
 
 global PnInsertEntryPoint
 global PnCallBiosInternal
- 
+
 ;PnP does not require the DS register to be modified
 ;Most functions, however, will require the BIOS selector
 ;to be pushed for every call, which is more convenient
@@ -62,7 +62,7 @@ PnCallBiosInternal:
     ;to narrow them to 16-bit words for PnP 16-bit PM interface
     ; |A32|A32|A32|EIP|
     ; |---|-|A|A|A|EIP|
-    
+
     ;Because stack addressing is relative, extra
     ;bytes will not cause any problems
 

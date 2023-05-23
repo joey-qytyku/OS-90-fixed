@@ -8,8 +8,10 @@
     You should have received a copy of the GNU General Public License along with OS/90. If not, see <ttps://www.gnu.org/licenses/>.
 */
 
+#include <Scheduler/V86M.h>
+
 #include <Platform/IO.h>
-#include <Scheduler.h> /* For calling BIOS functions */
+
 #include <stdarg.h>
 #include <Debug.h>
 #include <Type.h>

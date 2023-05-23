@@ -1,6 +1,3 @@
-%ifndef KERNEL_INC
-%define KERNEL_INC
-
 CR_NT   EQU     01b
 CR_NI   EQU     10b
 
@@ -52,7 +49,6 @@ STRUC RSAVE
 .u_ss:    RESD 1
 .u_was_v86: RESD 1
 
-    ; Kernel context
 .k_eax:  RESD 1
 .k_ebx:  RESD 1
 .k_ecx:  RESD 1
@@ -66,15 +62,14 @@ STRUC RSAVE
 .k_eip:   RESD 1
 ENDSTRUC
 
-STRUCT DREGW
-.ax:    RESW    1
-.bx:    RESW    1
-.cx:    RESW    1
-.dx:    RESW    1
-.si:    RESW    1
-.di:    RESW    1
-.bp:    RESW    1
-.sp:    RESW    1
+STRUC DREGW
+._ax:    RESW    1
+._bx:    RESW    1
+._cx:    RESW    1
+._dx:    RESW    1
+._si:    RESW    1
+._di:    RESW    1
+._bp:    RESW    1
 
 ._es:    RESW    1
 ._ds:    RESW    1
@@ -85,8 +80,6 @@ STRUCT DREGW
 ._sp:    RESW    1
 ._ss:    RESW    1
 ENDSTRUC
-
-%endif
 
 %macro retif 1
         j%-1    %%Skip
