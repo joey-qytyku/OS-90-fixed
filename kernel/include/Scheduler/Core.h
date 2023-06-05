@@ -7,7 +7,7 @@
 #include "Sync.h"
 #include "V86M.h"
 #include "DPMI.h"
-
+#include "SysEntry.h"
 #include <Platform/IO.h>
 
 static inline VOID ConfigurePIT(VOID)

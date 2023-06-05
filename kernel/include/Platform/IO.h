@@ -13,42 +13,77 @@
 
 #include <Type.h>
 
-static inline void outb(WORD port, BYTE val)
-{
-    __asm__ volatile ("outb %0, %1": :"a"(val), "Nd"(port));
-}
-
-static inline BYTE inb(WORD port)
-{
-    BYTE ret;
-    __asm__ volatile ("inb %1, %0" :"=a"(ret) :"Nd"(port) );
-    return ret;
-}
-
 static inline void rep_insb(PVOID mem, DWORD count, WORD port)
-{__asm__ volatile ("rep insb"::"esi"(mem),"ecx"(count),"dx"(port) :"esi","edi","dx");
+{
+    __asm__ volatile(
+        "rep insb"
+        :
+        :"esi"(mem),"ecx"(count),"dx"(port)
+        :"esi","edi","dx","memory"
+        );
 }
 
 static inline void rep_outsb(PVOID mem, DWORD count, WORD port)
-{__asm__ volatile ("rep outsb"::"esi"(mem),"ecx"(count),"dx"(port) :"esi","edi","dx");
+{
+    __asm__ volatile (
+        "rep outsb"
+        :
+        :"esi"(mem),"ecx"(count),"dx"(port)
+        :"esi","edi","dx","memory"
+        );
 }
 
 static inline void rep_insw(PVOID mem, DWORD count, WORD port)
-{__asm__ volatile ("rep insw"::"esi"(mem),"ecx"(count),"dx"(port) :"esi","edi","dx");
+{
+    __asm__ volatile (
+        "rep insw"
+        :
+        :"esi"(mem),"ecx"(count),"dx"(port)
+        :"esi","edi","dx","memory"
+        );
 }
 
 static inline void rep_outsw(PVOID mem, DWORD count, WORD port)
-{__asm__ volatile ("rep outsw"::"esi"(mem),"ecx"(count),"dx"(port) :"esi","edi","dx");
+{
+    __asm__ volatile (
+        "rep outsw"
+        :
+        :"esi"(mem),"ecx"(count),"dx"(port)
+        :"esi","edi","dx","memory"
+        );
 }
 
-/**
- * Output with delay
- *
- * Only present for i386 support. The 80486 and above
- * do not require the delay and it is kind of useless.
- * It is probably not required since we will be interleaving IO,
- * aka outputting to different ports (faster than using the same ports).
- */
+#define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\
+static inline _TYPE in##_ASM_TYPE_PREFIX(WORD port)\
+{\
+    _TYPE ret;\
+    __asm__ volatile ("in" #_ASM_TYPE_PREFIX " %1, %0" :"=a"(ret) :"Nd"(port):"memory");\
+    return ret;\
+}
+
+
+#define _MAKE_PORT_OUT(_ASM_TYPE_PREFIX, _TYPE)\
+static inline VOID out##_ASM_TYPE_PREFIX (WORD port, _TYPE val)\
+{\
+    __asm__ volatile ("out" #_ASM_TYPE_PREFIX " %0, %1": :"a"(val), "Nd"(port):"memory");\
+}
+
+#define MAKE_MMIO_READ_FUNC(_TYPE)\
+static inline _TYPE ReadIOMem ##_TYPE (PVOID addr)\
+{\
+    FENCE;\
+    volatile P##_TYPE r = addr;\
+    return *r;\
+}
+
+_MAKE_PORT_OUT(b, BYTE);
+_MAKE_PORT_OUT(w, WORD);
+_MAKE_PORT_OUT(l, DWORD);
+
+_MAKE_PORT_IN(b, BYTE);
+_MAKE_PORT_IN(w, WORD);
+_MAKE_PORT_IN(l, DWORD);
+
 static inline VOID delay_outb(WORD port, BYTE val)
 {
     outb(port, val);

@@ -4,7 +4,9 @@ Work in progress.
 
 # What is OS/90
 
-OS/90 is a modern operating system designed to be binary compatible with DOS.
+OS/90 is an operating system designed to be binary compatible with DOS. The base software package fits on a single 1.44 MB floppy disk and can be booted from one too.
+
+An important emphasis is that OS/90 is a modern operating system. It supports advanced features like preemptive multitasking, non-blocking IO, and multithreading.
 
 # Minimum requirements
 
@@ -24,7 +26,7 @@ OS/90 can be booted from a floppy drive.
 
 # Warnings
 
-Have at least 72 KB of conventional memory free at all times.
+Have at least 72 KB of conventional memory free at all times. Do not use an expanded memory manager.
 
 # Editions
 

@@ -22,4 +22,8 @@ extern BOOL ScDecodePortOp(
     PDECODED_PORT_OP
 );
 
+extern VOID IaUseDirectRing3IO(VOID);
+extern VOID IaUseVirtualRing3IO(VOID);
+
+
 #endif /* SCHEDULER_IODECODE_H */

@@ -96,13 +96,18 @@ typedef IMUSTR *PIMUSTR;
 #define tstruct   typedef struct
 #define tpkstruct typedef struct __attribute__((packed))
 
+#define always_inline __attribute__((always_inline))
+
 /////////////////////////////////////////////////////////////////////
 // A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //
 /////////////////////////////////////////////////////////////////////
 
-#define BYTE_PTR(var, off) *(PBYTE) (&var+off)
-#define WORD_PTR(var, off) *(PWORD) (&var+off)
-#define DWORD_PTR(var,off) *(PDWORD)(&var+off)
+#define BYTE_PTR(var, off) *(PBYTE) (var+off)
+#define WORD_PTR(var, off) *(PWORD) (var+off)
+#define DWORD_PTR(var,off) *(PDWORD)(var+off)
+
+#define PTR2INT(ptr) ((DWORD)(ptr))
+#define INT2PTR(Int) ((PVOID)(Int))
 
 /////////////////////////////
 // G C C   B u i l t i n s //

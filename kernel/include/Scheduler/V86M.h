@@ -52,6 +52,13 @@ tpkstruct {
     WORD ss;
 }DREGW,*P_DREGW;
 
+tpkstruct {
+    DWORD   ebp;
+    DWORD   edi;
+    DWORD   esi;
+    DWORD   eip;
+}V86_CALLER_STATE,*P_V86_CALLER_STATE;
+
 typedef STATUS (*V86_HANDLER)(P_DREGW);
 typedef VOID   (*EXCEPTION_HANDLER)(PDWORD);
 
@@ -71,16 +78,15 @@ extern KERNEL VOID ScHookDosTrap(
 
 extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
 extern VOID KERNEL ScVirtual86_Int(P_DREGW, BYTE);
-extern VOID KERNEL ContinueCallerV86(VOID);
 
-extern VOID EnterV86_16(P_DREGW);
+extern VOID EnterRealMode(VOID);
+extern DWORD RealModeRegs[7];
+extern DWORD RealModeTrapFrame[9];
 
 static inline PVOID MK_LP(WORD seg, WORD off)
 {
     DWORD address = seg*16 + off;
     return (PVOID) address;
 }
-
-extern BYTE  _bWasV86;
 
 #endif /* SCHEDULER_V86M_H */

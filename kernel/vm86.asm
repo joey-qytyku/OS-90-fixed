@@ -15,80 +15,58 @@
 ;   with OS/90. If not, see <https://www.gnu.org/licenses/>.
 ;===============================================================================
 
-        %include "include/Kernel.inc"
+        %include "Asm/Kernel.inc"
 
-        global  EnterV86_16
-        global  ContinueCallerV86
+        global EnterRealMode
         section .text
 
-;--------------------------------------------------------------
-; Brief: Enter V86
-;
-; TODO: Serious refactoring underway
-;
-; This is a very complicated function (along with ShootdownV86). It is callable
-; from C and enters V86. It is not called by the scheduler to run regular
-; software and is only for calling DOS software. Because of this, any call to
-; this procedure HAS to be coupled with a continue call in an exception.
-;
-; The output registers are copied by the GP handler from the trap frame to the
-; context provided to EnterV86.
-;
-; ESP points to the last pushed element. Pushing first decrements by 4
-; before writing the value.
-
         extern  SetESP0, GetESP0    ; Argument goes in EAX
+        extern  preempt_count
+        extern  RealModeRegs, RealModeTrapFrame
 
-EnterV86_16:
-        ; We cannot use a critical section here.
+EnterRealMode:
+        lea     eax,[esp+4]
+        call    SetESP0
+        inc     dword [preempt_count]
 
-        lea     ebx,[esp+4]
+        mov     [RealModeCalleeSaved.lEsi],esi
+        mov     [RealModeCalleeSaved.lEdi],edi
+        mov     [RealModeCalleeSaved.lEbp],ebp
 
-        ;Save cdecl callee saved registers to stack
+        mov     ebx,RealModeRegs
+        mov     eax,[ebx]
+        mov     ecx,[ebx+8]
+        mov     edx,[ebx+12]
+        mov     esi,[ebx+16]
+        mov     edi,[ebx+20]
+        mov     ebp,[ebx+24]
+        mov     ebx,[ebx+28]
 
+        push    dword [RealModeTrapFrame]        ; GS
+        push    dword [RealModeTrapFrame+4]      ; FS
+        push    dword [RealModeTrapFrame+8]      ; DS
+        push    dword [RealModeTrapFrame+12]     ; ES
+        push    dword [RealModeTrapFrame+16]     ; SS
+        push    dword [RealModeTrapFrame+20]     ; ESP
+        push    dword [RealModeTrapFrame+24]     ; EFLAGS
+        push    dword [RealModeTrapFrame+28]     ; CS
+        push    dword [RealModeTrapFrame+32]     ; EIP
+
+        xchg bx,bx
         iret
 
-;-------------------------------------------------------------------------------
-;     Continue caller of ScEnterV86
-;
-; The only sane place to use ContinueCallerV86
-; is an exception handler, like #GP. It does not have to be at level one.
-; It could be at at any call level within an exception handler.
-;
-; This will not immediately switch to the context. The exception must exit
-; normally. This will only change the context to get back to the caller
-;
-ContinueCallerV86:
-        ;I do not know where the stack is right now, but I will get the address
-        ;saved to the TSS. That will allow me to pull the necessary values
-        call    GetESP0
-        ;This address will allow us to copy the necessary data
-        mov     esi,[eax-4]
-        ;Flags?
-        ;Copy EIP from the caller to interrupt frame
-        ;We will assume the frame is valid for V86 (i.e has segment registers)
-
-        ;We can use the trap frame struct by subtracting the size with
-        ;the offset, The resulting number is the negative offset
-        ;Example, EAX at offset zero, so the relative address is -68
-
-        mov     ecx,[eax+0]                       ;Get EBP value
-        mov     [eax-4+(TF._ebp-TF._size)],ecx    ;Write it to the trap frame
-
-        mov     ecx,[eax+4]                       ;ESI value
-        mov     [eax-4+(TF._esi-TF._size)],ecx
-
-        mov     ecx,[eax+8]                       ;EDI value
-        mov     [eax-4+(TF._esi-TF._size)],ecx
-
-        mov     ecx,[eax+12]                      ;EBX value
-        mov     [eax-4+(TF._esi-TF._size)],ecx
-
-        ;FLAGS? The compiler may be using the flags. Also, the interrupt
-        ;have to be restored to their previous state.
-
-        ret
-
         section .data
-
         section .bss
+
+RealModeRegs:
+        RESD    7
+RealModeTrapFrame:
+        RESD    9
+
+RealModeCalleeSaved:
+.lEsp:  RESD    1
+.lEbp:  RESD    1
+.lEsi:  RESD    1
+.lEdi:  RESD    1
+.lEip:  RESD    1
+.lEflags:  RESD    1

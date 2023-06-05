@@ -173,7 +173,7 @@ HMA_OK:
         xms     [bp]
 
         ;Allocate all available extended memory
-        ;It will be at most 64M  ike the ISA memory hole
+        ;It will be at most 64M like the ISA memory hole
         ;either way this is enough for the kernel
         mov     dx,ax
         mov     ah,9
@@ -223,6 +223,7 @@ LoadKernel:
         jnc     .OpenGood
         ERROR   FileIO_Error
 .OpenGood:
+
         ;Handle is in AX, it will not be clobbered in BX
         mov     bx,ax
 
@@ -261,9 +262,6 @@ LoadKernel:
         ;I am out of registers, so I will move 4096
         ;manually wherever needed
 .loadloop:
-        dec     di
-        jz      .end
-
         ;Read 4096 bytes into buffer
         mov     ah,READ
         mov     cx,4096
@@ -282,18 +280,13 @@ LoadKernel:
 .copy_success:
         pop     bx
 
-        ; Moving 4K more than supposed to?
-
-        ;Seek 4096 bytes forward
-;        mov     ax,SEEK_CUR
-;        mov     cx,4096
-;        xor     dx,dx
-;        int     21h
 
         ;Add 4096 to the extended move offset
         add     dword [XMM.desoff],4096
 
-        jmp .loadloop
+        dec     di      ; This will not work for only one page
+        jnz     .loadloop
+
 .end:
         ;Close the file, this will flush all buffers
         mov     ah,CLOSE
@@ -354,7 +347,8 @@ AllocKernelReserved:
         ;memory. This is bad. We must reallocate so that protected mode
         ;software can allocate conventional memory. Now that we no longer
         ;need the extra memory, it is safe to do this
-        ;ES is the base of program memory and the block we want to alter
+        push    cs
+        pop     es
         mov     ah,SETBLOCK
         mov     bx,4096/16      ; Kernel gets 4096 bytes, bootloader is trashed
         int     21h

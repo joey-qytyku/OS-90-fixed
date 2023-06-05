@@ -24,8 +24,11 @@ SECTIONS
 	{
 		START_PROG_DATA_NONINIT = .;
 		*(.text)
+		. = ALIGN(4K);
 		*(.data)
+		. = ALIGN(4K);
 		*(.rodata)
+		. = ALIGN(4K);
 		*(.rodata.*)
 		. = ALIGN(4K);
 		LKR_END_PROG_DATA = .;
@@ -38,9 +41,7 @@ SECTIONS
 	}
 	/DISCARD/ :
 	{
-		*(.comment)
-		*(.node.gnu.property)
-		*(.eh_frame)
+        *(*)
 	}
 }
 

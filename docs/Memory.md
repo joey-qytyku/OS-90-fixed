@@ -8,13 +8,18 @@ All memory is in 16K blocks starting from zero. This option can be configured in
 
 This is a very simple and fast way to manage pages, but is not very space efficient.
 
-Some examples with 16K blocks
-|Memory (MB)|Number of entries | Size (bytes)
--|-|-
-4MB | 256 | 1024
-8MB | 512 | 2048
+```c
+tpkstruct {
+    CHID    id:12;
+    BYTE    flags:4;
+    WORD    next;
+};
+```
+This strcuture is an element of the block list.
 
-An entry is defined as a single DWORD. The first twenty four bits define the ID of the allocation. Four bits define the actual number of pages in the block, which is the entire block if zero.
+If I use bit array allocation, I can reduce the necessary bits for the ID.
+
+The `AVAIL_IDS` is divided by 32 to get the size of a DWORD array (it must be divisible by 32). By default, we have 4096 available IDs, which should be more than enough.
 
 ## Global Page Directory
 
@@ -38,7 +43,7 @@ Our goal is to have a single function that takes the ID of a chain and maps it t
 MAP_UPD
 MAP_KPD
 
-STATUS MmMapChainToVirtualAddress(
+STATUS APICALL MmMapChainToVirtualAddress(
     DWORD   flags,
     DWORD   id              // ID of chain
     PVOID   map_to,         // Virtual address to map to
@@ -77,9 +82,22 @@ Chains have attributes in the flags. The first entry is the only one that needs 
 
 Contiguous blocks are special and cannot be resized. Frozen is implied. Only the first entry in a chain of blocks needs to have the flags. ID numbers are 27-bit.
 
+## Given a Page Table Entry, Finding the ID
+
+```c
+CHID MmGetChainIdOfPage(
+    BOOL    use_kpd,
+    DWORD   page_index
+);
+```
+
+Later in this document, it will be necessary to find the ID that a page belongs to to implement uncommitted memory.
+
+This takes a page index rather than a block index. We floor the index to the block boundary and index that block in the block list. Then we return the ID.
+
 ## Virtual Address Space Allocation
 
-Specifying fixed addresses for all allocations is not practical, so the operating system needs a way to map
+Specifying fixed addresses for all allocations is not practical, so the operating system needs a way to map memory to arbitrary locations.
 
 Bitmap allocation is used to implement virtual address space allocation. To use these features, a special memory management structure must be specified. Virtual address nodes must be aligned at 4MB page directory entry boundaries.
 
@@ -93,13 +111,13 @@ A bitmap represents the availability of pages in the virtual address space. The 
 PVOID MmAllocateVirtualRegion(
     P_VA_NODE   vanode,
     DWORD       num_pages
-)
+);
 
 STATUS MmReleaseVirtualRegion(
     P_VA_NODE   vanode,
     PVOID       base_addr
     DWORD       num_to_free
-)
+);
 
 ```
 
@@ -122,7 +140,7 @@ VOID Example()
 }
 ```
 
-The following is an example for direct MMIO access. This actually is required for direct access because a drvier may be virtualizing MMIO to the specified address.
+The following is an example for direct MMIO access. This actually is required for direct access because a drvier may be virtualizing MMIO to the specified address for a process.
 ```
 VOID Example()
 {
@@ -130,7 +148,7 @@ VOID Example()
     vspace = MmAllocateVirtualRegion(
         &kernel_node,
         1,              // Get one page
-        VA_PRESENT | VA_NOCACHE | VA_R3  // Cache disabled for framebuffer
+        VA_PRESENT | VA_NOCACHE | VA_R0
     );
 
     MmMapPhysicalToVirtualDirect((PVOID)0xB8000, vspace);
@@ -140,6 +158,36 @@ VOID Example()
     MmReleaseVirtualRegion(&kernel_node, vspace, 1);
 }
 ```
+
+## Uncommitted Memory
+
+Uncommitted memory has to be supported in situations where software allocates a lot of memory that it does not need to use at once. An uncommitted page does not have a disk location of physical page frame, which means it does not exist until accessed for the first time.
+
+Because we use pool-based allocation, a single uncommitted page is not possible.
+
+Uncommitted memory regions may not be contiguous within one allocation of page frames. If we allocate 32K with 16K blocks and access the high blocks, the desired behavior is that only one block is actually allocated and the other one will be unused.
+
+A solution is to allow the block list to store uncommitted block candidates.
+
+### Relationship with DPMI
+
+We support uncommitted pages at the level required by DPMI. When we allocate memory using INT 31H, it will all be committed. Resizing it further has the option of generating committed or uncommitted pages.
+
+Resizing blocks and UCOMM is only supported by DPMI 1.0, but we implement it for the userspace.
+
+### Implementation
+
+We use a reserved bit in the page table entry to indicate a page is inside an unallocated block. Pages that form a complete block must have this bit all on or all off. If `PG_UNCOMMITTED` is set, the block represented by this page and the following ones are not allocated.
+
+Note that `PG_UNCOMMITTED` cannot be valid with `PG_LOCKED` because memory that is locked cannot possibly be uncommitted.
+
+Uncommitted pages can only be generated by resizing allocations.
+
+When a page fault occurs and we find that the page table entry referrenced is uncommitted, we need to immediately map the pages in this block somewhere. We will need to reallocate the block list that this page happens to be part of. To do this, a function for getting the ID given the page table entry is called.
+
+## Restrictions on Allocating Memory
+
+Interrupt service routines may never call anything that modifies the page tables or other memory managment structures. The kernel API for memory managment is not reentrant and runs with IRQs enabled most of the time, so calling MM functions will not work safely in an ISR.
 
 # DPMI
 
@@ -161,17 +209,25 @@ A solution is to make the functions calls for page locking succeed unless the ra
 
 ## Real Mode Locking
 
-DPMI allows programs to lock memory in the 1M real mode region. The entire 1M+64K region is always present in memory. These functions will always return success.
+DPMI allows programs to lock memory in the 1M real mode region. The entire 1M+64K region is always present in memory. These functions will always return success because we cannot do that.
 
 ## Get Page Size
 
-4096.
+4096 is the page size.
+
+## Allocating Linear Memory
+
+The handles returned to the program from DPMI allocation services are 32-bit block IDs for the kernel.
+
+## Resizing Linear Memory
+
+This is a DPMI 1.0 feature but is supported for userspace purposes.
 
 ## Mark as Demand Paging Candidates
 
 DPMI supports demand paging. Pages can be marked as candidates for swapping to the disk. These features do work on OS/90.
 
-OS/90 uses a fixed-size page file called VM.000.
+OS/90 uses a fixed-size page file called SWAP.SYS.
 
 ## XMS
 
@@ -181,12 +237,6 @@ XMS is a 16-bit API. The protected mode implementation involves a far call hook.
 * Delete
 * Allocate
 * Copy to/from conventional memory
-
-The physical DOS XMS may have already
-1M
-## DPMI
-
-DPMI uses 32-bit handles for allocated blocks. Allocation is page granular and page aligned.
 
 ## DOS
 
@@ -226,10 +276,10 @@ See code.md for advanced tips on allocating memory.
 
 # LIM EMS
 
-LIM EMS cannot be used as regular memory because it uses page-based bank switching and is incompatilble with the memory manager. EMS card can, however be used as a ramdisk or swap.
+LIM EMS cannot be used as regular memory because it uses page-based bank switching and is incompatilble with the memory manager. An EMS card can however be used as a ramdisk or swap.
 
 This would require bypassing the Limulator built into OS/90 to make calls to the actual driver.
 
-I wonder if this is really worth my time. EMS cards started to fall off during the 90's when computers were shipping with easier to program extended memory and oeprating systems started running in protected mode.
+I wonder if this is really worth my time. EMS cards started to fall off during the 90's when computers were shipping with easier to program extended memory and operating systems started running in protected mode.
 
-DOS truncates all far pointers.
+DOS truncates all far pointers, by the way.

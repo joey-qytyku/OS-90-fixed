@@ -2,26 +2,23 @@
 
 The most powerful feature of OS/90 is the driver model. It is designed to be used for programming devices, buses (PCI, ISA, VLB, etc.), and anything requiring ring zero access to the system. The driver architceture allows bus driver to manage interrupts and other resosurces through the kernel. Device drivers can then communicate with the bus driver to control individual devices and recieve interrupts and events.
 
-# What is a Driver in OS/90
+# Driver Executable Format
 
-Drivers are 32-bit relocatable NXF files. The entry point is the driver descriptor block. Drivers are loaded flat into the kernel space after relocation. Drivers can be inserted and removed at any time, or at least they will be in the future.
+Drivers are flat binaries with relocation information. The relocation tables are ripped from every secction of an elf object and simply appended to the end of the file. This is done by writing the .rela.dyn section of an ELF executable to a flat binary. The driver header has a pointer to this table.
 
-## The Job of Drivers
+This whole process can be done with only a linker script. The driver must be linked to a base address of zero.
+
+Driver headers have an entry point for initializing the driver and an event listener procedure. Both of these are implicitly subject to relocation.
+
+## Header Structure
+
+The header should be defined in the source code with a special section. The linker will move it to the start of the file. It is exactly 512 bytes long. It may be merged with the text section. The linker script provided in the kernel sources names it `.drvheader`.
+
+The structure for the purposes of executable loading is: magic number (32-bit), relocations file offset (32-bit). The rest are not used for this purpose.
+
+# The Job of Drivers
 
 A driver usually implements the intended function of a certain device, real or virtual, and allows other parts of the system to access it. OS/90 is a hybrid 32/16-bit system. Because of this, it needs a uniform interface so that it decides which components should be used. This is analogous to Windows 9x VxD drivers, howver, the entire design is clean-house and has many differences. The driver model is what makes OS/90 a true operating system, rather than a protected mode extention to DOS.
-
-## Comparison Between VxD and DM/90
-
-* VxDs are designed around assembly language and require thunking to use services from C. OS/90 uses C calling conventions and supports C and assembly.
-* VxDs and OS/90 use a practically identical method of hooking 16-bit INT calls.
-* VxDs allow hooking exception vectors but OS/90 does not, though it lets programs set local exception vectors.
-* OS/90 supports plug-and-play while VxD requires extra software for PnP.
-* VxD has a concept of a system virtual machine and interrupts can be owned by a virtual machine. OS/90 has fake interrupts for processes that need them which can be scheduled by an actual IRQ.
-* The VMM of Win386 and the KERNL386.EXE of OS/90 can both be described as non-reentrant.
-* VMM appears to have a more complex scheduler and synchronization architecture.
-* VxDs have a real mode initialization segment. OS/90 does not have this.
-* VMM supports monotasking a single process while OS/90 only allows a process to be blocked, running, or terminated.
-* VMM allows critical sections to service interrupts if specifically requested. OS/90 does not because it will never schedule other software within kernel mode.
 
 # The Kernel API
 
@@ -31,19 +28,13 @@ The kernel API uses cdecl calling conventions. stdcall was considered but it tur
 
 All callbacks passed to and from the kernel use cdecl and should also be marked with `KERNEL`. Functions passed by callback can be `static` as long as they are marked `KERNEL` so that they are not inlined and are forced to use `cdecl` conventions.
 
-## KLXTRN
-
-KLXTRN sets the
-
 # General Notes
 
 Never assume the position of elements in structures. Always use provided structure definitions. Currently, only the C language is fully supported.
 
 # Synchronization
 
-Interrupt request handlers are called with interrupts disabled. The kernel can be interrupted at any time by an IRQ, and is non-reentrant.
-
-Functions marked with KERNEL_ASYNC can be called within an IRQ.
+Interrupt request handlers are called with interrupts disabled.
 
 # Plug-and-Play Support
 

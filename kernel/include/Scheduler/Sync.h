@@ -3,6 +3,8 @@
 
 #include <Type.h>
 
+#define LOCK_INIT (0)
+
 #define AcquireMutex(m)\
 __asm__ volatile (\
     "spin%=:\n\t"\
@@ -20,13 +22,11 @@ __asm__ volatile (\
 
 ALIGN(4) typedef DWORD LOCK;
 
-extern WORD _wPreemptCount;
-extern VOID EnterCriticalRegion(WORD);
+tstruct {
+    LOCK    real_mode_lock;
+    LOCK    v86_chain_lock;
+    LOCK    proc_list_lock;
+}ALL_KERNEL_LOCKS;
 
-static inline BOOL GetPreemptEnabled(VOID)
-{
-    FENCE; // Keep
-    return _wPreemptCount == 0;
-}
 
 #endif /* SCHEDULER_SYNC_H */

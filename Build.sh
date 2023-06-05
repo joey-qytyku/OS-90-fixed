@@ -19,8 +19,6 @@ cd ..
 # resets every time
 # I also cannot include the MS-DOS image because of copyright.
 
-cp ../msdos.img ./
-
 dosbox
 
 #qemu-system-i386 -hda msdos.img\
@@ -30,5 +28,3 @@ dosbox
 #    -monitor stdio
 
 bochs
-
-rm msdos.img

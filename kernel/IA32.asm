@@ -1,4 +1,4 @@
-%include "Kernel.inc"
+%include "Asm/Kernel.inc"
 
 ;===============================================================================
 ; DEFINES
@@ -32,7 +32,7 @@
         TYPE_LDT        EQU     0x2
         TYPE_TSS        EQU     0x9
 
-        IRQ_BASE        EQU     A0h
+        IRQ_BASE        EQU     0A0h
         ICW1            EQU     1<<4
         LEVEL_TRIGGER   EQU     1<<3
         ICW1_ICW4       EQU     1
@@ -44,13 +44,14 @@
 
 ;===============================================================================
 ; IMPORTS
-        extern LowDivide0, LowDebug, LowNMI, LowBreakpoint, LowOverflow
-        extern LowBoundRangeExceeded, LowInvalidOp, LowDevNotAvail
-        extern LowDoubleFault, LowSegOverrun, LowInvalidTSS, LowSegNotPresent
-        extern LowStackSegFault, LowGeneralProtect, LowPageFault, LowAlignCheck
-        extern LowHandleIntV86Reflection
+%assign i 0
+%rep 17
+        extern  LowE %+ i
+        %assign i i+1
+%endrep
 
-        extern Low7, Low15, LowRest
+        extern  LowSystemEntryPoint
+        extern  Low7, Low15, LowRest
 
 ; END IMPORTS
 ;===============================================================================
@@ -59,49 +60,56 @@
 ; EXPORTS
         global  IaAppendAddressToDescriptor
         global  _SetIntVector
+        global  GetDescriptorBaseAddress
         global  GetESP0, SetESP0
-        global  aqwGlobalDescriptorTable
-        global  InitIA32
-
         global  IaUseDirectRing3IO
         global  IaUseVirtualRing3IO
+        global  InitIA32
 
+        global  aqwGlobalDescriptorTable
         global  _KernelReserved4K
 ; END EXPORTS
 ;===============================================================================
 
+;===============================================================================
         section .data
+;===============================================================================
 
 aqwGlobalDescriptorTable:
 .null_segment:
         DQ  0
 
 .kcode:
-        DW      0FFFFh
-        DW      0
-        DB      0
+        DW      0FFFFh  ; Limit 0:15
+        DW      0       ; Base 0:15
+        DB      0       ; Base 16:23
         DB      ACCESS_RIGHTS(1,0,TYPE_CODE)
         DB      0CFh
+        DB      0
 .kdata:
         DW      0FFFFh
         DB      0,0,0
         DB      ACCESS_RIGHTS(1,0,TYPE_DATA)
         DB      0CFh
+        DB      0
 .ucode:
         DW      0FFFFh
         DB      0,0,0
         DB      ACCESS_RIGHTS(1,3,TYPE_CODE)
         DB      0CFh
+        DB      0
 .udata:
         DW      0FFFFh
         DB      0,0,0
         DB      ACCESS_RIGHTS(1,3,TYPE_DATA)
         DB      0CFh
+        DB      0
 .tss:
         DW      0FFFFh
         DB      0,0,0
         DB      ACCESS_RIGHTS(1,0,TYPE_TSS)
         DB      0CFh
+        DB      0
 .ldt:
         DW      103
         DB      0,0,0
@@ -114,21 +122,6 @@ Exceptions:
         %assign i i+1
 %endrep
 
-        section .bss
-
-aqwInterruptDescriptorTable:
-        RESQ    256
-
-aqwLocalDescriptorTable:
-        RESQ    8192
-
-adwTaskStateSegment:
-        RESB    104
-
-        ; It is in BSS so no need to zero it manually
-awIoPermissionBitmap:
-        RESB    8192
-
 GdtInfo:
         DW      (GDT_ENTRIES*8)-1
         DD      aqwGlobalDescriptorTable
@@ -136,23 +129,9 @@ IdtInfo:
         DW      (256*8)-1
         DD      aqwInterruptDescriptorTable
 
-
+;===============================================================================
         section .text
-
-;Virtual 8086 runs in ring 3, and it may need to access IO ports directly.
-;This cannot be done with IOPL. The IOPB is set to an invalid offset to deny
-;all ports. It is set to 104 to allow all.
-;
-;Ring 3 processes must always use virtual IO. V86 calls to DOS/BIOS by
-;the kernel have complete access to IO. The default state is to always
-;virtualize IO in ring 3, so it must be reset after changing.
-
-IaUseDirectRing3IO:
-        mov     word [adwTaskStateSegment+64h],104
-        ret
-IaUseVirtualRing3IO:
-        mov     word [adwTaskStateSegment+64h],0FFFFh
-        ret
+;===============================================================================
 
 GetESP0:
         mov     eax,[adwTaskStateSegment+4]
@@ -166,6 +145,12 @@ SetESP0:
 ; Industry standard architecture uses edge triggered interrupts
 ; 8-byte interrupt vectors are default (ICW[:2] = 0)
 ; which is correct for protected mode.
+;
+;
+; State of PIC?
+; Read mask by default?
+;
+
 RemapPIC:
         ;ICW1 to both PIC's
         mov     al,ICW1 | ICW1_ICW4
@@ -216,7 +201,7 @@ GetDescriptorBaseAddress:
         ; then we OR it with the 23..16
         mov     eax,[ebx+2]
         movzx   ecx,byte [ebx+3]
-        mov     edx,byte [ebx+7]        ; 31..24
+        movzx   edx,byte [ebx+7]        ; 31..24
         shl     edx,8
         or      ecx,edx
         or      eax,ecx
@@ -241,6 +226,14 @@ IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
         leave
         ret
 
+IaAppendLimitToDescriptor:
+        push    ebp
+        mov     ebp,esp
+
+        leave
+
+        ret
+
 _SetIntVector:
         mov     edx,[esp+12]
         movzx   eax,byte[esp+8]
@@ -263,7 +256,7 @@ FillIDT:
         mov     ecx,17
 .ExceptLoop:
         push    dword [Exceptions + ecx*4]
-        push    byte 0Eh
+        push    byte 1_00_01110
         push    ecx
         call    _SetIntVector
         add     esp,12
@@ -273,17 +266,17 @@ FillIDT:
 
         ; Offset 15..0 -----------------------------
         mov     ebx,qIdtValue
-        mov     eax,LowHandleIntV86Reflection
+        mov     eax,LowSystemEntryPoint
         mov     [ebx],ax
 
         ; Selector ---------------------------------
         mov     word [ebx+2],(GDT_KCODE<<3)
 
-        ; Attributes
-        mov     [ebx+4],1_00_01110_000_00000b
+        ; Attributes, changed to word?
+        mov     word [ebx+4],1_00_01110_000_00000b
 
         ; Offset 31..16 ----------------------------
-        mov     eax,LowHandleIntV86Reflection
+        mov     eax,LowSystemEntryPoint
         shr     eax,16
         mov     [ebx+6],ax
 
@@ -393,48 +386,51 @@ Begin:
         ;EDX contains the program base segment of the bootloader
         ;we don't need the loader now. We will convert it to a valid
         ;linear address so the kernel can use it.
-        shr     edx,4
-        mov     [KernelReserved4K],edx
+        xchg bx,bx
 
+        shr     edx,4
+        mov     [_KernelReserved4K],edx
         lgdt    [GdtInfo]
         lidt    [IdtInfo]
 
         mov     ax,2<<3
-        mov     ds,eax
-        mov     es,eax
-        mov     ss,eax
-        mov     fs,eax
-        mov     gs,eax
+        mov     ds,ax  ; Here
+        mov     es,ax
+        mov     ss,ax
+        mov     fs,ax
+        mov     gs,ax
 
-        jmp    8h:Cont
+        xchg    bx,bx
+
+        jmp     8h:Cont
 Cont:
         mov     esp,InitStack   ; Set up a stack
         call    KernelMain      ; GCC does not far return
 
-        ;The kernel has completely initialized and the stack is now empty
-        ;Interrupts are still off, but ready to be recieved
-        ;We will now enter the first process
-        ;The return value of KernelMain is the address to the PCB of the
-        ;INIT program
+        jmp $
 
-        ;Create the IRET frame
-        push    dword [eax+_ss]
-        push    dword [eax+_esp]
-        pushf                           ; We will enter with current flags
-        or      dword [esp],200h        ; But interrupts will be enabled
-        push    dword [eax+_cs]
-        push    dword [eax+_eip]
-        iret                            ; Goodbye!
+;===============================================================================
+        section	.bss
+;===============================================================================
 
-section	.bss
         ;The initialization stack is used only for startup
         ;Processes get independent kernel stacks
-        align   8
+        alignb  16
+        RESB    1024
+InitStack:
+
+aqwInterruptDescriptorTable:
+        RESQ    256
+
+aqwLocalDescriptorTable:
+        RESQ    8192
+
+        alignb  16
+adwTaskStateSegment:
+        RESB    104
+abIoPermissionBitmap:
+        RESB    8192
 
 _KernelReserved4K:
         RESD    1
-
-        RESB    8192
-InitStack:
-
 

@@ -3,6 +3,8 @@
 
 #define ALLOWED_REAL_MODE_EXCEPTIONS 8
 
+#include <Type.h>
+
 /////////////////////////////
 // DPMI and scheduler defs //
 /////////////////////////////
@@ -45,6 +47,21 @@ typedef enum {
     VE_XM,
     VE_NUM_EXCEPT
 }VEXC_VECTOR;
+
+tpkstruct {
+    DWORD   eax,ebx,ecx,edx,esi,edi,ebp;
+    DWORD   eip;
+    DWORD   cs;
+    DWORD   eflags;
+
+    DWORD   esp;
+    DWORD   ss;
+
+    DWORD   es;
+    DWORD   ds;
+    DWORD   fs;
+    DWORD   gs;
+}IRET_FRAME,*P_IRET_FRAME;
 
 // The previous context is of no concern to a driver.
 // DPMI allows the PIC base vectors to be reported through the get version

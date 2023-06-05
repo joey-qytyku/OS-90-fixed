@@ -2,18 +2,20 @@
 #define SCHEDULER_PROC_H
 
 #include <Type.h>
+#include <Misc/log2.h>
 
 #define CTX_KERNEL 0
 #define CTX_USER   1
 
+//
+//
+// If all threads inside the PCB are dead, the whole process may be replaced
+// when executing a new process.
+//
 enum {
-    PS_ACTIV,
-    PS_BLOCK,
-    PS_KERNL,
-    PS_FINTS,
-    PS_FIINP,
-    PS_FXNTS,
-    PS_FXINP
+    THREAD_DEAD,
+    THREAD_IN_KERNEL,
+    THREAD_BLOCKED
 };
 
 enum {
@@ -32,16 +34,22 @@ enum {
 // UREGS is a complete context for ring-3 code.
 //
 tstruct {
-    DWORD es; DWORD ds;
-    DWORD fs; DWORD gs;
+    DWORD es;
+    DWORD ds;
+    DWORD fs;
+    DWORD gs;
     DWORD ss;
 
-    DWORD eax;    DWORD ebx;
-    DWORD ecx;    DWORD edx;
-    DWORD esi;    DWORD edi;
-    DWORD ebp;    DWORD esp;
-    DWORD eflags; DWORD eip;
-    DWORD  _was_v86; // For internal use, do not touch
+    DWORD eax;
+    DWORD ebx;
+    DWORD ecx;
+    DWORD edx;
+    DWORD esi;
+    DWORD edi;
+    DWORD ebp;
+    DWORD esp;
+    DWORD eflags;
+    DWORD eip;
 }UREGS;
 
 //
@@ -49,11 +57,16 @@ tstruct {
 // is garaunteed to use the flat model
 //
 tstruct {
-    DWORD eax;    DWORD ebx;
-    DWORD ecx;    DWORD edx;
-    DWORD esi;    DWORD edi;
-    DWORD ebp;    DWORD esp;
-    DWORD eflags; DWORD eip;
+    DWORD eax;
+    DWORD ebx;
+    DWORD ecx;
+    DWORD edx;
+    DWORD esi;
+    DWORD edi;
+    DWORD ebp;
+    DWORD esp;
+    DWORD eflags;
+    DWORD eip;
 }KREGS;
 
 typedef struct PACKED
@@ -67,12 +80,18 @@ typedef struct PACKED
 // P r o c e s s   C o n t r o l   B l o c k   S t r u c t u r e //
 ///////////////////////////////////////////////////////////////////
 
-tpkstruct {
-    UREGS   user_thread_context;
-    KREGS   kernel_thread_context;
+// Very performance sensitive. Beware of structure ordering.
+// This structure is packed by default.
+
+tpkstruct
+{
+    UREGS   user_regs;
+    UREGS   sv86_regs;
+    KREGS   kern_regs;
 
     PVOID   mem_mirror;
 
+    ALIGN(4)
     DWORD   kernel_pm_stack; // What to do?
     DWORD   user_page_directory_entries[64];
     // Exceptions share the same IDT. This might make standard compliance
@@ -97,7 +116,6 @@ tpkstruct {
     BYTE    fake_irq_in_progress    :1;
     BYTE    fake_irq_pending        :1;
     BYTE    use87                   :1;
-    BYTE    proc_state              :3;
     BYTE    protected_mode          :1;
 
     BYTE    vector_to_invoke:4; // [2]

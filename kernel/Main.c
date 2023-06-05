@@ -22,6 +22,18 @@
 
 PVOID KernelMain(VOID)
 {
-    TRACE("hello\n\r");
+    PDWORD ivt = (PDWORD)0;
+
     InitIA32();
+
+    RealModeRegs[0] = 0xE<<8|('A');
+    RealModeRegs[1] = 0;
+
+    RealModeTrapFrame[4] = 0x9C00;  // SS
+    RealModeTrapFrame[5] = 256;     // ESP
+    RealModeTrapFrame[6] = 1<<17 | 3 << 12;   // EFLAGS
+    RealModeTrapFrame[7] = ivt[0x10] >> 16; // CS
+    RealModeTrapFrame[8] = ivt[0x10] & 0xFFFF; // EIP
+
+    EnterRealMode();
 }
