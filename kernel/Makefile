@@ -1,44 +1,35 @@
 .PHONY: pre-build
 
 pre-build:
-	mkdir -p $(addprefix "build/", $(DIRS))
-	@echo $(OBJ)
-
-SHELL=/bin/bash
+	@mkdir -p $(DIRS)
 
 TCHAIN := ~/opt/cross1/bin
 
-CFLAGS := -I ./include/ -O2 -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2 -march=i386 -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra
-
+AS=nasm -felf -Ox -I include/
 CC=$(TCHAIN)/i386-linux-gcc
 LINK=$(TCHAIN)/i386-linux-ld
 
-CSOURCE=$(shell find . -type f -name '*.c' -printf "%P ")
-ASOURCE=$(shell find . -type f -name '*.asm' -printf "%P ")
+CFLAGS := -I ./include/ -O2 -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2 -march=i386 -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra
 
-OBJ= $(patsubst %.c, build/%.c.o, $(CSOURCE)) $(patsubst %.asm, build/%.asm.o, $(ASOURCE))
+CSOURCE := $(shell find . -type f -name '*.c' -printf "%P\n")
+ASOURCE := $(shell find . -type f -name '*.asm' -printf "%P\n")
 
-DIRS=$(shell find . -type d \( -name "include" -o -name "LinkScripts" -o -name "build" \) -prune -o -type d -printf "%P ")
+DIRS := $(shell find . -type d \( -name "include" -o -name "LinkScripts" -o -name "build" \) -prune -o -type d -printf "build/%P ")
 
-AS=nasm
-ASFLAGS=-felf -Ox -I include/
+CTARGETS := $(addprefix build/, $(patsubst %.c,%.c.o, $(CSOURCE)))
+ATARGETS := $(addprefix build/, $(patsubst %.asm,%.asm.o, $(ASOURCE)))
 
-# -Ox will enable multipass assembly for more optimized code
-#$(info  $(OBJ))
-
-%.c.o: $(CSOURCE)
-	@echo [CC] $<
+$(CTARGETS): build/%.c.o: %.c
+	@echo [CC] $< => $@
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-%.asm.o: %.asm
-	@echo [AS] $<
-	@$(AS) $(ASFLAGS) $< -o $@
+$(ATARGETS): build/%.asm.o: %.asm
+	@echo [AS] $< => $@
+	@$(AS) $< -o $@
 
-KERNL386.EXE: $(OBJ)
-	@$(LINK) [LD] --oformat binary -T LinkScripts/Kernel.ld $(addprefix build/, $(OBJ)) -o build/KERNL386.EXE
-	@$(LINK) [LD] --oformat elf32-i386 -T LinkScripts/Kernel.ld $(addprefix build/, $(OBJ)) -o build/sizetest.o
-
-all: pre-build KERNL386.EXE
+all: pre-build $(CTARGETS) $(ATARGETS)
+	@echo Linking kernel binary
+	$(LINK) -T LinkScripts/Kernel.ld $(CTARGETS) $(ATARGETS) -o build/KERNL386.EXE
 
 cl:
 	rm -rf build/*

@@ -22,7 +22,8 @@
 
         extern  SetESP0, GetESP0    ; Argument goes in EAX
         extern  preempt_count
-        extern  RealModeRegs, RealModeTrapFrame
+
+        global  RealModeRegs, RealModeTrapFrame, EnterRealMode
 
 EnterRealMode:
         lea     eax,[esp+4]

@@ -75,101 +75,6 @@
 
 [section .text]
 
-;-------------------------------------------------------------------------------
-; Segment registers are destroyed after exiting virtual 8086 mode. It is the
-; responsibility of the OS to restore them. This is done simply by copy SS
-; into the data segment registers.
-;
-; When a 32-bit context is interrupted, the stack will contain the value of
-; the stack segment. The rest of the segment registers are still in context
-; and must be saved. They will simply be saved to the stack by pushing.
-; The RD defines have macros with negative offsets to refer to this, but the
-; only useful purpose for this would be the scheduler interrupt.
-;
-; At the end of the ISR, the segment registers of the ring-3 and 32-bit
-; context will be restored along with all the other registers. This only
-; happens if the context was 32-bit ring-3.
-;
-; If the kernel was interrupted, there is no need to modify the segment
-; registers at all. We can just save and restore the registers, and IRET.
-; The last mode variable tells us the ring of the previous context.
-;
-; Now we put this all together. The following is the procedure.
-; Note that the conditions can be pre-computed into variables.
-;-------------------------------------------------------------------------------
-; Save general purpose registers on the stack
-;
-; If previous context V86 Then:
-;   WasV86 <- 1
-;
-; If !WasV86:
-;   If last mode switched is KERNEL:
-;       NOTHING
-;
-;   Else if last mode switched is USER and VM = 0:
-;       SAVE SREGS
-;
-; Write register parameters
-; Call high level C handler
-;
-; If last mode switched is KERNEL:
-;   RESTORE REGS
-;   IRET
-; If WasV86:
-;   RESTORE REGS
-;   IRET
-;
-; If previous context was VM=0 and USER:
-;   RESTORE SREGS
-;   RESTORE REGS
-;   IRET
-;
-;-------------------------------------------------------------------------------
-; Another algorithm that does not avoid segment register loads on ring switches
-; Pseudocode
-; {
-; SAVE REGS
-; SAVE SREGS            -- Even if they are zero, not including stack of course
-; SET KERNEL DSEGS
-;
-; EAX <- ESP + 16
-; CALL HANDLER
-;
-; RESTORE SREGS FROM STACK
-; IRET
-; -- This does actually work, even if they are zeroed
-; -- If we are returning to V86, the correct values
-; -- are automatically loaded upon IRET
-; -- If we are returning to protected mode, the sregs
-; -- are popped off the stack.
-; }
-;
-; The standard register dump structure will have protected mode and real mode
-; segment registers. (DO not use the negative offset?)
-; The PM sregs are pushed to the stack even if they are invalid.
-;
-;IA32 will always flush segment caches upon loads, which is slow, but this
-;algorithm is much simpler and has less branching. In fact, memory is accessed to
-;execute the complex avoidance code, so it may be a lesser of two evils.
-;-------------------------------------------------------------------------------
-
-;------------------------------------------------------------------
-;In case of a spurious interrupt, the ISR will be zero in the PIC
-;chip that caused it, so the computer cannot differentiate between
-;interrupts unless different ISRs are used
-;
-;We only need to know the actual IRQ of #15 and #7 because those vectors
-;are the only ones capable of spurious interrupts. The second parameter
-;passed to the master dispatcher will be zero if any other IRQ or 15/7.
-;Otherwise, it is not important, we get it from the PICs ISR.
-;------------------------------------------------------------------
-
-;-------------------------------------------------------------------------------
-; This code section handles exceptions and IRQs. It then passes control to a high-level
-; dispatcher. The ISRs themselves are different in order to tell them apart.
-; Each entry point must be registered with the IDT as IRQ so that IF=0 on entry.
-; We will enable interrupts later on for exceptions.
-
     align   16
 
 LowRest:
@@ -213,25 +118,8 @@ LowSwi: DB      66h,0E8h, 0, 0
         mov     ebx,esp
         call    SystemEntryPoint
 
+        ; To IRET or not to IRET?
         RestTrapRegs
-        iret
-
-;===============================================================================
-; Entered with interrupts disabled by IDT. This will only be caused if the INT
-; instruction was called. This is the only way for a process to enter kernel
-; mode with preemption enabled. This will enter the kernel mode thread using
-; the process-local stack which contains the register save structure.
-; These vectors should never be called by ring-0 software or a fatal error
-; will occur.
-;
-
-        align   16
-LowSystemEntryPoint:
-        ; Save user registers to the register dump
-        push    ebx
-
-        mov     ebx,esp
-        and     ebx,~1FFFh
 
         section .bss
 
