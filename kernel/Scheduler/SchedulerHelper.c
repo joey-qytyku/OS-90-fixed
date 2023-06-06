@@ -41,10 +41,11 @@ BOOL ScDecodePortOp(
     BOOL  rep_prefix = 0;
     PBYTE op = opcode;
 
-    // An assembler will usually emit the REP prefix before the
-    // MASM emits REP first
-    // NASM does this too
-    // IDK about FASM
+    // An assembler will usually emit the REP prefix before the.
+    // The following do this:
+    // - MASM
+    // - NASM
+    // - FASM
     // Most programs of the DOS era were built with MASM, so we should be okay
     // to assume that this is the order, though x86 does not require it
 

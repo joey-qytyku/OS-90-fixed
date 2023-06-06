@@ -96,4 +96,8 @@ static inline BYTE delay_inb(WORD port)
     return inb(port);
 }
 
+#undef _MAKE_PORT_OUT
+#undef _MAKE_PORT_IN
+
+
 #endif /* IO_H */

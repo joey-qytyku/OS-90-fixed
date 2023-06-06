@@ -60,27 +60,6 @@ INTVAR DWORD number_of_processes = 0;
 // Do not modify without memory fencing and interrupts off.
 INTVAR BYTE last_mode = CTX_KERNEL;
 
-
-VOID KERNEL IncPreempt(VOID)
-{
-    __asm__ volatile (
-        "incl %0"
-        :"=m"(preempt_count)
-        :
-        :"memory"
-        );
-}
-
-VOID KERNEL DecPreempt(VOID)
-{
-    __asm__ volatile (
-        "decl %0"
-        :"=m"(preempt_count)
-        :
-        :"memory"
-        );
-}
-
 // BRIEF:
 //      Sometimes, you need to access process memory. This will take into
 //      account segmentation and performs calculations automatically
@@ -122,6 +101,10 @@ static                  V86_CHAIN_LINK v86_capture_chain[256];
 static const    PDWORD  real_mode_ivt = (PVOID)0;
 static          DWORD   dos_semaphore_seg_off; // ?
 static          BYTE    iret_counter = 0;
+static          BYTE    virt_io_strategy = 0;
+// If 0: IOPB is used to direct IO
+// If 1: All IO is emulated in protected mode.
+
 
 static BYTE bPeek86(WORD seg, WORD off)
 {
@@ -183,6 +166,46 @@ VOID KERNEL ScVirtual86_Int(P_DREGW context, BYTE vector)
             current_link = current_link->next;
             continue;
         }
+    }
+}
+
+// BRIEF:
+//      See documentation for more details. There are two strategies for
+//      handling IO from supervisory virtual 8086 mode. One of them
+//      is to direct all operations to the IOPB and run them directly.
+//
+//      The other is to deny all access and emulate the whole instruction.
+//
+//      The second option is very slow for individual port access, but provides
+//      near native performance (maybe better) when string operations are used.
+//
+//      Switching to ring 0 from ring 3 takes approximately 100 clocks.
+//
+//      ECX value is not zeroed after running!
+//
+// Rewrite this in ASM?
+//
+
+static VOID EmulateDirectIO(
+    PBYTE   opcode_addr,
+    WORD    dx_val,     // Value of DX saved on stack
+    DWORD   ecx_val,    // Number of iterations, must be zeroed by caller
+    DWORD   edi_val,
+    DWORD   es_val
+){
+    // We will read combine, no need for several if statements
+    // Segment prefixes are not supported.
+    // inw and outw are the only operations used for ATA drives,
+    // so we mark them as most likely branch.
+
+    if (likely(WORD_PTR(opcode_addr,0) == 0x6EF3)) // HEX: F3 6E
+        rep_outsb(MK_LP(es_val, edi_val), ecx_val, dx_val);
+
+    else if (WORD_PTR(opcode_addr,0) == 0x6FF3)
+        rep_outsw(MK_LP(es_val, edi_val), ecx_val, dx_val);
+    else {
+        // Slow emulation. These are less speed critical.
+
     }
 }
 

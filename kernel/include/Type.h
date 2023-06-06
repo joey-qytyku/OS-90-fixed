@@ -96,7 +96,8 @@ typedef IMUSTR *PIMUSTR;
 #define tstruct   typedef struct
 #define tpkstruct typedef struct __attribute__((packed))
 
-#define always_inline __attribute__((always_inline))
+#define likely(x)   __builtin_expect((x),1)
+#define unlikely(x) __builtin_expect((x),0)
 
 /////////////////////////////////////////////////////////////////////
 // A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //

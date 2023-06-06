@@ -53,6 +53,7 @@
 ; IMPORTS
         EXTERN  ExceptionDispatch
         EXTERN  InterruptDispatch
+        EXTERN  SystemEntryPoint
 ; END IMPORTS
 ;===============================================================================
 
@@ -170,6 +171,11 @@
 ; We will enable interrupts later on for exceptions.
 
     align   16
+
+LowRest:
+Low15:
+Low7:
+
 LowE0:  DB      66h,0E8h, 72, 0
 LowE1:  DB      66h,0E8h, 68, 0
 LowE2:  DB      66h,0E8h, 64, 0
