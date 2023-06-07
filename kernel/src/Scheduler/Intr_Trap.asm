@@ -20,9 +20,6 @@
 ;===============================================================================
 ; MACRO DEFS
 
-%define NOCODE  0
-%define ERRCODE 1
-
 ;Requires the error code to be
 ;pushed off stack for exceptions that use it
 
@@ -51,6 +48,8 @@
 
 ;===============================================================================
 ; IMPORTS
+[section .text]
+
         EXTERN  ExceptionDispatch
         EXTERN  InterruptDispatch
         EXTERN  SystemEntryPoint
@@ -61,7 +60,7 @@
 ; EXPORTS
         GLOBAL  Low15, Low7, LowRest
         GLOBAL  _dwErrorCode
-        GLOBAL  LowSystemEntryPoint
+        GLOBAL  LowSwi
 
 %assign i 0
 %rep 17
@@ -72,8 +71,6 @@
 
 ; END EXPORTS
 ;===============================================================================
-
-[section .text]
 
     align   16
 

@@ -1,35 +1,51 @@
-.PHONY: pre-build
+#
+# I used chatgpt to generate this makefile.
+#
 
-pre-build:
-	@mkdir -p $(DIRS)
+TOOLCHAIN := ~/opt/cross1/bin
 
-TCHAIN := ~/opt/cross1/bin
+CC := $(TOOLCHAIN)/i386-linux-gcc
 
-AS=nasm -felf -Ox -I include/
-CC=$(TCHAIN)/i386-linux-gcc
-LINK=$(TCHAIN)/i386-linux-ld
+# Assembler
+AS := nasm
 
-CFLAGS := -I ./include/ -O2 -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2 -march=i386 -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra
+SRCDIR := src
+OBJDIR := build/obj
+BINDIR := build
 
-CSOURCE := $(shell find . -type f -name '*.c' -printf "%P\n")
-ASOURCE := $(shell find . -type f -name '*.asm' -printf "%P\n")
+SOURCES := $(shell find $(SRCDIR) -type f -name "*.c")
+ASSEMBLY := $(shell find $(SRCDIR) -type f -name "*.asm")
 
-DIRS := $(shell find . -type d \( -name "include" -o -name "LinkScripts" -o -name "build" \) -prune -o -type d -printf "build/%P ")
+OBJS := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SOURCES:.c=.o))
+OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.o))
 
-CTARGETS := $(addprefix build/, $(patsubst %.c,%.c.o, $(CSOURCE)))
-ATARGETS := $(addprefix build/, $(patsubst %.asm,%.asm.o, $(ASOURCE)))
+EXEC := $(BINDIR)/KERNL386.EXE
 
-$(CTARGETS): build/%.c.o: %.c
-	@echo [CC] $< => $@
+CFLAGS := -I ./src/include/ -Os -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2 -march=i386 -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra
+
+AFLAGS := -f elf32 -Ox -i src/include/
+
+LD := $(TOOLCHAIN)/i386-linux-ld
+LDFLAGS := --oformat binary -T LinkScripts/Kernel.ld
+
+.PHONY: all clean
+
+all: $(EXEC)
+
+$(EXEC): $(OBJS)
+	@mkdir -p $(BINDIR)
+	$(LD) $(LDFLAGS) $^ -o $@
+	$(LD) -T LinkScripts/Kernel.ld $^ -o $@
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+	@mkdir -p $(dir $@)
+	@echo [CC] $<
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(ATARGETS): build/%.asm.o: %.asm
-	@echo [AS] $< => $@
-	@$(AS) $< -o $@
+$(OBJDIR)/%.o: $(SRCDIR)/%.asm
+	@mkdir -p $(dir $@)
+	@echo [AS] $< > $@
+	@$(AS) $(AFLAGS) $< -o $@
 
-all: pre-build $(CTARGETS) $(ATARGETS)
-	@echo Linking kernel binary
-	$(LINK) -T LinkScripts/Kernel.ld $(CTARGETS) $(ATARGETS) -o build/KERNL386.EXE
-
-cl:
-	rm -rf build/*
+clean:
+	rm -rf $(BINDIR)/* $(OBJDIR)/*

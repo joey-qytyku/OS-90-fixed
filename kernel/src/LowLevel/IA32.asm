@@ -50,7 +50,7 @@
         %assign i i+1
 %endrep
 
-        extern  LowSystemEntryPoint
+        extern  LowSwi
         extern  Low7, Low15, LowRest
 
 ; END IMPORTS
@@ -266,7 +266,7 @@ FillIDT:
 
         ; Offset 15..0 -----------------------------
         mov     ebx,qIdtValue
-        mov     eax,LowSystemEntryPoint
+        mov     eax,LowSwi
         mov     [ebx],ax
 
         ; Selector ---------------------------------
@@ -276,7 +276,7 @@ FillIDT:
         mov     word [ebx+4],1_00_01110_000_00000b
 
         ; Offset 31..16 ----------------------------
-        mov     eax,LowSystemEntryPoint
+        mov     eax,LowSwi
         shr     eax,16
         mov     [ebx+6],ax
 

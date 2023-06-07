@@ -14,7 +14,7 @@
         {
             "name": "os/90",
             "includePath": [
-                "${workspaceFolder}/kernel/include"
+                "${workspaceFolder}/kernel/src/include"
             ],
             "defines": [],
             "compilerPath": "~/opt/cross1/bin/i386-linux-gcc",

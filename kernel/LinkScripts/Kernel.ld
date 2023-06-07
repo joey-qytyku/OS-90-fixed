@@ -12,13 +12,11 @@ SECTIONS
 {
 	. = 0xC0000000;
 
-	/* This section does not specify any alignment after including input .init
-	 * Should not be a problem. We will re-align at the end of program data.
-	*/
 	.init : AT(LKR_START_PROG_DATA)
 	{
 		LKR_START_PROG_DATA = .;
 		*(.init)
+		. = ALIGN(4K);
 	}
 	.text : AT(START_PROG_DATA_NONINIT)
 	{
