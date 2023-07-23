@@ -8,35 +8,49 @@
     You should have received a copy of the GNU General Public License along with Foobar. If not, see <https://www.gnu.org/licenses/>.
 */
 
+
+/* Text section is smaller now. Something is terribly wrong */
 SECTIONS
 {
 	. = 0xC0000000;
 
-	.init : AT(LKR_START_PROG_DATA)
+    .init :
+    {
+        *(.init)
+    }
+    . = ALIGN(4K);
+    END_INIT = .;
+
+	.text : AT(END_INIT)
 	{
-		LKR_START_PROG_DATA = .;
-		*(.init)
-		. = ALIGN(4K);
+        *(.text)
 	}
-	.text : AT(START_PROG_DATA_NONINIT)
-	{
-		START_PROG_DATA_NONINIT = .;
-		*(.text)
-		. = ALIGN(4K);
-		*(.data)
-		. = ALIGN(4K);
-		*(.rodata)
-		. = ALIGN(4K);
-		*(.rodata.*)
-		. = ALIGN(4K);
-		LKR_END_PROG_DATA = .;
-	}
-	.bss : AT(LKR_END_PROG_DATA)
+    . = ALIGN(4K);
+    END_TEXT = .;
+
+    .data : AT(END_TEXT)
+    {
+        *(.data)
+    }
+    . = ALIGN(4K);
+    END_DATA = .;
+
+    .rodata : AT(END_DATA)
+    {
+        *(.rodata)
+        *(.rodata.*)
+    }
+    . = ALIGN(4K);
+    END_RODATA = .;
+
+	.bss : AT(END_RODATA)
 	{
 		*(.bss)
-		. = ALIGN(4K);
-		LKR_END = .;
+		BSS_END = .;
 	}
+
+    BSS_SIZE = BSS_END - END_DATA;
+
 	/DISCARD/ :
 	{
         *(*)

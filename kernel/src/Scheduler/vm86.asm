@@ -23,7 +23,13 @@
         extern  SetESP0, GetESP0    ; Argument goes in EAX
         extern  preempt_count
 
-        global  RealModeRegs, RealModeTrapFrame, EnterRealMode
+        global  _RealModeRegs, _RealModeTrapFrame, EnterRealMode
+
+;
+; This function takes no arguments. It will increment the preempt count
+; to prevent preemption to a kernel thread while it reads from the
+; register buffer.
+;
 
 EnterRealMode:
         lea     eax,[esp+4]
@@ -34,7 +40,7 @@ EnterRealMode:
         mov     [RealModeCalleeSaved.lEdi],edi
         mov     [RealModeCalleeSaved.lEbp],ebp
 
-        mov     ebx,RealModeRegs
+        mov     ebx,_RealModeRegs
         mov     eax,[ebx]
         mov     ecx,[ebx+8]
         mov     edx,[ebx+12]
@@ -43,25 +49,25 @@ EnterRealMode:
         mov     ebp,[ebx+24]
         mov     ebx,[ebx+28]
 
-        push    dword [RealModeTrapFrame]        ; GS
-        push    dword [RealModeTrapFrame+4]      ; FS
-        push    dword [RealModeTrapFrame+8]      ; DS
-        push    dword [RealModeTrapFrame+12]     ; ES
-        push    dword [RealModeTrapFrame+16]     ; SS
-        push    dword [RealModeTrapFrame+20]     ; ESP
-        push    dword [RealModeTrapFrame+24]     ; EFLAGS
-        push    dword [RealModeTrapFrame+28]     ; CS
-        push    dword [RealModeTrapFrame+32]     ; EIP
+        push    dword [_RealModeTrapFrame]        ; GS
+        push    dword [_RealModeTrapFrame+4]      ; FS
+        push    dword [_RealModeTrapFrame+8]      ; DS
+        push    dword [_RealModeTrapFrame+12]     ; ES
+        push    dword [_RealModeTrapFrame+16]     ; SS
+        push    dword [_RealModeTrapFrame+20]     ; ESP
+        push    dword [_RealModeTrapFrame+24]     ; EFLAGS
+        push    dword [_RealModeTrapFrame+28]     ; CS
+        push    dword [_RealModeTrapFrame+32]     ; EIP
 
-        xchg bx,bx
+        xchg    bx,bx
         iret
 
         section .data
         section .bss
 
-RealModeRegs:
+_RealModeRegs:
         RESD    7
-RealModeTrapFrame:
+_RealModeTrapFrame:
         RESD    9
 
 RealModeCalleeSaved:

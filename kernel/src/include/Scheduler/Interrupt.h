@@ -24,32 +24,14 @@
 //
 #define IRQ_RESERVED_VECTOR 0xA0
 
-typedef enum {
-    VE_DE,
-    VE_DB,
-    VE_NMI,
-    VE_BP,
-    VE_OF,
-    VE_BR,
-    VE_UD,
-    VE_NM,
-    VE_DF,
-    VE_SO,
-    VE_TS,
-    VE_NP,
-    VE_SS,
-    VE_GP,
-    VE_PF,
-    _VE_RES,
-    VE_MF,
-    VE_AC,
-    VE_MC,
-    VE_XM,
-    VE_NUM_EXCEPT
-}VEXC_VECTOR;
-
 tpkstruct {
-    DWORD   eax,ebx,ecx,edx,esi,edi,ebp;
+    DWORD   eax;
+    DWORD   ebx
+    DWORD   ecx;
+    DWORD   edx;
+    DWORD   esi;
+    DWORD   edi;
+    DWORD   ebp;
     DWORD   eip;
     DWORD   cs;
     DWORD   eflags;

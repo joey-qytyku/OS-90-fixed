@@ -13,7 +13,7 @@
 
 #include <Type.h>
 
-static inline void rep_insb(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_insb(PVOID mem, DWORD count, WORD port)
 {
     __asm__ volatile(
         "rep insb"
@@ -23,7 +23,7 @@ static inline void rep_insb(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline void rep_outsb(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_outsb(PVOID mem, DWORD count, WORD port)
 {
     __asm__ volatile (
         "rep outsb"
@@ -33,7 +33,7 @@ static inline void rep_outsb(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline void rep_insw(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_insw(PVOID mem, DWORD count, WORD port)
 {
     __asm__ volatile (
         "rep insw"
@@ -43,7 +43,7 @@ static inline void rep_insw(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline void rep_outsw(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_outsw(PVOID mem, DWORD count, WORD port)
 {
     __asm__ volatile (
         "rep outsw"

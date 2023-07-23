@@ -1,27 +1,25 @@
-/*
-     This file is part of OS/90.
-
-    OS/90 is free software: you can redistribute it and/or modify it under the
-    terms of the GNU General Public License as published by the Free Software
-    Foundation, either version 2 of the License, or (at your option) any later
-    version.
-
-    OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-    FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-    details.
-
-    You should have received a copy of the GNU General Public License along
-    with OS/90. If not, see <https://www.gnu.org/licenses/>.
-*/
+////////////////////////////////////////////////////////////////////////////////
+//                      This file is part of OS/90.
+//
+// It is dual licensed for GPLv2 and MIT.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 #include <Platform/BitOps.h>
 #include <Type.h>
 
+// WARNING:
+//      All of these functions operate on little endian 32-bit values.
+//      If the bits must be in literal order at byte aligned boundaries,
+//      this will not help much.
+//
+//      Also, it is recommended that bit arrays are aligned at 4-byte boundaries
+//      for high performance.
+//
 VOID KeEnableBitArrayEntry(PDWORD array, DWORD inx)
 {
     DWORD bit_offset  = inx & 31;
-    DWORD dword_index = inx / 32;
+    DWORD dword_index = inx >> 5;
 
     array[dword_index] |= 1 << bit_offset;
 }
@@ -29,7 +27,7 @@ VOID KeEnableBitArrayEntry(PDWORD array, DWORD inx)
 VOID KERNEL KeDisableBitArrayEntry(PDWORD array, DWORD inx)
 {
     DWORD bit_offset  = inx & 31;
-    DWORD dword_index = inx / 32;
+    DWORD dword_index = inx >> 5;
 
     array[dword_index] &= ~(1 << bit_offset);
 }
@@ -57,15 +55,15 @@ VOID KeEnableBitArrayRange(PDWORD array, DWORD base_inx, DWORD count)
 //      It fits many different situations, such as IO ports, memory,
 //      and LDT descriptors.
 //
-// I could improve this with a more optimistic algorithm. If the number
-// to allocate is a certain large size, I can do something like binary search.
-//
 // NOTE:
 //      Ignore references to the LDT in comments. This is for any bit array.
 //
-STATUS KeAllocateBits(
+// TODO:
+//      Maybe rewrite in assembly.
+//
+STATUS KERNEL KeAllocateBits(
     PDWORD  array,         // Address of array
-    DWORD   array_bounds,  // Number of bits, multiple of 4
+    DWORD   array_bounds,  // Number of bits, multiple of 4, THE LIMIT, NOT NUMBER
     DWORD   to_alloc,      // Number to allocate
     PDWORD  out_base_index // Where to store the base index returned by function
 ){
@@ -120,11 +118,12 @@ STATUS KeAllocateBits(
 // BRIEF:
 //      Sometimes, we only want to allocate a single bit.
 //      This procedure scans the array as it is most likely to find a free
-//      entry at the end.
+//      entry at the end for most situations.
 //
-STATUS AllocateOneBit(
+STATUS KERNEL AllocateOneBit(
     PDWORD array,
-    DWORD  array_bounds
+    DWORD  array_bounds,
+    PDWORD out_index
 ){
     for (DWORD i = array_bounds-1; i != 0; i--)
     {
@@ -132,6 +131,7 @@ STATUS AllocateOneBit(
         if (!bit)
         {
             KeEnableBitArrayEntry(array, i);
+            *out_index = i;
             return OS_OK;
         }
     }

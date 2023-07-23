@@ -1,25 +1,12 @@
-# Call Gate
+# Preface
 
-System calls are implemented in an unusual way using a call gate where the offset field is interpreted as a function code.
+The system call interface is not meant to implement an entire operating system interface, but to provide supplementary features to the existing DOS/DPMI API for OS/90 support.
 
-If we used a software interrupt:
-```
-mov     eax,FunctionCode
-int     WhateverVector
-```
+Programs designed for OS/90 should use the userspace API. The system call API is very low level and subject to change at any time.
 
-The first operation would take up five bytes. The second will take two. That is seven bytes to set the function code.
+# Call Method
 
-Now with a call gate:
-```
-call    word 83h:FunctionCode
-```
-
-A 16-bit far call is possible using the 66 prefix, and the syntax varies between assemblers. FASM for some reason uses DWORD as the override while NASM uses WORD. The 16-bit call is _required_ because a 16-bit function code is assumed and the opcode is checked for correctness. If the wrong opcode is used, the program will be terminated. In total, six bytes are used with this encoding.
-
-Call gate invocations will terminate with a far return. It is essentially the same as a regular far call but it will change the CPL. GCC does not support far procedures and associated stack frames, so a simple assembly thunk will translate the call. Registers are used for parameters. The segment selector is garaunteed to be 83h, or 131 in decimal.
-
-Only 32-bit DPMI or native programs can access the system call interface. 16-bit protected mode programs are simply ignored by the kernel. Addresses always assume the flat model.
+Vector 41h is reserved for OS/90.
 
 # List of System Calls
 
@@ -47,10 +34,6 @@ OUT:
 The function code is a reference to the PC boot sector. Versions are in BCD (e.g AH=6, AL=22). This is necessary in programs that could execute in a DOS-based DPMI server.
 
 CL will equal 3 for 386, 4 for 486, 5 for Pentium, or 6 for Pentium pro.
-
-## Load Dynamic Library
-
-## Unload Dynamic Library
 
 ## Memory Block Size MEMBLKSIZE
 

@@ -1,3 +1,20 @@
+////////////////////////////////////////////////////////////////////////////////
+//                      This file is part of OS/90.
+//
+// OS/90 is free software: you can redistribute it and/or modify it under the
+// terms of the GNU General Public License as published by the Free Software
+// Foundation, either version 2 of the License, or (at your option) any later
+// version.
+//
+// OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+// details.
+//
+// You should have received a copy of the GNU General Public License along
+// with OS/90. If not, see <https://www.gnu.org/licenses/>.
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef SCHEDULER_V86M_H
 #define SCHEDULER_V86M_H
 
@@ -52,15 +69,7 @@ tpkstruct {
     WORD ss;
 }DREGW,*P_DREGW;
 
-tpkstruct {
-    DWORD   ebp;
-    DWORD   edi;
-    DWORD   esi;
-    DWORD   eip;
-}V86_CALLER_STATE,*P_V86_CALLER_STATE;
-
 typedef STATUS (*V86_HANDLER)(P_DREGW);
-typedef VOID   (*EXCEPTION_HANDLER)(PDWORD);
 
 typedef struct
 {
@@ -68,7 +77,6 @@ typedef struct
     PVOID next;           // Initialize to zero
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
-
 
 extern KERNEL VOID ScHookDosTrap(
     BYTE,
@@ -80,8 +88,8 @@ extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
 extern VOID KERNEL ScVirtual86_Int(P_DREGW, BYTE);
 
 extern VOID EnterRealMode(VOID);
-extern DWORD RealModeRegs[7];
-extern DWORD RealModeTrapFrame[9];
+extern DWORD _RealModeRegs[7];
+extern DWORD _RealModeTrapFrame[9];
 
 static inline PVOID MK_LP(WORD seg, WORD off)
 {

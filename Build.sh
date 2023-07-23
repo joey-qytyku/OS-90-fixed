@@ -11,6 +11,7 @@ cd ..
 echo "==|   BUILDING KERNEL   |=="
 
 cd kernel
+make clean
 make all
 cd ..
 

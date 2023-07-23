@@ -108,7 +108,8 @@ LowSwi: DB      66h,0E8h, 0, 0
 
         DB      0B8h    ; MOV EAX,
 .smc:   DD      0       ;         Imm32
-
+        jmp .clcache    ; Cache flush or i486 may not execute correctly
+.clcache:
         mov     ebx,LowE0
         sub     eax,ebx
         shr     eax,2

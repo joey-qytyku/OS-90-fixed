@@ -1,163 +1,124 @@
-# Paging and Virtual Address Spaces
+# Deprecation Note
 
-Userspace programs have access to no more than 256 megabytes of virtual addressing space. The kernel is mapped to the 2/3 mark of the virtual address space at all times, which is at 0xC0000000.
+The memory manager is being redesigned. This document was too convoluded to maintain and has been deprectated.
 
-## Page Frame Allocation
+# OS/90 Memory Management
 
-All memory is in 16K blocks starting from zero. This option can be configured in the config header file.
+OS/90 supports:
+* Virtual memory with swapping and uncommitted memory
+* Per-process resizable heaps (sbrk-style)
+* Dynamically allocated off-heap memory (mmap-style)
+* Memory mapped IO emulation for framebuffers and Limulation
 
-This is a very simple and fast way to manage pages, but is not very space efficient.
+## Constructing Page Tables
 
-```c
-tpkstruct {
-    CHID    id:12;
-    BYTE    flags:4;
-    WORD    next;
-};
-```
-This strcuture is an element of the block list.
+The i386 processor uses 2-level paging for the MMU.
 
-If I use bit array allocation, I can reduce the necessary bits for the ID.
+Page directory entries are never marked as not present on OS/90. Only pages are. If a page directory entry is not present, the meaning is that an associated page table does not exist. Such a page table entry will be set to read only/cache disabled/ring 0 and will map to the address 0xFFFFF000 by default. The page fault handler cannot know that the not present violation was caused by a page directory specifically, so that is why it is necessary to reserve this address.
 
-The `AVAIL_IDS` is divided by 32 to get the size of a DWORD array (it must be divisible by 32). By default, we have 4096 available IDs, which should be more than enough.
+Access to unmapped memory like this is always an illegal operation. The reason why we keep track of whether or not a page directory points to a valid page is for when we need to map virtual addresses to physical addresses, which may require the allocation of new page tables.
 
-## Global Page Directory
+The page directory is always present in OS/90 and is globally shared. Task switching is accomplished by writing local page directory content to the global one and refreshing the TLB.
 
-We do not need to keep a whole page directory for each process. This would be very wasteful and make process control blocks oversized, because 2/3 of it will be the exact same. The solution is to store only the user section of the page directory and copy it to a global main page directory. 64 PD entries must be copied into the PD on every context switch, but the overhead is quite minimal. The page directory entries of the PCB is called the user page directory, or UPD. The kernel's actual page directory is called the KPD.
+## Page Faults and Reentrancy
 
-## Mapping a Page to a Physical Page Frame
+Page frame allocation functions are not reentrant like the rest of the memory manager, but they are garaunteed to not cause page faults, which means they can safely be called within a page fault handler. They will check the memory manager lock before acquiring it.
 
-```
-MmMapPhysicalToVirtualDirect
-```
+## Memory Blocks
 
-This function maps a contiguous block of pages to a physically contiguous block of page frames. This should be used in conjunction with virtual address space services to access MMIO directly. It operates on the KPD or a UPD.
+Blocks are the single unit of physical virtual memory. Memory mappings are always based on the block size.
 
-Accessing a region directly should be avoided because drivers may currently be virtualizing IO to the address and mapping it elsewhere for a random process.
-
-## Mapping a Chain to Specific Addresses
-
-Our goal is to have a single function that takes the ID of a chain and maps it to a virtual address contiguously. Page tables must be mapped into memory somehow before they can be modified. The page directory is global so it does not need to be allocated. The mapper operates on a UPD or the kernel KPD and KPTs.
+All physical memory is in 16K blocks starting from zero. This option can be configured in the config header file. This is a very simple and fast way to manage pages, but is not very space efficient.
 
 ```c
-MAP_UPD
-MAP_KPD
-
-STATUS APICALL MmMapChainToVirtualAddress(
-    DWORD   flags,
-    DWORD   id              // ID of chain
-    PVOID   map_to,         // Virtual address to map to
-    DWORD   page_offset,    // Offset within the chain, in pages
-    DWORD   page_count,     // Number of pages to map
-    PVOID   if_upd_address  // Address of the UPD
-);
-```
-
-```c
-// Do not do this. This is just an example of how the functions work
-
-__ALIGN(4096)
-DWORD mem_window[MEM_BLOCK_SIZE / sizeof(DWORD)];
-DWORD id;
-
-VOID Example()
+// 10 bytes long
+tpkstruct
 {
-    id = MmAllocateChain(0, 1);
-
-    MmMapChainToVirtualAddress(MAP_KPD, id, mem_window, 0, NULL);
-    mem_window[0] = 0xDEADBEEF;
-}
+    CHID    idnum       :13;
+    BYTE    f_free      :1;
+    BYTE    f_phys_cont :1;
+    BYTE    f_is_first  :1;
+    WORD    rel_index;
+    WORD    next;
+    WORD    prev;
+    WORD    owner_pid;
+}MB,*P_MB;
 ```
 
-Operations to support:
-* Page clean
-* Mark as swappable
-* Freeze pages
-* Disable cache
-* Allocate blocks as contiguous (for DMA)
-* Getting the physical address of a contiguous chain
-* Getting the physical address of specific pages in the chain
+This structure is an element of the block list. To support memory allocations going backward, as in page frames do not go in forward direction as virtual pages, a link to the next element is included. With 16K blocks, the maximum physical memory accessible is 1GB. This configuration can be modified.
 
-Chains have attributes in the flags. The first entry is the only one that needs to have it.
+This list is doubly linked so that chains can have blocks swapped out. An index is also kept for this purpose.
 
-Contiguous blocks are special and cannot be resized. Frozen is implied. Only the first entry in a chain of blocks needs to have the flags. ID numbers are 27-bit.
+### Rationale for Fixed Blocks
 
-## Given a Page Table Entry, Finding the ID
+Windows NT requires 32MB of RAM for typical use. It also allocated memory is 64KB quantities.
 
-```c
-CHID MmGetChainIdOfPage(
-    BOOL    use_kpd,
-    DWORD   page_index
-);
+```
+   32MB
+  ------ = Number of blocks
+   64KB
 ```
 
-Later in this document, it will be necessary to find the ID that a page belongs to to implement uncommitted memory.
+Now we can set this fraction equal to the one with our block size.
 
-This takes a page index rather than a block index. We floor the index to the block boundary and index that block in the block list. Then we return the ID.
+```
+    32MB       X
+  ------- = -------
+    64K       16K
+
+```
+Solve for X, which is the size of the memory in megabytes.
+
+64KB = 0.625167847 MB
+16KB = 0.156291962 MB
+
+0.625167847(X) = 32 * 0.156291962
+0.625167847(X) = 5.001342784
+X ~ 8.000000013
+
+This means that an allocation of 64KB on our NT system hurts as much as an allocation of 16KB on a system with 8MB of RAM. This sounds bad, but Windows NT was known to be a RAM hog and OS/90 is a much simpler architecture without any of the cross-platform bloat.
+
+Windows NT does have the ability to swap out or uncommit individual pages, which OS/90 cannot do.
+
+### Relationship with Virtual Memory
+
+Because we allocate using fixed blocks, it is also necessary to swap memory with the same size so that freed memory can be allocated later. Page granular operations are not very useful as a result, and OS/90 does not support them. Page-level settings (bits) always apply to an entire block. Memory mappings are also done at block boundaries.
+
+Functions provided by the kernel API are byte granular so that the block size does not have to be obtained at run time (it can be).
+
+This increases the amount of disk IO when swapping. Cache usage is not affected because the extra memory allocated is only fetched to cache when used.
 
 ## Virtual Address Space Allocation
 
-Specifying fixed addresses for all allocations is not practical, so the operating system needs a way to map memory to arbitrary locations.
+### Virtual Address Space List
 
-Bitmap allocation is used to implement virtual address space allocation. To use these features, a special memory management structure must be specified. Virtual address nodes must be aligned at 4MB page directory entry boundaries.
+A linked list of structures of the type `VAHEAD` contains arrays which specify the mappings of physical blocks to virtual blocks.
 
-The VA_NODE structure is a linked list element. The kernel walks the list when allocating virtual address spaces. The kernel comes with its own structure called `kernel_node`, which is global to all drivers.
-
-A bitmap represents the availability of pages in the virtual address space. The spaces allocated do not need to be entirely present.
-
-```c
-// Returns the base address of the region
-
-PVOID MmAllocateVirtualRegion(
-    P_VA_NODE   vanode,
-    DWORD       num_pages
-);
-
-STATUS MmReleaseVirtualRegion(
-    P_VA_NODE   vanode,
-    PVOID       base_addr
-    DWORD       num_to_free
-);
-
+Each entry is formatted like this:
 ```
+#define VAF_FREE
+#define VAF_USER
 
-Here is an example of memory allocation with virtual address spaces. This is a much better way to allocate.
-```c
-const DWORD to_alloc = MEM_BLOCK_SIZE / 4096;
-
-VOID Example()
+tpkstruct
 {
-    PBYTE vspace;
-    DWORD id;
-
-    vspace = MmAllocateVirtualRegion(&kernel_node, to_alloc, VA_PRESENT);
-    id     = MmAllocateChain(0, 1);
-    MmMapChainToVirtualAddress(MAP_KPD, id, vspace);
-
-    C_strcpy(vspace, "Hello, world");
-
-    MmReleaseVirtualRegion(&kernel_node, vspace, to_alloc);
-}
+    WORD    id;
+    BYTE    flags;
+}VA_ENT;
 ```
 
-The following is an example for direct MMIO access. This actually is required for direct access because a drvier may be virtualizing MMIO to the specified address for a process.
-```
-VOID Example()
-{
-    PWORD vspace;
-    vspace = MmAllocateVirtualRegion(
-        &kernel_node,
-        1,              // Get one page
-        VA_PRESENT | VA_NOCACHE | VA_R0
-    );
+We do not use bit arrays for a few reasons. First of all, it does not allow memory to be deallocated on program termination.
 
-    MmMapPhysicalToVirtualDirect((PVOID)0xB8000, vspace);
+### Relationship with Swapping and Virtual Memory (OLD)
 
-    vspace[0] = 0xF01; // Display smiley
+OS/90 supports evicting memory to the swap file.
 
-    MmReleaseVirtualRegion(&kernel_node, vspace, 1);
-}
-```
+The point of virtual memory is that pieces of the main memory can be copied to the disk to give the appearance of more RAM. The implementation is a bit more complicated because we need a way to actually access the RAM that has been freed up.
+
+Originally, bit allocation was considered for representing virtual address spaces, where an on bit means the page is taken. The question is how we are supposed to implement virtual memory with swapping. The block list can only represent physical page frames. In order to increase available memory, we must free blocks from certain chains. The only way this can work is to swap the top blocks to the disk and resize the allocation. This presents a problem because something needs to be done when the freed memory is allocated.
+
+We can make any block in the chain deallocated by severing its links and making it free. The block is no longer belonging to its chain. This would require a doubly linked list. Chain mapping must be able to generate not-present pages. Cache the chain-relative index of the block entry. The mapper will calculate a delta between the current block and the last block to determine the number of not-present pages to generate.
+
+We need to be able to reconstruct the virtual address space. When a block is swapped out, the physical block may be allocated by another program. When it is swapped in, the __specific chain__ which it belongs to must be resized. We also need the ability to reconstruct the original address space so that the block goes exactly where it is expected.
 
 ## Uncommitted Memory
 
@@ -165,25 +126,11 @@ Uncommitted memory has to be supported in situations where software allocates a 
 
 Because we use pool-based allocation, a single uncommitted page is not possible.
 
-Uncommitted memory regions may not be contiguous within one allocation of page frames. If we allocate 32K with 16K blocks and access the high blocks, the desired behavior is that only one block is actually allocated and the other one will be unused.
+OS/90 does not allow arbitrarily placed blocks to be uncommitted. They must be directly after committed blocks in the address space. When an uncommitted block is accessed, every block before it belonging to the same chain is automatically allocated. The algorith is that upon a page fault, we scan each block of pages for the uncommitted flag and if we find one that is not uncommitted, we can get its chain, do a resize, and finally map it to the same region.
 
-A solution is to allow the block list to store uncommitted block candidates.
+The problem with uncommitted memory is that it causes significant performance hiccups. OS/90 predictively allocates the block after the page-fault-generating uncommitted memory if it is also uncommitted. This reduces the slowdown caused by uncommitted memory access for upward sequential access, but does cause slightly more memory to be used.
 
-### Relationship with DPMI
-
-We support uncommitted pages at the level required by DPMI. When we allocate memory using INT 31H, it will all be committed. Resizing it further has the option of generating committed or uncommitted pages.
-
-Resizing blocks and UCOMM is only supported by DPMI 1.0, but we implement it for the userspace.
-
-### Implementation
-
-We use a reserved bit in the page table entry to indicate a page is inside an unallocated block. Pages that form a complete block must have this bit all on or all off. If `PG_UNCOMMITTED` is set, the block represented by this page and the following ones are not allocated.
-
-Note that `PG_UNCOMMITTED` cannot be valid with `PG_LOCKED` because memory that is locked cannot possibly be uncommitted.
-
-Uncommitted pages can only be generated by resizing allocations.
-
-When a page fault occurs and we find that the page table entry referrenced is uncommitted, we need to immediately map the pages in this block somewhere. We will need to reallocate the block list that this page happens to be part of. To do this, a function for getting the ID given the page table entry is called.
+A solution is to allow the block list to store uncommitted block candidates. What?
 
 ## Restrictions on Allocating Memory
 
@@ -191,9 +138,9 @@ Interrupt service routines may never call anything that modifies the page tables
 
 # DPMI
 
-The kernel only supports the features that DPMI implements for virtual memory. The userspace memory manager is responsible for implementing heaps and other features.
+The kernel only supports the features that DPMI 1.0 supports for virtual memory. The userspace memory manager is responsible for implementing heaps and other features. While OS/90 is mostly DPMI 0.9, it supports some 1.0 features.
 
-We will "respond" to each feature that DPMI calls for and describe how OS/90 implements them.
+We will address each feature that DPMI calls for and describe how OS/90 implements them.
 
 ## Page Locking
 
@@ -207,6 +154,8 @@ Locking can be implemented using a reserved bit inside the page table entry. The
 
 A solution is to make the functions calls for page locking succeed unless the ranges specified are wrong. Since page locking does not influence program behavior, there is no reason for a program to fail or not because of it. Software that locks pages will run as expected.
 
+Another solution is to actually perform the locks, but behavior may be unpredictable if we do not use a counter.
+
 ## Real Mode Locking
 
 DPMI allows programs to lock memory in the 1M real mode region. The entire 1M+64K region is always present in memory. These functions will always return success because we cannot do that.
@@ -215,13 +164,27 @@ DPMI allows programs to lock memory in the 1M real mode region. The entire 1M+64
 
 4096 is the page size.
 
-## Allocating Linear Memory
+## DPMI 1.0 Memory Allocation
+
+OS/90 implements some DPMI 1.0 functions for the userspace.
+
+DPMI 1.0 supports two types of allocators:
+1. The original, which does not garauntee page alignment and only generates comitted pages
+2. The new allocator which can manually specify base addresses and be resized with uncommitted memory
+
+### Allocating Linear Memory (1.0)
 
 The handles returned to the program from DPMI allocation services are 32-bit block IDs for the kernel.
 
-## Resizing Linear Memory
+### Resizing Linear Memory (1.0)
 
-This is a DPMI 1.0 feature but is supported for userspace purposes.
+The update segment descriptors feature is not supported. This function maps directly to page frame allocation.
+
+There is one minor problem, though. This function will change the base address if it makes the block larger. OS/90 uses an undefined bit to bypass this limitation. If bit 31 of the flags is set, it will resize and map to the same location, garaunteeing that the virtual base address will not change. This will allow for implementing `sbrk`.
+
+## DPMI 0.9 Memory Allocation
+
+The old DPMI 0.9 functions can only garauntee paragraph alignment and behave a bit more like `malloc` but with handles instead of pointers. We cannot possibly allocate in such quantities. It uses chain allocation too, but will never generate uncommitted memory.
 
 ## Mark as Demand Paging Candidates
 
@@ -241,45 +204,3 @@ XMS is a 16-bit API. The protected mode implementation involves a far call hook.
 ## DOS
 
 DOS memory sometimes has to be allocated because the memory block needs to be in conventional memory. This is especially the case for ISA DMA which can only use 24-bit addressing. It is recommended that user leave as much DOS memory free as possible. The kernel runs DOS processes with allocation functions as well. Local conventional memory is not supported.
-
-# Block Reshuffling (OLD)
-
-Blocks are sometimes reshuffled to make more space. To determine an optimal way to do this algorithm:
-
-Each symbol represents a different memory block. Spaces are page boundaries.
-
-##|@@|!!|!!|!!
-
-I delete @@.
-
-##|  |!!|!!|!!
-
-I then allocate @@@@. I can do something here.
-
-@@|@@|!!|!!|!!|##|
-
-This is the desired output. The concept is that small blocks of memory can be relocated to reduce fragmentation. Note that I can only reduce it. There is no perfect method.
-
-Defragmentation should look to the smaller blocks (<4K) and attempt to nearly fill entire pages with them. Alignment is never garaunteed, but will probably be 32-bit for better performance.
-
-Defragmenting is a slow process that requires copying memory, so it should happen rarely. It can happen with fixed intervals or a more complicated algorithm can be implemented.
-
-For example, if there is a large deviation between allocation sizes, a defrag is more likely.
-
-## Advice
-
-See code.md for advanced tips on allocating memory.
-
-# Dynamic structures
-
-## Vector
-
-# LIM EMS
-
-LIM EMS cannot be used as regular memory because it uses page-based bank switching and is incompatilble with the memory manager. An EMS card can however be used as a ramdisk or swap.
-
-This would require bypassing the Limulator built into OS/90 to make calls to the actual driver.
-
-I wonder if this is really worth my time. EMS cards started to fall off during the 90's when computers were shipping with easier to program extended memory and operating systems started running in protected mode.
-
-DOS truncates all far pointers, by the way.

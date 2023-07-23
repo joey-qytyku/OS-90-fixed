@@ -17,12 +17,4 @@ static inline VOID ConfigurePIT(VOID)
     delay_outb(0x40, 0x4);
 }
 
-
-#define ScContextWasV86() _bWasV86
-#define ScGetExceptionIndex() _dwExceptIndex
-#define ScGetExceptErrorCode() _dwErrorCode
-
-extern DWORD _dwErrorCode;
-extern DWORD _dwExceptIndex;
-
 #endif /* SCHEDULER_CORE_H */

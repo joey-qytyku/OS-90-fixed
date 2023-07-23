@@ -85,7 +85,7 @@ I chose this design because it offered compatibility and ease of programing at t
 
 # Toolchain and Compiling
 
-A GCC-compatile toolchain is required. CLANG may by possible, but a GCC cross compiler or DJGPP is prefferable. A unix environment is currently a requirement as well.
+A GCC-compatile toolchain is required.
 
 Dependencies include:
 * bochs
@@ -98,3 +98,7 @@ Dependencies include:
 Always use a cross compiler so that code generated does not assume a linux environment.
 
 Compiler arguments must eliminate any instructions that are not i386-compatible. Never use -mrtd because assembly code assumes caller cleanup. mtune can be modified for any architecture, but march must remain i386. Avoid -O3 optimization.
+
+## Default Options
+
+By default, the makefile will compile the kernel with the smallest code size possible.

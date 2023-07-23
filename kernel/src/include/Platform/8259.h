@@ -20,27 +20,6 @@
 #define ICW4_8086 1
 #define ICW4_SLAVE 1<<3
 
-// Memory clobber causes the statement to not be moved elsewhere to
-// the compiler's convenience, useful for ensuring that memory access
-// happens in the exact order specified rather than where GCC wants.
-// "memory" can also be used for instructions that are not supposed to move
-//
-static inline VOID IntsOn (VOID) { __asm__ volatile ("sti":::"memory"); }
-static inline VOID IntsOff(VOID) { __asm__ volatile ("cli":::"memory"); }
-
-static inline DWORD GetEflags(VOID)
-{
-    DWORD eflags;
-    __asm__ volatile (
-        "pushfl\n\t"
-        "popl %0\n\t"
-        :"=r"(eflags)
-        :
-        :
-    );
-    return eflags;
-}
-
 // The in-service register is a bit mask with one turned on
 static inline WORD InGetInService16(void)
 {

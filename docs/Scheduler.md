@@ -1,23 +1,20 @@
 # Preface
 
-OS/90 features a fully-preemptible and reentrant kernel with support for multithreading and non-blocking IO.
+OS/90 features a fully-preemptible and reentrant kernel. The scheduler is the most complex part of OS/90 because of the high degree of DOS compatibility.
 
-## Terms to Know
+# Terms to Know
 
-
-Virtual INT: A feature in OS/90 that allows the kernel thread to enter real mode to call a software interrupt vector.
+Virtual INT: A feature in OS/90 that allows the kernel thread to enter real mode to call a software interrupt vector. This is terminated by the IRET instruction at the highest INT call level.
+Reentrant: The kernel can be entered by several concurrent threads at once. Locking is used to guard parts of the kernel that are shared or non-reentrant
+Trap frame and context: Read below
 
 # PIT Configuration
 
-Originally, 1MS scheduler ticks were considered, but when the kernel was made preemptive and reentrant, this was not nearly enough.
+Originally, 1MS scheduler ticks were considered, but when the kernel was made preemptive and reentrant, this was found to not be very high.
 
-1MS means 1000 hertz. Let us suppose the average i386 runs at 20 MHz. It must be considered that the context switch procedure makes heavy use of memory access.
+1MS means 1000 hertz. Let us suppose the average i386 runs at 20 MHz. Context switches are expensive operations.
 
 # Interrupts and Exceptions
-
-Exceptions and interrupts are all indexed. A single byte value indicates the index of the E/I and a non-index bit indicates if it is an exception or IRQ. Every single IDT entry is ring 0. This is so that the local IDT can be used to implement local software interrupts.
-
-Two functions in C dispatch exceptions or interrupts. They are called from C.
 
 # Local Exceptions and Fake Interrupts
 
@@ -38,7 +35,7 @@ The following exceptions may be hooked by DPMI programs:
 * Bound range
 * Segment not present
 
-#NP could be used by segmented model programs to implement virtual memory.
+#NP could be used by segmented model programs to implement segment swapping.
 
 ## Exceptions in Real Mode
 
@@ -58,7 +55,6 @@ The last context type can be:
 * User
 * Kernel
 * Exception
-
 
 # Processes
 
@@ -84,25 +80,23 @@ OS/90 makes use of non-reentrant locks. It is expected that all functions that r
 
 The PCB is 8192 bytes large and naturally aligned. It includes the stack and information about the process, both being 4096 bytes.
 
-# Elevated Virtual 8086 Mode
+# Elevated Virtual 8086 Mode (SV86)
 
-## The Old Method and Why it is Wrong
+# Context and Trap Frame
 
-It has been considered to have a specific context for virtual 8086 mode supervisor calls. This proved impractical for several reasons.
+## Trap Frame Definition
 
-The first is that it wastes valuable process control block space and reduces cache locality. The second is that only one process can be in an elevated V86 state due to real mode non-reentrancy. This makes it even more wasteful. The third reason is that in order to make BIOS/DOS calls from the kernel, we need an entire reserved process control block so that the kernel can do this, which wastes an entire 8192 bytes that could be used better. The fourth and final reason is that most DOS calls are relatively short or do IO with interrupts disabled. Many BIOSes disable interrupts for certain calls, perhaps protect from reentrance. This means that multitasking latency is not really improved at all.
+In the source code, the trap frame is called the "iret frame," but it refers to the same thing. The trap frame is the registers saved to the stack for interrupt and system entry. Because OS/90 has a preemtible kernel, the trap frame only reflects the state of the invoking process as long as interrupts are disabled and preemption is off by proxy. The trap frame must be copied onto the process control block for processes.
 
-Whats more is that all these disadvantages come with very few potential advantages, but do increase the complexity of the scheduler.
+## Non-Preemptible Context
 
-## The Current Method
+A non-preemptible context is a section of execution within kernel mode which cannot be interrupted by a user process. Entering one is done by inc/dec'ing the preempt counter (read below). Disabling interrupts implies a non-preemtible region. A non-preemtible context is the only type of context in which the trap frame can be safely read or written. Returning from the system entry and back to the original code is valid behavior.
 
-Entering virtual 8086 mode from the kernel is done by writing to a buffer containing the registers, saving callee-saved registers, and doing the whole entrance procedure with preemption disabled. Invocations of the INT instruction or IRET will accurately be simulated on the 16-bit stack.
+SV86 and exceptions are non-preemtible contexts.
 
-Despite preemption being off on entry, the system entry function will decrement the preempt semaphore (knowing V86 increased it).
+## Preemptible Context
 
-IRET will serve as a termination code.
-
-# What is a Context
+Processes when in user or kernel mode are preemptible.
 
 ## Paging and Contexts
 
@@ -112,60 +106,67 @@ Switching to a kernel thread does load CR3 and flush TLB because kernel memory i
 
 # TSS and IO Permissions
 
-OS/90 supports emulation of IO instructions for userspace software, but when the kernel needs to run virtual 8086 mode to perfrm system tasks, IO must be directly sent to hardware. There are two ways of doing this.
+OS/90 supports emulation of IO instructions for userspace software, but when the kernel needs to run virtual 8086 mode to perform system tasks, IO must be directly sent to hardware. There are two ways of doing this.
 
-IOPL is going to be 3 for all tasks no matter what. Even though the CPL is less than or equal to the IOPL, it is still necessary to have an IOPB with all zeroes (allow) or there will be a fault and the instruction will not be directly executed. The IOPB is 8192 bytes long, but gives real mode code a performance boost because instructions run directly.
+IOPL is going to be 3 for all tasks no matter what. Even though the CPL is less than or equal to the IOPL, it is still necessary to have an IOPB with all zeroes (allow) or there will be a fault and the instruction will not be directly executed. The IOPB is 8192 bytes long, but gives real mode code a performance boost because instructions run directly. Or so it seems.
 
-The other way to do it is to emulate all port IO. Decoding the instructions involves checking bits in the opcode that reveal different attributes, such as direction, imm8 or DX, or string/no string. These bits are not documented, but have predictable meanings and make decoding nothing more than a few condition checks.
-
-This is best suited to full hardware virtualization by a device driver.
+The other way to do it is to emulate all port IO. Decoding the instructions involves checking bits in the opcode that reveal different attributes, such as direction, imm8 or DX, or string/no string. These bits are not documented, but have predictable meanings and make decoding nothing more than a few condition checks and bit masks.
 
 Directing them to real IO operations is a different story. We decode because emulating every possible instruction sequence would not be dense enough.
 
 ## Decision
 
-The TSS may be a very large structure with the IOPB, but we will use it to simplify the IO virtualization functionality. Interpreting the IO instructions would cause the system to crawl during disk IO. 8K of wasted space is the cost of better performance.
+The TSS may be a very large structure with the IOPB, but we will use it to simplify the IO virtualization functionality. Interpreting the IO instructions would cause the system to crawl during IO. 8K of memory is the cost of better performance.
 
-But string operations may be faster due to bypassing security checks and IOPB. Additionally, protected mode IO calls are apparently faster, according to the 80386 Programmer's Manual. These are used by the BIOS to access ATA disks, but not floppies.
+But IO opcodes are faster in ring-0 protected mode because they do not need to access the IOPB or check IOPL. String instructions justify emulation overhead. Protected mode IO is apparently faster than real mode.
 
-Perhaps we can do both by specifying the IO emulation strategy with the V86 handler.
+The boost is significant and proven by the manual. When in virtual 8086 mode, INS iteration is 29 clocks and an OUTS is 28. If CPL <= IOPL, like with the ring 0 kernel, the IO takes a mere 8 clocks. That is potentially three times more performance per instruction minus the overhead of entering ring 0. For disk access involving many reads and writes, this is massive.
 
-# Low-level System Entry Point (SEP, LSEP)
+For example, reading a 512-byte sector, which is 256 IO operations, will take *approximately* 100 + 2048 clocks, with a hundred or more for the emulation overhead. If we did this with virtual 8086 mode, 7168 clocks would be used.
 
-The SEP is used for exceptions and system calls.
+Setting the emulation policy is not possible because IOPL is always three and a zero allow bit in the IOPB would cause ring 3 IO to actually take place. For this reason, IO is fully emulated under OS/90.
 
-The system entry point can be called by a kernel thread at any time, but further processing is always needed to determine if the entrance is correct.
+## Implementation
 
-The exceptions and interrupts get separate vectors to differentiate between them. A sort of branch table is contructed with 16 bit call instructions that take the form of `66 E8 xx xx` . The equation `(EIP - TableBase) >> 2` will get the index of the event.
+A boolean will decide if the emulation is direct or indirect. dosvm.md explains how indirect emulaton is done for virtual peripherals.
 
-The 16-bit calls are not problematic for the linker because the actual instructions are hand coded to jump to the rest of the handler.
+Direct emulation is implemented in assembly with a series of branches. The first two check for `rep insw` and `rep outsw`. The rest check for the following opcodes and run them:
 
-# Thread States (TODO, out of data)
+```
+INB imm8    E4 xx
+INW imm8    E5 xx
+OUTB imm8   E6 xx
+INB DX      EC
+INW DX      ED
+OUTB DX     EE
+INSB        6C
+INSW        6D
+OUTSB       6E
+OUTSW       6F
+```
+
+Single operations using imm8 will run as the DX form.
+
+32-bit IO is currently not supported under V86. String operations are also assumed to be with DF=0
+
+
+# Thread States and Contexts (TODO)
 
 OS/90 provides three contexts:
 * User   (PM/RM)
 * Kernel (PM)
 * SV86   (RM)
 
-These have their own register dump structures and entry/exit behavior. A process can only be in one of these. Only one process can be in virtual 8086 mode, however, due to the real mode lock.
-
-## Definitions
-
-Name|Number|Definition
--|-
-PS_DEAD | Process is not running, PCB may be reclaimed
-PS_V86  | Userspace real mode (virtual 8086)
-PS_PM   | Userspace protected mode
-PS_KERN | Inside kernel mode
-PS_SV86 | Elevated virtual 8086 mode for BIOS/DOS calls
-
-The reason why protected mode and virtual 8086 are a different state is because entering them is different. For PM, the segment registers must be set manually before entry, while for V86, they are pushed to the stack before calling IRET. The segment registers saved to the PCB are kept there because
-
-## State Transitions and System Entry Point
-
-## System Entry Point Implementation
-
-The only thing the system entry point needs to know to enter the high level handler is if the task that caused the switch was in protected mode or V86. If we switched from V86, segment registers are saved to the stack. If we switched from protected mode, the segment registers except for SS need to be saved manually.
+The following thread states are supported:
+```c
+enum {
+    THREAD_DEAD,
+    THREAD_IN_KERNEL,
+    THREAD_BLOCKED,
+    THREAD_RUN_V86,
+    THREAD_RUN_PM
+};
+```
 
 # Scheduler Tick Interrupt
 
@@ -173,17 +174,11 @@ The scheduler tick interrupt is the core of the scheduler that makes decisions a
 
 Interrupts are completely turned off within this ISR as with all other IRQs. The low half saves all registers to a trap frame and passes a pointer to it. When the ISR is done, it pushes all the reigsters off of the stack.
 
-# Manual Yielding
-
-Spinning in locks is an expensive operation that requires waiting until the next time slice. This is very inefficient, so it may be necessary to support voluntary preemption.
-
-Yielding is no panacea. It is very expensive to switch context, especially in a tight loop. It can be done every few iterations, but that is not garaunteed to work well on every type of system.
-
-# Procedures to Control Scheduler or Leave it to IRQ#0?
-
 # Controlling Interrupts and Preemption
 
-To disable preemption, call the function PreemptInc() to increment the preempt semaphore. To go back to the previous call level, use PreemptDec(). When it is nonzero, the kernel cannot be preempted. These are functions because variables are never exported to drivers by the kernel.
+To disable preemption, call the function PreemptInc() to increment the preempt counter. To go back to the previous call level, use PreemptDec(). When it is nonzero, the kernel cannot be preempted. These are functions because variables are never exported to drivers by the kernel. Disabling preemption will prevent any other threads from being scheduled until it becomes zero again. It can be used for syncrhonization between kernel threads since the operations are atomic and all other threads are suspended within the section, but could make the system sluggish if used unwisely.
+
+Preemption can be enabled/disabled within a non-interruptible section. In the system entry, we do this to prevent the scehduler from scheduling the process before we have blocked it.
 
 For disabling interrupts, use the macro SaveFlags() and RestoreFlags(). Disabling interrupts will make instructions inside the uninterruptible section fully atomic. If a resource is only used within a non-interruptible section, all access is synchronized.
 
@@ -213,11 +208,23 @@ VOID IntendedUsage()
     RestoreFlags(inf);
 }
 ```
+Never acquire a lock while interrupts are disabled, or the kernel could freeze forever! Remember that data can be protected by disabling interrupts or by locking. Both cannot be used. All clients of the protected data must agree to the same synchronization mechanism.
 
+# Process List
 
-Never acquire a lock while interrupts are disabled, or the kernel could freeze forever! Remember that data can be protected by disabling interrupts or by locking. Both cannot be used. All clients of the protected data must agree to the same synchronization mechanism!
+The process list lock must be acquired before making any changes to the process list except in one specific instance in the kernel. In the system entry procedure, the stack is used to calculate the location of the PCB. It can be safely accessed here regardless of the state of the lock.
 
-# Executing Programs
+# System Entry Point
+
+To control access to real mode, `v86_chain_lock` must be acquired. This prevents instances of Int16 from colliding with modifications to the INT chain. If `v86_chain_lock` is acquired, then the last context was non-preemtible virtual 8086 mode. The act of entering virtual 8086 mode to do a supervisory service call merely requires disabling preemption.
+
+# Termination of a Process
+
+For a process to fully terminate and leave the memory permanently, several steps need to be taken that require the cooperation of several subsystems.
+
+All memory must be deallocated. Locked pages are forcefully unlocked and removed from the swap file.
+
+# Executing Programs (TODO)
 
 Executing processes does not require the filesystem. The same mechanism is used to create kernel threads.
 ```

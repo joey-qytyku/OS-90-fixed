@@ -1,5 +1,7 @@
 # Virtual 8086 Mode Subsystem
 
+This document is severely outdated and is currently being updated.
+
 ## ScEnterV86
 
 This function will enter V86 directly from a C caller. The specified context is loaded and entered. The only way out is an IRQ or a exception.
@@ -54,13 +56,15 @@ Before we understand this requirement and how to implement, the desired behavior
 
 The conclusion is that the default behavior is to go to the real mode control C handler. This will be local to each process. If there is no ^C handler set (because the process did not start with COMMAND.COM) the program should terminate as there is nothing else that can be done.
 
-Having the program switch to real mode and start running the COMMAND.COM handler works. There will be separate instances of COMMAND for every task created by a window manager, so this is not a major problem.
+Having the program switch to real mode and start running the COMMAND.COM handler works. There will be separate instances of COMMAND for every task created by a window manager, so this is not a major problem. If a program is executed independently, it may crash if the handler is not set.
 
 # DOS Semaphore
 
 DOS has an undocumented function for getting the address of a byte that determines if DOS is safe for re-entry. This is for interrupt service routines that need to make a DOS call. If DOS is still servicing an interrupt, it should not re-enter. The first two words of the kernel reserved memory are set to this address. This must be pulled out for use.
 
 When real mode DOS is called from the kernel, this byte will be set by DOS. If a 32-bit V86 handler takes control, this byte must be set to a non-zero value in case a RECL_16 IRQ is issued and tries to access DOS too, and this must be done while interrupts are disabled.
+
+Really?
 
 # DOS Idle Loop
 
@@ -74,63 +78,9 @@ IRET is a termination code for an ISR and a regular 16-bit V86 program. This is 
 
 The stack is not modified by virtual IRET and INT because it does not need to be and these instructions have special significance to only the monitor. This means that the monitor is incompatible with an ISR that uses the saved values for whatever reason.
 
-## Far Calls and Returns
-
-Some DOS APIs use far calls for interoperability with the C language. 32-bit drivers and applications using them must be supported.
-
-DPMI allows for calling far procedures and allocating far call addresses with which real mode can call protected mode. Far procedures work as expected and behave as if called in real mode. Allocating far call entry points is global in scope. DPMI application CANNOT be called by another thread of execution using far calls, e.g. a real mode program trying to far call an entry point set by another task. Drivers should be used for implementing APIs using interrupt vectors and far procedures that can be securely multiplexed for all programs. DPMI calls for 16 callbacks per client, but I will probably have to skip this because that is way to many for each program.
-
-### Implementation
-
-Far calls do not cause any kind of fault unless they access invalid memory. One solution would be to use a page fault from access to a special section of conventional memory. The problem is that the page fault handler should not be emulating instructions like this.
-
-The more abstract solution is to use a real-mode stub that contains a branch table, which is used here. INT 254 is used to signal a far call to the monitor. The CS:EIP address saved to the stack by the interrupt will be used to find a handler.
-
-The branch table is basically just an array of INT 254 and RETF instructions. This region is paragraph aligned and the monitor must know where it starts. When the monitor detects this, it will call the 32-bit handler. After this, the RETF instruction returns to the real mode caller.
-
-If a 32-bit application wants to far call a procedure, ScEnterV86 will be used as usual. The stack frame will be set up to return to INT 253 instead, which will cause the same behavior as IRET, which is to re-enter the caller.
-
 ## The Local Interrupt Problem
 
-This is subject to change!
-
-The interrupt chain is global. A kernel-mode virtual trap or an INT call from a DOS program will cause the kernel to iterate through it and look for protected mode handler until the request is resolved or it gets reflected to DOS. A problem arises when applications attempt to set/get/hook interrupt vectors, IDT or IVT, using API calls. The program expects to have its ISR called when it runs INT or a fake IRQ is sent. There are many reasons why a program may need to do this. If the capture chain handles a V86 trap for the program that is running, the hook will not be able to run.
-
-The solution is to get the PID of the currently running process and traverse a separate linked list. Each process has a link to the next process. Each process has its own array of interrupt information entries. Each entry decides if the virtual interrupt should be reflected to physical DOS handled by a 32-bit ISR, or be handled by a 16-bit DPMI hook.
-
-Real mode interrupt hooks must be handled separately as they can be called independently of the protected mode vectors using a DPMI call.
-
 ## Fake Interrupt Request and DPMI Interrupts
-
-Updated Apr 30, 2023
-
-A fake IRQ is generated by a driver, usually inside an ISR, so that a program using a virtual device can service interrupts.
-
-The process control block contains:
-* A virtual PM IDT with code segments, 32-bit offsets, and a type code
-  * The type code can be:
-    * Reflect to DOS
-    * Handled by program
-    * Fake IRQ handled by program
-    * Exception with virtual interrupts off (DPMI requires some exceptions to do this)
-    * Exceptions with VIF on
-    * Reflect to DOS but using the local real mode IVT
-* A real mode IVT, interrupts are fixed to BIOS defaults
-
-Each entry for the local real mode interrupt vector table is set to zero, indicating that the program has not changed it. If a program changes it, the INT instruction will reflect to the local handler instead of using the global VINT chain.
-
-If the program is in real mode, the behavior of IRET is different than a RECL_16 IRQ or virtual INT. IRET will go to the specified real mode return address. The stack is not accurately emulated.
-
-If the program is in protected mode, IRET is not to be used. Protected mode exceptions and interrupts must use RETF to return. This means that the stack must accurately be emulated so that the program can return normally.
-
-Fake interrupts are scheduled rather than immediately initiated. When the program recieves a time slice and the current trap frame is its own, the scheduler will enter the interrupt address if a fake IRQ is pending and the vector to invoke will be used.
-
-These entries in the PCB will specify the behavior of fake IRQs.
-```
-    BYTE    fake_irq_in_progress    :1;
-    BYTE    fake_irq_pending;
-    BYTE    fake_irq_vector_to_invoke:4;
-```
 
 # A20 Gate
 
@@ -150,17 +100,15 @@ COM programs are obviously not given the entire contiguous memory. They will get
 
 Function 4Bh can execute a program immediately or load an overlay. When a program exits, the exit status of the subprogram is retrieved. This can be implemented inside the process control block. The exit function (4Ch) is trapped and will kill the subprocess.
 
-If a DPMI program runs EXEC, the subprocess will run as usual, but in real mode.
+The PCB stores a stack containing the return values of subprocesses and their program segment prefix segments. These are not valid OS/90 PIDs and cannot be manipulated as such.
 
-### Subprocesses
+What about the Job File Table? I guess we will use that of the last real process to run (bootloader).
 
-Subprocesses may get their own program segment prefixes, but they are not considered separate processes. If COMMAND.COM is running EDIT and COMMAND is terminated, EDIT will stop executing but will remain in the conventional memory while COMMAND is deallocated. This is why programs should exit normally rather than be forcefully terminated.
-
-The PCB stores subprocesses in a stack containing their base segment.
+DPMI programs cannot use any of these functions safely while in protected mode.
 
 ## The Program Segment Prefix
 
-The program segment prefix serves as both a sort of process ID and the location where command line arguments are stored. The functions (51h and 62h, first is undocumented) are captured so that they report the PSP of the requesting process.
+The program segment prefix segment serves as both a sort of process ID and the location where command line arguments are stored. The functions (51h and 62h, first is undocumented) are captured so that they report the PSP of the requesting process. This is aware of subprocesses.
 
 The PSP segment is stored in the process control block.
 
@@ -206,8 +154,6 @@ Port IO is emulated completely in software.
 
 There is a difference between RECL_16 interrupts and fake IRQs. RECL_16 is for non-PnP devices with real mode drivers. BUS_INUSE is used for all fake IRQs. The handler can then fake interrupts.
 
-Fake interrupts can be safely sent while inside an ISR, but cannot be executed immediately. The program will automatically enter the interrupt when it runs on the next scheduler cycle. The IRQ field can be any vector and does not conflict with other devices unless used by the process at the same time.
-
 ### Virtual Device Memory
 
 Some memory mapped IO regions, like framebuffers, do not need active emulation and can be modified and read however the program likes. MMIO that involves active emulation of all reads and writes is not supported. Most hardware for PCs used IO ports for almost all communications and memory mapped IO was really only used for framebuffers or EMS memory, which did not require sequential emulation.
@@ -224,7 +170,7 @@ DPMI does not specify an executable format. Loading executable data is handled b
 
 The implementation used by OS/90 is described in the specification as a fully virtualized environment. OS/90 is not DOS and emulates or arbitrates all devices accessed by a DOS program. DPMI programs are virtualized DOS applications.
 
-DPMI version 0.9 is the most widely used version and is implemented in OS/90.
+DPMI version 0.9 is the most widely used version and is implemented in OS/90 with some extra features.
 
 ## 16-bit and 32-bit DPMI
 
@@ -249,19 +195,6 @@ Changing vector 31H is not allowed and will cause a critical error.
 
 ### Interrupt Hooking
 
-DPMI provides API calls for modifying real mode and protected mode interrupts. This is impossible to do directly. Both protected mode and real mode interrupts are faked, along with the state of IF.
-
-The base vector of the PICs is reported through the DPMI version call. This is the correct way for software to hook IRQs. The virtual base vectors can be anything and do not need to be the same as the actual PIC mappings, as long as software can access it with the DPMI interface.
-
-Exceptions can be hooked by DPMI software. The correct way to do this is the use the special exception hook operation. A program may try to hook the vector directly by modifying the IDT entries. This will not change the exception behavior. All exceptions can be hooked, but it must be with the correct interface.
-
-Basically, there are two tables, one for the virtual IDT that contains both IRQ vectors and software interrupt vectors (which by default go back to DOS), and there is another for exceptions. Exception vectors also reflect to real mode by default. What this all means that if a DPMI program changes an exception vector using the set vector call, it will only be reached by an INT instruction.
-
-There can only be one handler per IDT entry. Each DPMI client must have its own virtual IDT. The problem is with the INT instruction being able to call them directly. This will not happen. All interrupt vectors will be ring zero and will be reflected to DOS if it was never modified or called.
-
-If the target of an interrupt hook is within the virtual PIC base vector range, interrupt faking will be used.
-
-The kernel has a global interrupt capture chain. It applies to drivers and the kernel when calling V86 interrupts. DPMI applications can change real mode and protected mode vectors.
 
 ### DOS Memory Services
 
@@ -343,7 +276,11 @@ This maps a physical address to an arbitrary virtual address. The memory manager
 
 This feature utilizes the dirty bit in page tables to check if the data was written to.
 
-## 16-bit Procedure Calling
+## 16-bit Procedure Calling (Translation)
+
+If a DOS call of any sort is not handled by a process-local hook, it is passed to capture chain or real mode on fallback.
+
+When an INT instruction is simulated with DPMI, the process must switch to real mode and execute the interrupt there. Then it must go back to protected mode. In the PCB, we will store information to go back to protected mode.
 
 ## Entering and Exiting Protected Mode
 

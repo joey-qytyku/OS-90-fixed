@@ -22,6 +22,12 @@
         GDT_PNP_BIOS_DS EQU     9
         GDT_ENTRIES     EQU     10
 
+; We are not wasting 64K for LDT entries that will never be used except in
+; bizzare circumstances. 64K is a TON of memory that could be
+; utilized much more wisely. Here, we will allocate 1024 bytes to the LDT.
+
+        LDT_SIZE        EQU     128
+
 ; The data/stack segment enables the BIG bit
 ; so that Plug-and-play BIOS recognizes it as
 ; a 32-bit stack
@@ -60,22 +66,52 @@
 ; EXPORTS
         global  IaAppendAddressToDescriptor
         global  _SetIntVector
-        global  GetDescriptorBaseAddress
+
+        ; Functions for local descriptor table management
+        global  GetLdescBaseAddress
+        global  GetLdescExtAttr
+        global  GetLdescAttr
+
+        global  aqwGlobalDescriptorTable
+        global  aqwLocalDescriptorTable
+
         global  GetESP0, SetESP0
         global  IaUseDirectRing3IO
         global  IaUseVirtualRing3IO
         global  InitIA32
 
-        global  aqwGlobalDescriptorTable
+        global  abIoPermissionBitmap
         global  _KernelReserved4K
 ; END EXPORTS
 ;===============================================================================
+        section .bss
+        ;The initialization stack is used only for startup
+        ;Processes get independent kernel stacks
+        alignb  16
+        RESB    1024
+InitStack:
+
+aqwInterruptDescriptorTable:
+        RESQ    256
+
+aqwLocalDescriptorTable:
+        RESQ    LDT_SIZE
+
+adwTaskStateSegment:
+        RESB    104
+abIoPermissionBitmap:
+        RESB    8192
+
+_KernelReserved4K:
+        RESD    1
+
 
 ;===============================================================================
         section .data
 ;===============================================================================
 
 aqwGlobalDescriptorTable:
+        align 8
 .null_segment:
         DQ  0
 
@@ -178,17 +214,16 @@ RemapPIC:
 
 ;-------------------------------------------------------------------------------
 ;Arguments on cdecl stack:
-;       WORD    selector
+;       PVOID   address
+;
 ;
 ;Assumes LDT, this does not work on GDT.
 ;
-GetDescriptorBaseAddress:
+IaGetBaseAddress:
         ; Descriptors are perfectly valid offsets to the LDT when the DPL
         ; and GDT/LDT bits are masked off.
 
         mov     ebx,[esp+4]
-        and     ebx,~11b
-        add     ebx,aqwLocalDescriptorTable
 
         ; EBX is now the address of our descriptor
 
@@ -227,11 +262,15 @@ IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
         ret
 
 IaAppendLimitToDescriptor:
-        push    ebp
-        mov     ebp,esp
+        mov     esi, [esp + 4]
+        mov     dx, [esp + 8]
 
-        leave
+        mov     word [esi], dx
+        mov     word [esi + 6], dx
 
+        mov     ah, byte [esi + 6]
+        shl     ax, 8
+        mov     byte [esi + 2], ah
         ret
 
 _SetIntVector:
@@ -256,7 +295,7 @@ FillIDT:
         mov     ecx,17
 .ExceptLoop:
         push    dword [Exceptions + ecx*4]
-        push    byte 1_00_01110
+        push    byte 1_11_01110b
         push    ecx
         call    _SetIntVector
         add     esp,12
@@ -273,7 +312,7 @@ FillIDT:
         mov     word [ebx+2],(GDT_KCODE<<3)
 
         ; Attributes, changed to word?
-        mov     word [ebx+4],1_00_01110_000_00000b
+        mov     word [ebx+4],1_11_01110_000_00000b
 
         ; Offset 31..16 ----------------------------
         mov     eax,LowSwi
@@ -362,31 +401,29 @@ InitIA32:
         pop     edi
         ret
 
-
         section .init
 
-        extern LKR_END_PROG_DATA
-        extern LKR_END
+        extern END_RODATA
+        extern BSS_SIZE
         extern KernelMain
 
         ;If DOS does not find the MZ signature in an EXE file
         ;it may load it as a COM file, which are terminated with
         ;a return instruction, the loader jumps over this
         ret
+        extern mychar
 
 Begin:
         ; Zero the BSS section
         cld
         xor     eax,eax
-        mov     ecx,LKR_END
-        sub     ecx,LKR_END_PROG_DATA
-        mov     edi,LKR_END_PROG_DATA
+        mov     ecx,BSS_SIZE
+        mov     edi,END_RODATA
         rep     stosb
 
         ;EDX contains the program base segment of the bootloader
         ;we don't need the loader now. We will convert it to a valid
         ;linear address so the kernel can use it.
-        xchg bx,bx
 
         shr     edx,4
         mov     [_KernelReserved4K],edx
@@ -400,37 +437,8 @@ Begin:
         mov     fs,ax
         mov     gs,ax
 
-        xchg    bx,bx
-
         jmp     8h:Cont
 Cont:
         mov     esp,InitStack   ; Set up a stack
         call    KernelMain      ; GCC does not far return
-
         jmp $
-
-;===============================================================================
-        section	.bss
-;===============================================================================
-
-        ;The initialization stack is used only for startup
-        ;Processes get independent kernel stacks
-        alignb  16
-        RESB    1024
-InitStack:
-
-aqwInterruptDescriptorTable:
-        RESQ    256
-
-aqwLocalDescriptorTable:
-        RESQ    8192
-
-        alignb  16
-adwTaskStateSegment:
-        RESB    104
-abIoPermissionBitmap:
-        RESB    8192
-
-_KernelReserved4K:
-        RESD    1
-

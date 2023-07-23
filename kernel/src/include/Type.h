@@ -1,6 +1,8 @@
 #ifndef TYPE_H
 #define TYPE_H
 
+#include <stdalign.h>
+
 ///////////////////////////////////////////////
 // K e r n e l   A P I   E x i t   C o d e s //
 ///////////////////////////////////////////////
@@ -83,7 +85,7 @@ OS_OUT_OF_MEMORY
 #define STATUS DWORD
 #define HANDLE SDWORD
 
-#define PID WORD;
+#define PID WORD
 #define VINT DWORD
 
 typedef const char*const IMUSTR;
@@ -108,7 +110,12 @@ typedef IMUSTR *PIMUSTR;
 #define DWORD_PTR(var,off) *(PDWORD)(var+off)
 
 #define PTR2INT(ptr) ((DWORD)(ptr))
-#define INT2PTR(Int) ((PVOID)(Int))
+#define INT2PTR(Int, ptrtype) ((ptrtype)(Int))
+
+#define CAST(val, type) ((type)(val))
+
+#define FLAG_PARAM_ON(flags, mask) ((flags & mask)!=0)
+
 
 /////////////////////////////
 // G C C   B u i l t i n s //

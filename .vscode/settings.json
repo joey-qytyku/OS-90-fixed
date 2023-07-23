@@ -27,6 +27,12 @@
         "tuple": "c",
         "type_traits": "c",
         "utility": "c",
-        "v86m.h": "c"
+        "v86m.h": "c",
+        "sysentry.h": "c",
+        "mman.h": "c",
+        "fcntl.h": "c",
+        "features.h": "c",
+        "iodecode.h": "c",
+        "linker.h": "c"
     }
 }

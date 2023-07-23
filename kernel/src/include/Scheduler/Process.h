@@ -4,18 +4,15 @@
 #include <Type.h>
 #include <Misc/log2.h>
 
-#define CTX_KERNEL 0
-#define CTX_USER   1
-
-//
-//
 // If all threads inside the PCB are dead, the whole process may be replaced
 // when executing a new process.
-//
+
 enum {
     THREAD_DEAD,
     THREAD_IN_KERNEL,
-    THREAD_BLOCKED
+    THREAD_BLOCKED,
+    THREAD_RUN_V86,
+    THREAD_RUN_PM
 };
 
 enum {
@@ -69,6 +66,8 @@ tstruct {
     DWORD eip;
 }KREGS;
 
+typedef struct { WORD off; WORD seg }FAR_PTR_16;
+
 typedef struct PACKED
 {
     DWORD   handler_eip;
@@ -86,21 +85,21 @@ typedef struct PACKED
 tpkstruct
 {
     UREGS   user_regs;
-    UREGS   sv86_regs;
     KREGS   kern_regs;
 
     PVOID   mem_mirror;
 
-    ALIGN(4)
-    DWORD   kernel_pm_stack; // What to do?
+    DWORD   thread_state;
+
+    alignas(4)
     DWORD   user_page_directory_entries[64];
     // Exceptions share the same IDT. This might make standard compliance
-    // a bit shaky, but it is more space efficient and a program should not
+    // a bit dubious, but it is more space efficient and a program should not
     // bother with these vectors anyway.
     LOCAL_PM_IDT_ENTRY  local_idt[256];
 
     // Real mode control section
-    DWORD   rm_local_ivt[256];
+    FAR_PTR_16 rm_local_ivt[256];
     DWORD   rm_kernel_ss_sp;
     WORD    rm_subproc_exit_code;
     WORD    psp_segment;
@@ -111,21 +110,7 @@ tpkstruct
     WORD    vpic_mask;  // By default, all IRQs are masked
 
     // Flags related to the process
-    BYTE    program_type            :2; // [1]
-    BYTE    virtual_irq_on          :1;
-    BYTE    fake_irq_in_progress    :1;
-    BYTE    fake_irq_pending        :1;
-    BYTE    use87                   :1;
-    BYTE    protected_mode          :1;
-
-    BYTE    vector_to_invoke:4; // [2]
-
-    // [1]: The type of program. If the program enters protected
-    // mode, it will permanently become a 16/32-bit protected mode
-    // program. Raw mode switching will not change this, but it will
-    // change protected_mode
-    //
-    // [2]: Vector to use for an exception or interrupt
+    DWORD   program_type:2;
 
     // Add subprocess stack. It contains:
     // * PSP
@@ -136,7 +121,6 @@ tpkstruct
     // Default behavior is to CD to the root. (I think)
     // This includes the drive letter.
 
-	PVOID   x87env;
     PVOID   next;
     PVOID   last;
 
