@@ -31,13 +31,25 @@ if/function/whatever
 
 For structures, its okay since they don't have much nesting.
 
-### Capitalization and Naming
+### Switches
+
+Code between `case` labels should be tabbed.
+
+### Capitalization
 
 * Function names are pascal-cased and prefixed with their subsystem
 * Variable names are snake-cased
 * Type names are all-caps aka macro case
 
-### Code Formating
+
+Name     |Case|
+-|-
+Function | PascalCase
+Variable | snake_case
+Type     | MACRO_CASE
+Macro    | MACRO_CASE
+
+### Spaces and Tabs
 
 * Indents are four spaces
 * Line endings are always CRLF for DOS/Windows compatibility
@@ -58,12 +70,14 @@ return-type FunctionName(
 }
 ```
 
-Structure types that may need to be used as pointers should be defined with a pointer variant using `typedef struct`.
+Structure types that may need to be used as pointers should be defined with a pointer variant. They should also use `tstruct` or `tpkstruct` (byte packed) instead of the full `typedef struct`. This is because I always misspell `typedef`.
 ```
 tstruct {}NAME, *P_NAME;
 ```
 
-If a structure should never be used as either a pointer or an object, one of the definitions can be omitted. "P_" is the recommended prefix for the pointer type.
+If a structure should never be used as either a pointer or an object, one of the definitions can be omitted. `P_` is the recommended prefix for the pointer type.
+
+Integer types do not have the underscore.
 
 ## Programming Rules
 
@@ -87,9 +101,11 @@ void Bad(int j, PEXAMPLE k);
 
 ## Comments
 
-Single line comments only except if they do not work (macro comments?) Licenses should be multi-lined for clarity
+Single line comments only except if they do not work (macro comments.)
 
 ## Function Naming
+
+NT-style subsystem conventions were once used, but this style was deprecated.
 
 A function with external linkage may specify which subsystem it is part of:
 |Prefix|Subsystem|
@@ -119,29 +135,63 @@ Double pointers are tolerable and are somtimes preffered. For example, an IMUSTR
 
 Array parameters should never be used (eg. param[x]) because it does nothing useful. Arrays, however, can be passed to functions by value in place of a pointer.
 
-As previously mentioned, the IN and OUT macros should be used to indicate what pointer parameters are for.
-
 ## Types
 
 ### Strings
 
-General purpose strings are of the type IMUSTR and pointers to them are PIMUSTR. As much as I like the C language, the distinction between a string, array, and pointer to a `char` has always confused me. IMUSTR makes strings look like any other data type by masking the pointer-like behavior. PIMUSTR represents a pointer to a string the same way as PBYTE is a pointer to a byte.
+The one thing I dislike about C is the handling of strings.
 
-Semantically, IMUSTR is a `const char * const` and the size is the width of a pointer. No function should take an IMUSTR unless it is a string constant.
+```
+const char *str = "Hello";
+```
+The compiler generates an array of bytes and a pointer to that array.
 
-Typedefs should never be made for arrays.
+```
+.LC0:
+        .string "hello"
+hello2:
+        .long   .LC0
+```
+
+Same thing here, despite the pointer being constant.
+```
+const char * const str = "Hello";
+```
+
+If the variable is declared static, this extra pointer is not generated.
+
+To aleviate the confusion, a type called IMUSTR is used, which means immutable string. It is impossible to export the IMUSTR type to the global scope due to an incomplete type without the array initializer. It has no definite size and `sizeof` cannot be used on the type.
+
+This makes incorrect use of strings impossible, imo.
+
+A function should not take an IMUSTR unless it is a constant expression. The PIMUSTR type represents a pointer to IMUSTR. It must be dereferenced.
 
 ## Mutual Exclusion
 
-If two procedures operate on identical input and are both called by the same caller, mutual exclusion of these procedures must be done by the caller. Telling a function to simply "take care of it" should be avoided, as the mutual exclusion conditions are separated despite their relation.
+If two procedures operate on identical input and are both called by the same caller, mutual exclusion of these procedures must be done by the caller. Telling a function to simply "take care of it" should be avoided, as the mutual exclusion conditions are separated despite being related.
+
+Prefered:
+```
+if (cond1)
+    Proc1();
+if (cond2)
+    Proc2();
+```
+
+Not Prefered:
+```
+Proc1();
+Proc2();
+```
+Proc1 and 2 have the conditions in their function implementation. This makes
 
 # Optimization Guidelines
 
 Some are general concepts, while other tips here are specific to OS/90.
 
 * Optimize the code that runs repeadedly and is the slowest, aka speed critical
-* Do not optimize code that runs only once or takes the least execution time
-* Use a structure of arrays when possible
+* Avoid optimizing code that runs only once or takes the least execution time
+* Use a structure of arrays when possible or when benefitial
 * Pack structures and use bit fields to save memory
 * Align certain structures for performance
 
@@ -153,6 +203,7 @@ x86 assembly code must be compatible with the Netwide Assembler.
 * No spaces after the comma
 * Cases same as C for procedures
 * No instructions after a label on same line
+* Separate code with comments, maximize readability.
 
 Local variables are not really a concern here.
 

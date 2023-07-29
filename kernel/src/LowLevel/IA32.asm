@@ -1,55 +1,66 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                           ;;
+;;                     Copyright (C) 2023, Joey Qytyku                       ;;
+;;                                                                           ;;
+;; This file is part of OS/90 and is published under the GNU General Public  ;;
+;; License version 2. A copy of this license should be included with the     ;;
+;; source code and can be found at <https://www.gnu.org/licenses/>.          ;;
+;;                                                                           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 %include "Asm/Kernel.inc"
 
 ;===============================================================================
-; DEFINES
+;                                D E F I N E S
 
 %define ACCESS_RIGHTS(present, ring, type) (present<<7 | ring<<6 | type)
 
-; END DEFINES
+;                           E N D   D E F I N E S
 ;===============================================================================
 
 ;===============================================================================
-; EQUATES
-        GDT_NULL        EQU     0
-        GDT_KCODE       EQU     1
-        GDT_KDATA       EQU     2
-        GDT_UCODE       EQU     3
-        GDT_UDATA       EQU     4
-        GDT_TSSD        EQU     5
-        GDT_LDT         EQU     6
-        GDT_PNPCS       EQU     7
-        GDT_PNP_OS_DS   EQU     8
-        GDT_PNP_BIOS_DS EQU     9
-        GDT_ENTRIES     EQU     10
+;                               E Q U A T E S
+GDT_NULL        EQU     0
+GDT_KCODE       EQU     1
+GDT_KDATA       EQU     2
+GDT_UCODE       EQU     3
+GDT_UDATA       EQU     4
+GDT_TSSD        EQU     5
+GDT_LDT         EQU     6
+GDT_PNPCS       EQU     7
+GDT_PNP_OS_DS   EQU     8
+GDT_PNP_BIOS_DS EQU     9
+GDT_ENTRIES     EQU     10
 
 ; We are not wasting 64K for LDT entries that will never be used except in
 ; bizzare circumstances. 64K is a TON of memory that could be
-; utilized much more wisely. Here, we will allocate 1024 bytes to the LDT.
+; utilized much more wisely.
 
-        LDT_SIZE        EQU     128
+; This value must be consistent with the one in IA32/Segment.h
+LDT_SIZE        EQU     64
 
 ; The data/stack segment enables the BIG bit
 ; so that Plug-and-play BIOS recognizes it as
 ; a 32-bit stack
 
-        TYPE_DATA       EQU     0x12
-        TYPE_CODE       EQU     0x1B
+TYPE_DATA       EQU     0x12
+TYPE_CODE       EQU     0x1B
 
-        TYPE_LDT        EQU     0x2
-        TYPE_TSS        EQU     0x9
+TYPE_LDT        EQU     0x2
+TYPE_TSS        EQU     0x9
 
-        IRQ_BASE        EQU     0A0h
-        ICW1            EQU     1<<4
-        LEVEL_TRIGGER   EQU     1<<3
-        ICW1_ICW4       EQU     1
-        ICW4_8086       EQU     1
-        ICW4_SLAVE      EQU     1<<3
+IRQ_BASE        EQU     0A0h
+ICW1            EQU     1<<4
+LEVEL_TRIGGER   EQU     1<<3
+ICW1_ICW4       EQU     1
+ICW4_8086       EQU     1
+ICW4_SLAVE      EQU     1<<3
 
-; END EQUATES
+;                           E N D   E Q U  A T E S
 ;===============================================================================
 
 ;===============================================================================
-; IMPORTS
+;                               I M P O R T S
 %assign i 0
 %rep 17
         extern  LowE %+ i
@@ -59,11 +70,12 @@
         extern  LowSwi
         extern  Low7, Low15, LowRest
 
-; END IMPORTS
+;                           E N D   I M P O R T S
 ;===============================================================================
 
 ;===============================================================================
-; EXPORTS
+;                               E X P O R T S
+
         global  IaAppendAddressToDescriptor
         global  _SetIntVector
 
@@ -82,13 +94,14 @@
 
         global  abIoPermissionBitmap
         global  _KernelReserved4K
-; END EXPORTS
+
+;                           E N D   E X P O R T S
 ;===============================================================================
         section .bss
         ;The initialization stack is used only for startup
         ;Processes get independent kernel stacks
         alignb  16
-        RESB    1024
+        RESB    512
 InitStack:
 
 aqwInterruptDescriptorTable:
@@ -113,8 +126,7 @@ _KernelReserved4K:
 aqwGlobalDescriptorTable:
         align 8
 .null_segment:
-        DQ  0
-
+        DD      0,0
 .kcode:
         DW      0FFFFh  ; Limit 0:15
         DW      0       ; Base 0:15
@@ -184,7 +196,7 @@ SetESP0:
 ;
 ;
 ; State of PIC?
-; Read mask by default?
+; Read mask by default? <--------------------
 ;
 
 RemapPIC:
@@ -401,7 +413,9 @@ InitIA32:
         pop     edi
         ret
 
+;===============================================================================
         section .init
+;===============================================================================
 
         extern END_RODATA
         extern BSS_SIZE
@@ -411,7 +425,6 @@ InitIA32:
         ;it may load it as a COM file, which are terminated with
         ;a return instruction, the loader jumps over this
         ret
-        extern mychar
 
 Begin:
         ; Zero the BSS section
@@ -442,3 +455,6 @@ Cont:
         mov     esp,InitStack   ; Set up a stack
         call    KernelMain      ; GCC does not far return
         jmp $
+
+;===============================================================================
+

@@ -1,3 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
 #include <Scheduler/IoDecode.h> /* Decoding port instructions */
 #include <IA32/TSS.h>           /* Accessing the IOPB */
 #include <Platform/BitOps.h>
@@ -34,13 +44,13 @@
 // W: Word
 //
 BOOL ScDecodePortOp(
-    PBYTE               opcode,
+    PU8                 opcode,
     BOOL                bits32,
-    PDECODED_PORT_OP    dec
+    P_DECODED_PORT_OP   dec
 ){
     BOOL  size_ovr = 0;
     BOOL  rep_prefix = 0;
-    PBYTE op = opcode;
+    PU8op = opcode;
 
     // An assembler will usually emit the REP prefix before the.
     // The following do this:
@@ -111,11 +121,11 @@ BOOL ScDecodePortOp(
     // that bit to determine the remaining size of the sequence
     if (dec->variable)
     {
-        // One byte opcode
+        // One U8opcode
         dec->size_of_op++;
     }
     else {
-        // Two byte opcode with 8-bit immediate value
+        // Two U8opcode with 8-bit immediate value
         dec->size_of_op += 2;
         dec->imm8 = op[1];
     }

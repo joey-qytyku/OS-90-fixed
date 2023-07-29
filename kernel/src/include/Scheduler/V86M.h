@@ -29,29 +29,29 @@
 tpkstruct {
     union {
         struct {
-            BYTE al;
-            BYTE ah;
+            U8al;
+            U8ah;
         };
         WORD ax;
     };
     union {
         struct {
-            BYTE bl;
-            BYTE bh;
+            U8bl;
+            U8bh;
         };
         WORD bx;
     };
     union {
         struct {
-            BYTE cl;
-            BYTE ch;
+            U8cl;
+            U8ch;
         };
         WORD cx;
     };
     union {
         struct {
-            BYTE dl;
-            BYTE dh;
+            U8dl;
+            U8dh;
         };
         WORD dx;
     };
@@ -88,12 +88,12 @@ extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
 extern VOID KERNEL ScVirtual86_Int(P_DREGW, BYTE);
 
 extern VOID EnterRealMode(VOID);
-extern DWORD _RealModeRegs[7];
-extern DWORD _RealModeTrapFrame[9];
+extern U32 _RealModeRegs[7];
+extern U32 _RealModeTrapFrame[9];
 
 static inline PVOID MK_LP(WORD seg, WORD off)
 {
-    DWORD address = seg*16 + off;
+    U32 address = seg*16 + off;
     return (PVOID) address;
 }
 

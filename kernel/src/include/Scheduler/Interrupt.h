@@ -25,24 +25,24 @@
 #define IRQ_RESERVED_VECTOR 0xA0
 
 tpkstruct {
-    DWORD   eax;
-    DWORD   ebx
-    DWORD   ecx;
-    DWORD   edx;
-    DWORD   esi;
-    DWORD   edi;
-    DWORD   ebp;
-    DWORD   eip;
-    DWORD   cs;
-    DWORD   eflags;
+    U32   eax;
+    U32   ebx;
+    U32   ecx;
+    U32   edx;
+    U32   esi;
+    U32   edi;
+    U32   ebp;
+    U32   eip;
+    U32   cs;
+    U32   eflags;
 
-    DWORD   esp;
-    DWORD   ss;
+    U32   esp;
+    U32   ss;
 
-    DWORD   es;
-    DWORD   ds;
-    DWORD   fs;
-    DWORD   gs;
+    U32   es;
+    U32   ds;
+    U32   fs;
+    U32   gs;
 }IRET_FRAME,*P_IRET_FRAME;
 
 // The previous context is of no concern to a driver.

@@ -1,19 +1,12 @@
-////////////////////////////////////////////////////////////////////////////////
-//                      This file is part of OS/90.
-//
-// OS/90 is free software: you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the Free Software
-// Foundation, either version 2 of the License, or (at your option) any later
-// version.
-//
-// OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-// details.
-//
-// You should have received a copy of the GNU General Public License along
-// with OS/90. If not, see <https://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
 
 /*
 
@@ -48,12 +41,12 @@ static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
 // and if so, the original caller of virtual 8086 mode is to be called.
 //
 
-static BYTE rm_isr_entrance_counter = 0;
+static U8rm_isr_entrance_counter = 0;
 
 // TODO: Get info about desciptor?
 
-static BYTE global_orig_vector;
-static BYTE global_orig_byte_after_iret;
+static U8global_orig_vector;
+static U8global_orig_byte_after_iret;
 
 // BRIEF:
 //      This is called by #GP handler only from virtual 8086 mode context.
@@ -65,7 +58,7 @@ static BYTE global_orig_byte_after_iret;
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
-    PBYTE ins = MK_LP(iframe->cs, iframe->eip);
+    PU8ins = MK_LP(iframe->cs, iframe->eip);
 
     const BOOL sv86 = MutexWasLocked(&g_all_sched_locks.v86_chain_lock);
 
@@ -91,14 +84,14 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
 
 // Reduces cross-referencing in code at a small cost of density
 // Not available to drivers.
-VOID SetHighLevelExceptionHandler(BYTE e, EXCEPTION_HANDLER handler)
+VOID SetHighLevelExceptionHandler(U8e, EXCEPTION_HANDLER handler)
 {
     hl_exception_handlers[e] = handler;
 }
 
 tstruct {
     P_PCB   caused_process;
-    DWORD   event_id;
+    U32   event_id;
     P_IRET_FRAME iframe;
 }HANDLE_EVENT_INFO;
 
@@ -116,7 +109,7 @@ static VOID DoRealModeException(HANDLE_EVENT_INFO info)
 
     FAR_PTR_16 jump_to = info.caused_process->rm_local_ivt[info.event_id];
 
-    if (DWORD_PTR(&jump_to, 0) == 0)
+    if (U32_PTR(&jump_to, 0) == 0)
     {
         // The process will be terminated because it caused an exception
         // for which it did not set a handler.
@@ -133,12 +126,12 @@ static VOID DoRealModeException(HANDLE_EVENT_INFO info)
 static VOID DoIretSv86(HANDLE_EVENT_INFO info)
 {
     // EIP now points after the new INT imm8 instruction.
-    // One byte before is where we want to write back our value.
-    PBYTE next_ins = MK_LP(info.iframe->cs, info.iframe->eip);
+    // One U8before is where we want to write back our value.
+    PU8next_ins = MK_LP(info.iframe->cs, info.iframe->eip);
 
     next_ins[-1] = global_orig_byte_after_iret;
 
-    // Now that we wrote back the byte after IRET, we need to emulate the
+    // Now that we wrote back the U8after IRET, we need to emulate the
     // stack by popping the necessary values into the IRET frame.
     // Remember that IRET is not a termination code. It is emulated like any
     // other privileged instruction.
@@ -151,8 +144,8 @@ VOID CopyIframeToRing3Context(
     P_IRET_FRAME    iframe,
     UREGS*          uregs
 ){
-    PDWORD source;
-    PDWORD dest;
+    PU32 source;
+    PU32 dest;
 
     // IFRAME -> UREGS
     source = offsetof(IRET_FRAME, eax);
@@ -160,7 +153,7 @@ VOID CopyIframeToRing3Context(
 
     if (dir == 1)
     {
-        PDWORD temp = source;
+        PU32 temp = source;
         dest = source;
         source = dest;
     }
@@ -174,10 +167,10 @@ VOID CopyIframeToRing3Context(
 //      Registers have not been saved anywhere, they are just on the stack
 //
 VOID SystemEntryPoint(
-    BYTE            event,
+    U8           event,
     P_IRET_FRAME    iframe
 ){
-    DWORD   old_thread_state;
+    U32   old_thread_state;
     P_PCB   request_from;
     BOOL    was_sv86;
 

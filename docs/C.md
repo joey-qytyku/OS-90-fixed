@@ -3,6 +3,8 @@
 
 So many tutorials teach less about the C language and more about the standard library.
 
+I wanted to experiment with a different approach.
+
 # Required Knowledge
 
 * You have at least tried programming before
@@ -28,7 +30,7 @@ For example:
 gcc main.c
 ```
 
-I will not teach it that way. I want you to understand the whole process. We will do it like this:
+I will not focus on that way right now. I want you to understand the whole process. We will do it like this:
 ```
 gcc main.c -c -o main.o
 ```
@@ -58,7 +60,7 @@ Symbols can be undefined, though it should be avoided:
 
 We can use conditional processing to determine if the code within a block should be kept or removed.
 
-```
+```c
 #ifndef NAME
 #ifdef NAME
 ```
@@ -124,7 +126,7 @@ It is important to ensure that the sign of the type is properly specified. Machi
 
 The `char` type is large enough to store a single character.
 
-## Defining Global Variables
+## Defining Variables
 
 To add a variable, write the type followed by the name and optionally an initializer. Semicolons are required in C.
 
@@ -135,7 +137,7 @@ int my_number = 10;
 int your_number;
 ```
 
-your_number is defined without an initializer but my_number is initialized to 10. If a number will be initialized later in your program and does not need an initial value, then there is no need to initialize it to anything.
+your_number is defined without an initializer but `my_number` is initialized to 10. If a number will be initialized later in your program and does not need an initial value, then there is no need to initialize it to anything.
 
 On the other side of the equal sign, we can put any numerical expression. For example:
 
@@ -149,13 +151,13 @@ We can also use character constants. These can only store one single ASCII chara
 char exam_grade = 'A';
 ```
 
-Floating point values can be defined in the usual way:
+Floating point values can be defined as expected:
 ```c
 float f0  = 1.0;
 double f1 = 4.9;
 ```
 
-Double is 64-bit and a more precise version that the 32-bit float. We will not be dealing with floating point a lot in this tutorial.
+Double is 64-bit and a more precise version of the 32-bit float. We will not be dealing with floating point a lot in this tutorial.
 
 If data should never change in the program, then it is advisable to add the `const` specifier before the type.
 
@@ -177,13 +179,11 @@ The reason this must be done is because without `const`, the value of `i` could 
 
 ## Arrays and Strings
 
-An array is a special type that is a collection of data of the same type. Here is how we declare them.
+An array is a special type that is a collection of data of the same type. Here is how we declare them. For our purposes, the initializer will have to be a constant expression.
 
 ```c
 int array_of_ints[10];
 ```
-
-For our purposes, the initializer will have to be a constant expression.
 
 Strings are similar to arrays, but we declare them like this:
 ```c
@@ -191,7 +191,7 @@ const char *my_string = "Hello, world";
 ```
 The handling of strings is confusing to many beginners and will be better understood when pointers are described.
 
-Strings can be declared without a const.
+Strings can be declared without a const if needed, but that will be addressed later as well.
 
 ## Making Our Own Types
 
@@ -229,7 +229,7 @@ name_of_struct second_way = {
 };
 ```
 
-Note that C does not give any special significance to newlines or whitespace outside of preprocessor directives. Feel free to arange code however is most readable.
+> Note that C does not give any special significance to newlines or whitespace outside of preprocessor directives. Feel free to arange code however is most readable.
 
 It is annoying to write `struct` all the time, so instead we can use a `typedef` and a `struct` to avoid this. The only difference is that the name of the type has to be last, as expected with typedef.
 ```c
@@ -365,7 +365,7 @@ The first line includes a header file which included the function `printf`.
 
 `main` is a function which takes two arguments related to the command line arguments and returns an `int` which indicates the program status. The function signature (name, args, return type) is followed by a code block, which specifies commands to be executed.
 
-Note that an executable program must have `main`. It will automatically return zero FYI.
+> Note that an executable program must have `main`. It must have either zero parameters or the two specified.
 
 Let's look at some more functions:
 ```c
@@ -380,11 +380,9 @@ int main()
 }
 ```
 
-Note that main may optionally take no arguments. If we compile to executable form and check the exit status of the program by running `echo $?`, the value should be 100. The exit status should not be used this way, but the example illustrates how functions work. square(5) would be 25, square(2) would be 4 and so forth.
+If we compile to executable form and check the exit status of the program by running `echo $?`, the value should be 100. The exit status should not be used this way, but the example illustrates how functions work. square(5) would be 25, square(2) would be 4 and so forth.
 
-Functions are called by referencing their name and placing the arguments in a comma-separated list. The return value is what the function evaluates to in the expression.
-
-`return` is a special statement in C that causes the function to return where it occurs.
+Functions are called by referencing their name and placing the arguments in a comma-separated list. The return value is what the function evaluates to in the expression. `return` is the special statement in C that causes the function to return where it occurs.
 
 Some functions may not return anything at all. In this case, we write `void` as the return type. `void` cannot be used to initialize a variable. Some functions take no arguments. In this case, the parameter list can be empty or have a `void`. If the parameter list is empty, the compiler may not warn you if extra arguments are passed, so place `void` in the parameter list if it takes none.
 
@@ -394,6 +392,8 @@ void i_take_none_and_return_none(void)
     // ...
 }
 ```
+
+### Changing Variables
 
 Being able to perform mathematical calculations is useful, but functions can do much more in C. Variables can be reassigned to different values. This will be important for implementing algorithms.
 
@@ -424,9 +424,9 @@ This will print:
 
 The code defines the variable `i` as 10. It prints out this value, sets it to 5, and prints it again. In this example, we also see an example of abstraction. We do not need to remember how to use the stdio.h function printf to print a number. Instead, we call a self-documenting function of our own creation.
 
-## printf
+## Using printf to Track Variables
 
-`printf` is a function that takes a string constant enclosed in double quotes (it must be constant) and any number of arguments of various types. The function substitutes the format characters (in this case `%i`) with the extra argument at the corresponding index. Finally, it prints the resulting string.
+`printf` is a function that takes a string constant enclosed in double quotes (it must be constant) and any number of additional arguments of various types. The function substitutes the format characters (in this case `%i`) with the extra argument at the corresponding index. Finally, it prints the resulting string.
 
 For example
 ```c
@@ -454,8 +454,6 @@ The output:
 
 Sometimes, we will have variables that are only relevant within a certain context. We can make them local to a function by declaring them in a curly-bracketted code block.
 
-Control flow constructs will use code blocks. More on that later.
-
 ```c
 int main()
 {
@@ -469,9 +467,9 @@ int main()
 
 This program will fail because `local_var2` went out of scope and cannot be referenced again.
 
-Local variables are dynamically allocated on the stack or in machine registers by the compiler. They are different from variables at the outer level because they are not allocated when the program is compiled but when it runs. This allows local variables to have __non-constant__ initializers, so they can reference other variables and even get the return value of functions.
+Local variables are dynamically allocated on the stack or in machine registers by the compiler. They are different from variables at the outer level because they are not allocated when the program is compiled but when it runs. This allows local variables to have __non-constant__ initializers, so they can reference other variables and even get the return value of function calls.
 
-```
+```c
 int main(int argc, char** argv)
 {
     int array[argc];
@@ -479,7 +477,153 @@ int main(int argc, char** argv)
 ```
 While this is not a practical example, it illustrates the concept. Be careful though. If the number is too big, it could cause a stack overflow.
 
+## Pass by Value
+
+All arguments passed to a function are passed by value, which means they are copied to the stack before calling the function. That means if a local variable is passed to a function, it will remain unchanged even if the function modifies the argument for any reason.
+
+# Conditionals
+
+If (no pun intended) you have tried Java or JavaScript, conditionals will be a breeze in C because they are very similar.
+
+## Introduction and Examples
+
+if-statements take a boolean expression inside parentheses and execute the code inside if the condition is true. Otherwise, the code block after the if-statement is not executed.
+
+Any boolean expression can work. Providing an integer that is not either zero or one will cause it to be converted to TRUE if non-zero and FALSE if zero.
+
+```c
+int main(int argc, char **argv)
+{
+    if (argv > 1)
+        printf("I don't want arguments!!! >:(");
+}
+```
+
+if-statements can have more complex expressions. Operators like `&&` and `||` have lower precedence than the comparison operators and are evaluated last.
+```c
+int main(int argc, char **argv)
+{
+    if (argc => 1 && argc <= 4)
+        printf("Number of arguments between 1,4 incusive");
+}
+```
+
+## else statement
+
+The `else` keyword specifies a code block that runs if the above condition is not true. If the above condition is true, the `else` code will not run.
+
+Let's look at the previous example:
+```c
+int main(int argc, char **argv)
+{
+    if (argc => 1 && argc <= 4)
+    {
+        printf("Number of arguments between 1,4 incusive");
+    }
+    else {
+        printf(":(");
+    }
+}
+```
+
+## else if
+
+Else if allows specifying if statements that are checked sequentially if and only if the previous `if` or `else if` is not taken. This is useful in some situations when you want to check something only if another thing was checked before.
+
+```c
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+    if (argc => 1 && argc <= 4)
+    {
+        printf("Number of arguments between 1,4 incusive");
+    }
+    else if (argc >= 2 && argc <= 7)
+    {
+        printf("Number of arguments between 2,7 incusive");
+    }
+```
+
+If we pass two arguments, condition one will be found to be true and run. Because we used an `else if`, the second code block in `main` will __not__ run because the top one was true.
+
+If we change `else if` to `if`:
+```c
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+    if (argc => 1 && argc <= 4)
+    {
+        printf("Number of arguments between 1,4 incusive");
+    }
+    if (argc >= 2 && argc <= 7)
+    {
+        printf("Number of arguments between 2,7 incusive");
+    }
+}
+```
+We pass 2 arguments to the program (btw the name of the program is the first one). __Both__ of the conditions will be evaluated separately to be true and both will run. The output will look like this:
+
+```
+Number of arguments between 1,4 incusive
+Number of arguments between 2,7 incusive
+```
+
+## switch
+
+A switch statement takes a single value inside the parentheses and compares is with a series of `case` statements. Here is the format:
+```
+switch (value)
+{
+    case constant-expression:
+        // Code here
+    break;
+
+    default:
+}
+```
+
+`break` is required to terminate the statement and continue after the code block. The `default` section does not require one and it runs only if the other cases are false.
+
+If a certain action should be taken for more than one value, the `break` can be omitted:
+```c
+switch (value)
+{
+    case 3:
+    case 4:
+        printf("Number is three or four\n");
+    break;
+
+    case 5:
+    case 6:
+        printf("Number is five or six\n");
+    break;
+}
+```
+>The default section can be omitted. If none of the cases are true, the whole switch is skipped.
+
+Using if statements, it would look like this:
+```c
+if (value == 3 || value == 4)
+{
+    printf("Number is three or four\n");
+}
+else if (value == 5 || value == 6)
+```
+Compilers will generate roughly equivalent code for both.
+
+# Loops
+
 # A Deeper Dive into Functions
+
+This section involves advanced topics and is not necessary to read, but I highly recommend readers to learn about the structure of functions and what they mean to a computer.
+
+## What is a Stack
+
+The stack is a structure present on almost every computer in history. It is a growing list of same-sized entries typically the same size as a pointer. It supports two basic operations, push to add to the top of the stack and pop to remove from the top of the stack.
+
+popping does not "delete" the value but it does change the stack pointer. In most CPU architectures, and in the case of x86, the stack pointer points to the last pushed element and the stack typically grows downward.
 
 ## What a Function Is
 
@@ -515,7 +659,9 @@ A single byte instruction called `ret` is used to return from the procedure, whi
 
 # Pointers
 
-Pointers may be the most important individual concept in the C language. In its most basic definition, a pointer is an integer object that stores a memory address of another object. Pointers are about as hard as C will ever get. It does not seem very useful at first, but there are many cases in which a programmer wants to write code that does not assume the location of value.
+Pointers may be the most important individual concept in the C language. In its most basic definition, a pointer is an integer object that stores a memory address of another object. Pointers are about as hard as C gets. It does not seem very useful at first, but there are many cases in which a programmer wants to write code that does not assume the location of value.
+
+> Pointers are dangerous! Accessing invalid memory will certainly cause an error.
 
 ## Understanding Memory
 
@@ -532,21 +678,41 @@ Never return a pointer from a function that points to a local variable. If the p
 
 ## Void Pointer
 
-A void pointer is a pointer that does not have a specific type. It can point to absolutely anything, but should be used with care.
+A void pointer is a pointer that does not have a specific type. It can point to absolutely anything, but should be used with care. You have to cast it before accessing.
 
 ## Pointer to an Array
 
-Pointers to arrays are possible and recognized by C, but they are mostly useless because pointers can be accessed like arrays with brackets.
+Pointers to arrays are possible and recognized by C, but they are mostly useless because __pointers can be accessed like arrays with brackets__. I will not teach the way to make one because of reasons that will be made clear later.
+
+There is a minor difference between arrays and pointers in C. Arrays behave mostly like pointers, but the main difference lies in the fact that the symbolic name for the array refers to the memory address where all the data is stored. The size of the initialized data is bound to the symbol, unlike pointers. The `sizeof` operator done on an array returns the size in bytes of the array. Doing the same to a pointer will be the same for all pointers, being equal to the native address size of the platform.
 
 ```c
-int pointer_to_array;
+char array[10];
+sizeof(array); // This is equal to 10
 ```
 
-### Array VS Pointer
 
-There is a minor difference between arrays and pointers in C. Arrays behave mostly like pointers, but the main difference lies in the fact that the symbolic name for the array refers to the memory address where all the data is stored. The size of the initialized data is bound to the symbol, unlike pointers.
+### Array as Parameter
 
-The sizeof operator done on an array returns the size in bytes of the array. Doing the same to a pointer will be the same for all pointers, being equal to the native address size of the platform.
+You cannot find the size of an array if it is an argument to a function. In general, never have arrays as arguments because they are automatically converted to pointers anyway and it just makes things more confusing.
+
+```c
+#include <stdio.h>
+
+void func(int array[10])
+{
+    printf("Supposed size of array: %i", sizeof(array));
+}
+
+int main()
+{
+    int array[10];
+    func(array);
+    return 0;
+}
+```
+
+What happens here is that `main` creates an aray of 10 elements and passes it to `func` by __reference__ and not by value. `int array[10]` in `func` amounts to nothing more than a pointer of type `int*`.
 
 ## Function Pointers
 
@@ -558,12 +724,12 @@ void (*name_of_ptr)(void);
 Putting the name and asterick in parentheses tells the compiler that this is not a void pointer, but a pointer to a function that returns void.
 
 Here is an example returning int with two int parameters:
-```
+```c
 int (*ptr2)(int,int);
 ```
 
 To avoid the confusing syntax, simply use a typedef.
-```
+```c
 typedef int (*my_pointer_type)(int,int);
 ```
 

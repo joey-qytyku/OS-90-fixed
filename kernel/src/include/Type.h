@@ -1,3 +1,14 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                     Copyright (C) 2023, Joey Qytyku                        //
+//                                                                            //
+// This file is part of OS/90 and is published under the GNU General Public   //
+// License version 2. A copy of this license should be included with the      //
+// source code and can be found at <https://www.gnu.org/licenses/>.           //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+
 #ifndef TYPE_H
 #define TYPE_H
 
@@ -7,22 +18,24 @@
 // K e r n e l   A P I   E x i t   C o d e s //
 ///////////////////////////////////////////////
 
-enum {
-OS_OK,
-OS_ERROR_GENERIC,
-OS_DOS_ERROR,
-OS_INVALID_FUNCTION,
-OS_INVALID_PARAMS,
+// Are we even going to use all these?
 
-OS_ACCESS_DENIED,
-OS_FILE_NOT_FOUND,
-OS_INVALID_HANDLE,
-OS_IS_DIRECTORY_NOT_FILE,
-OS_IS_FILE_NOT_DIRECTORY,
-OS_TOO_MANY_OPEN,
-OS_NO_SPACE_ON_DISK,
-OS_FEATURE_NOT_SUPPORTED,
-OS_OUT_OF_MEMORY
+enum {
+    OS_OK,
+    OS_ERROR_GENERIC,
+    OS_DOS_ERROR,
+    OS_INVALID_FUNCTION,
+    OS_INVALID_PARAMS,
+
+    OS_ACCESS_DENIED,
+    OS_FILE_NOT_FOUND,
+    OS_INVALID_HANDLE,
+    OS_IS_DIRECTORY_NOT_FILE,
+    OS_IS_FILE_NOT_DIRECTORY,
+    OS_TOO_MANY_OPEN,
+    OS_NO_SPACE_ON_DISK,
+    OS_FEATURE_NOT_SUPPORTED,
+    OS_OUT_OF_MEMORY
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -47,53 +60,40 @@ OS_OUT_OF_MEMORY
 // M i s c e l a n e o u s   M a c r o s //
 ///////////////////////////////////////////
 
-// Volatile variables can change at any time without the
-// compiler being aware. This applies to ISRs and drivers
-// because they are unpredictable and also assembly code that
-// modifies a C variable
-#define INTVAR volatile /* Used by interrupt handler  */
-#define MCHUNX volatile /* May change unexpectedly */
-
 #define ALIGN(x) __attribute__( (aligned(x)) )
 
 #define FENCE __asm__ volatile ("":::"memory")
 
-#define offsetof(st, m) ((DWORD)&(((st *)0)->m))
+#define offsetof(st, m) ((U32)&(((st *)0)->m))
 
 /////////////////////////////////////
 // T y p e   D e f i n i t i o n s //
 /////////////////////////////////////
 
 #define VOID void
-
-#define BYTE unsigned char
-#define WORD unsigned short
-#define DWORD unsigned long
-#define QWORD unsigned long long
-
-#define SBYTE char
-#define SWORD short
-#define SDWORD long
-#define SQWORD long long
-
-#define PVOID VOID*
-#define PWORD WORD*
-#define PDWORD DWORD*
-#define PBYTE BYTE*
+#define PVOID void*
 
 #define BOOL _Bool
-#define STATUS DWORD
-#define HANDLE SDWORD
+#define STATUS U32
+#define HANDLE SU32
 
 #define PID WORD
-#define VINT DWORD
+#define VINT U32
+
+typedef __UINT32_TYPE__ U32,*PU32;
+typedef __UINT16_TYPE__ U16,*PU16;
+typedef __UINT8_TYPE__  U8, *PU8;
+
+typedef __INT32_TYPE__ S32,*PS32;
+typedef __INT16_TYPE__ S16,*PS16;
+typedef __INT8_TYPE__  S8, *PS8;
 
 typedef const char*const IMUSTR;
 
 // Pointer to IMUSTR may change, but the IMUSTR itself must not.
 typedef IMUSTR *PIMUSTR;
 
-#define NULL ((PVOID)0L)
+#define NULL ((PVOID)0UL)
 
 #define tstruct   typedef struct
 #define tpkstruct typedef struct __attribute__((packed))
@@ -105,28 +105,27 @@ typedef IMUSTR *PIMUSTR;
 // A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //
 /////////////////////////////////////////////////////////////////////
 
-#define BYTE_PTR(var, off) *(PBYTE) (var+off)
-#define WORD_PTR(var, off) *(PWORD) (var+off)
-#define DWORD_PTR(var,off) *(PDWORD)(var+off)
+#define BYTE_PTR(var, off) *(PU8) (var+off)
+#define WORD_PTR(var, off) *(PU32) (var+off)
+#define DWORD_PTR(var,off) *(PU32)(var+off)
 
-#define PTR2INT(ptr) ((DWORD)(ptr))
+#define PTR2INT(ptr) ((U32)(ptr))
 #define INT2PTR(Int, ptrtype) ((ptrtype)(Int))
 
 #define CAST(val, type) ((type)(val))
 
 #define FLAG_PARAM_ON(flags, mask) ((flags & mask)!=0)
 
-
 /////////////////////////////
 // G C C   B u i l t i n s //
 /////////////////////////////
 
-static inline VOID *C_memcpy(VOID *d, VOID *s, DWORD c)
+static inline VOID *C_memcpy(VOID *d, VOID *s, U32 c)
 {
 	return __builtin_memcpy(d, s, c);
 }
 
-static inline VOID *C_memmove(VOID *d, VOID *s, DWORD c)
+static inline VOID *C_memmove(VOID *d, VOID *s, U32 c)
 {
 	return __builtin_memmove(d, s, c);
 }
@@ -136,7 +135,7 @@ static inline int C_strcmp(char *s1, char *s2)
 	return __builtin_strcmp(s1, s2);
 }
 
-static inline VOID C_memset(PVOID a, DWORD val, DWORD count)
+static inline VOID C_memset(PVOID a, U32 val, U32 count)
 {
     __builtin_memset(a,val,count);
 }

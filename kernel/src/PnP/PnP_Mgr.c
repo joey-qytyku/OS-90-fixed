@@ -57,7 +57,7 @@ DRIVER_HEADER kernel_bus_hdr =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static DWORD       cur_iorsc = 0;
+static U32       cur_iorsc = 0;
 static IO_RESOURCE resources[MAX_IO_RSC];
 static WORD        mask_bitmap = 0xFFFF; // Update this!
 static INTERRUPTS  interrupts;
@@ -81,7 +81,7 @@ Get operations:
 //  Get the Int Info object, not for drivers
 // v:
 //  IRQ number
-// DWORD to avoid unnecessary sign extention
+// U32 to avoid unnecessary sign extention
 //
 STATUS SetInterruptEntry(
     VINT            irq,
@@ -180,10 +180,10 @@ STATUS SetupPnP(VOID)
     // ROM space should not be prefetched or written
     volatile PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
     BOOL supports_pnp;
-    BYTE compute_checksum;
+    U8compute_checksum;
 
     // Find the checkstruct
-    for (DWORD i = 0; i<0x800*32; i++)
+    for (U32 i = 0; i<0x800*32; i++)
     {
         if (checkstruct->signature == PNP_ROM_STRING)
         {
@@ -231,7 +231,7 @@ STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
     return 0;
 }
 
-STATUS KERNEL Bus_AllocateIO(WORD size, BYTE align)
+STATUS KERNEL Bus_AllocateIO(WORD size, U8align)
 {
 }
 
@@ -267,7 +267,7 @@ STATUS KERNEL Bus_AllocateIO(WORD size, BYTE align)
 //
 static VOID Init_DetectFreeInt(VOID)
 {
-    BYTE imr0 = delay_inb(0x21);
+    U8imr0 = delay_inb(0x21);
 
     if (InGetInterruptLevel(2) == RECL_16)
     {
@@ -291,7 +291,7 @@ static VOID Init_DetectFreeInt(VOID)
 //
 static VOID DetectCOM(VOID)
 {
-    BYTE i, com_ports;
+    U8i, com_ports;
     const PWORD bda = (PWORD)phys(0x400);
 
     // Check BIOS data area for number of serial ports

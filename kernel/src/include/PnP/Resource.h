@@ -1,3 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef PNP_RESOURCE_H
 #define PNP_RESOURCE_H
 
@@ -43,9 +53,9 @@ typedef VOID (*FP_IRQ_HANDLER)(VOID);
 
 typedef struct __attribute__((packed))
 {
-    DWORD          start;
-    DWORD          size:24;
-    DWORD          alignment:24;
+    U32          start;
+    U32          size:24;
+    U32          alignment:24;
     PVOID          owner;
     BYTE
         is_port:1,
@@ -60,9 +70,9 @@ typedef struct __attribute__((packed))
 typedef struct __attribute__((packed))
 {
     // Each level is two bits, which means that all interrupt levels fit in
-    // a single 32-bit DWORD
+    // a single 32-bit U32
 
-    DWORD           lvl_bmp;
+    U32           lvl_bmp;
     FP_IRQ_HANDLER  handlers[16];
     PDRIVER_HEADER  owners[16];
 }INTERRUPTS,

@@ -13,6 +13,6 @@
     {_SetIntVector(vector, 0x80 | IDT_INT386, address);}
 
 
-extern VOID _SetIntVector(DWORD vector, DWORD _attr, PVOID address);
+extern VOID _SetIntVector(U32 vector, U32 _attr, PVOID address);
 
 #endif /* IA32_IDT_H */

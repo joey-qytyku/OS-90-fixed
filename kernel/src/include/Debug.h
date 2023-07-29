@@ -1,3 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef DEBUG_H
 #define DEBUG_H
 
@@ -6,15 +16,15 @@
 // What was this for? I made the function thread safe.
 #define ERROR_IF_ISR()
 
-typedef VOID (*OUTPUT_DRIVER)(BYTE);
+typedef VOID (*OUTPUT_DRIVER)(U8);
 
-extern VOID KERNEL Hex32ToString(DWORD, PBYTE);
-extern VOID KERNEL Uint32ToString(DWORD, PBYTE);
+extern VOID KERNEL Hex32ToString(U32, PU8);
+extern VOID KERNEL Uint32ToString(U32, PU8);
 extern VOID KERNEL KeLogf(OUTPUT_DRIVER, IMUSTR restrict, ...);
-extern VOID KERNEL FatalError(DWORD);
+extern VOID KERNEL FatalError(U32);
 
 extern VOID KeWriteAsciiz(OUTPUT_DRIVER, IMUSTR);
-extern VOID _KernelPutchar(BYTE ch);
+extern VOID _KernelPutchar(U8 ch);
 
 #define _str(x) #x
 #define _str2(x) _str(x)
@@ -28,5 +38,11 @@ extern VOID _KernelPutchar(BYTE ch);
     KeWriteAsciiz(_KernelPutchar,"\x1b[0m");
 
 #define BREAK() __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
+
+#define KASSERT(x) {\
+    if (!(x)) {\
+        TRACE("ASSERT FAILED");\
+    }\
+}
 
 #endif

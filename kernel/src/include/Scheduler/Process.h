@@ -31,22 +31,22 @@ enum {
 // UREGS is a complete context for ring-3 code.
 //
 tstruct {
-    DWORD es;
-    DWORD ds;
-    DWORD fs;
-    DWORD gs;
-    DWORD ss;
+    U32 es;
+    U32 ds;
+    U32 fs;
+    U32 gs;
+    U32 ss;
 
-    DWORD eax;
-    DWORD ebx;
-    DWORD ecx;
-    DWORD edx;
-    DWORD esi;
-    DWORD edi;
-    DWORD ebp;
-    DWORD esp;
-    DWORD eflags;
-    DWORD eip;
+    U32 eax;
+    U32 ebx;
+    U32 ecx;
+    U32 edx;
+    U32 esi;
+    U32 edi;
+    U32 ebp;
+    U32 esp;
+    U32 eflags;
+    U32 eip;
 }UREGS;
 
 //
@@ -54,25 +54,25 @@ tstruct {
 // is garaunteed to use the flat model
 //
 tstruct {
-    DWORD eax;
-    DWORD ebx;
-    DWORD ecx;
-    DWORD edx;
-    DWORD esi;
-    DWORD edi;
-    DWORD ebp;
-    DWORD esp;
-    DWORD eflags;
-    DWORD eip;
+    U32 eax;
+    U32 ebx;
+    U32 ecx;
+    U32 edx;
+    U32 esi;
+    U32 edi;
+    U32 ebp;
+    U32 esp;
+    U32 eflags;
+    U32 eip;
 }KREGS;
 
-typedef struct { WORD off; WORD seg }FAR_PTR_16;
+typedef struct { U16 off; U16 seg; }FAR_PTR_16;
 
 typedef struct PACKED
 {
-    DWORD   handler_eip;
-    BYTE    type            :3;
-    WORD    handler_cseg    :13;
+    U32     handler_eip;
+    U8      type            :3;
+    U16     handler_cseg    :13;
 }LOCAL_PM_IDT_ENTRY;
 
 ///////////////////////////////////////////////////////////////////
@@ -80,64 +80,54 @@ typedef struct PACKED
 ///////////////////////////////////////////////////////////////////
 
 // Very performance sensitive. Beware of structure ordering.
-// This structure is packed by default.
+// This structure is NOT packed by default.
 
-tpkstruct
+tstruct
 {
     UREGS   user_regs;
     KREGS   kern_regs;
 
-    PVOID   mem_mirror;
+    PVOID   next;
+    PVOID   last;
+    U16     psp_segment;    // Placed here for cache locality
 
-    DWORD   thread_state;
+    U32   thread_state;
+    U32   procflags;
 
-    alignas(4)
-    DWORD   user_page_directory_entries[64];
-    // Exceptions share the same IDT. This might make standard compliance
-    // a bit dubious, but it is more space efficient and a program should not
-    // bother with these vectors anyway.
     LOCAL_PM_IDT_ENTRY  local_idt[256];
 
     // Real mode control section
     FAR_PTR_16 rm_local_ivt[256];
-    DWORD   rm_kernel_ss_sp;
-    WORD    rm_subproc_exit_code;
-    WORD    psp_segment;
+    U32   rm_kernel_ss_sp;
 
-    DWORD   ctrl_c_handler_seg_off;
-    DWORD   crit_error_seg_off;
+    U16   rm_subproc_exit_code;
 
-    WORD    vpic_mask;  // By default, all IRQs are masked
-
-    // Flags related to the process
-    DWORD   program_type:2;
+    U32   ctrl_c_handler_seg_off;
+    U32   crit_error_seg_off;
 
     // Add subprocess stack. It contains:
     // * PSP
     // * Size of allocation
 
-    BYTE    current_working_dir[80];
+    U8   current_working_dir[80];
     // The command line remembers the current disk path
     // Default behavior is to CD to the root. (I think)
     // This includes the drive letter.
+}  PCB,
+*P_PCB;
 
-    PVOID   next;
-    PVOID   last;
-
-}PCB,*P_PCB;
-
-//static int x = sizeof(PCB);
+static int x = sizeof(PCB);
 
 static inline P_PCB GetCurrentPCB(VOID)
 {
-    register DWORD sp __asm__("sp");
+    register U32 sp __asm__("sp");
     return (P_PCB)(sp & (~0x1FFF));
 }
 
 PVOID KERNEL ProcSegmentToLinearAddress(
     P_PCB,
-    WORD,
-    DWORD
+    U16,
+    U32
 );
 
 #endif /* SCHEDULER_PROC_H */

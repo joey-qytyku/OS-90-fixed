@@ -33,6 +33,10 @@
         "fcntl.h": "c",
         "features.h": "c",
         "iodecode.h": "c",
-        "linker.h": "c"
+        "linker.h": "c",
+        "random": "cpp",
+        "stdalign.h": "c",
+        "log2.h": "c",
+        "map.h": "c"
     }
 }

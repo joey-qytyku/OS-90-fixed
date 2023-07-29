@@ -1,11 +1,13 @@
 # Preface
 
-OS/90 features a fully-preemptible and reentrant kernel. The scheduler is the most complex part of OS/90 because of the high degree of DOS compatibility.
+OS/90 features a fully-preemptible and reentrant kernel. The scheduler is the most complex part of OS/90 because of the high degree of DOS compatibility and modern features built on top of it.
 
 # Terms to Know
 
 Virtual INT: A feature in OS/90 that allows the kernel thread to enter real mode to call a software interrupt vector. This is terminated by the IRET instruction at the highest INT call level.
-Reentrant: The kernel can be entered by several concurrent threads at once. Locking is used to guard parts of the kernel that are shared or non-reentrant
+
+Reentrant: The kernel can be entered by several concurrent threads at once. Locking is used to guard parts of the kernel that are shared or non-reentrant.
+
 Trap frame and context: Read below
 
 # PIT Configuration
@@ -98,12 +100,6 @@ SV86 and exceptions are non-preemtible contexts.
 
 Processes when in user or kernel mode are preemptible.
 
-## Paging and Contexts
-
-We do not use separate page directories for each process. Only a certain number of PDs are exposed to the process that can be used for program data. These are copied to a global page directory when context switching.
-
-Switching to a kernel thread does load CR3 and flush TLB because kernel memory is always mapped to the same location.
-
 # TSS and IO Permissions
 
 OS/90 supports emulation of IO instructions for userspace software, but when the kernel needs to run virtual 8086 mode to perform system tasks, IO must be directly sent to hardware. There are two ways of doing this.
@@ -124,7 +120,7 @@ The boost is significant and proven by the manual. When in virtual 8086 mode, IN
 
 For example, reading a 512-byte sector, which is 256 IO operations, will take *approximately* 100 + 2048 clocks, with a hundred or more for the emulation overhead. If we did this with virtual 8086 mode, 7168 clocks would be used.
 
-Setting the emulation policy is not possible because IOPL is always three and a zero allow bit in the IOPB would cause ring 3 IO to actually take place. For this reason, IO is fully emulated under OS/90.
+Setting the emulation policy is not possible because IOPL is always three and a zero allow bit in the IOPB would cause ring 3 IO to actually take place. For this reason, IO is __fully__ emulated under OS/90.
 
 ## Implementation
 
@@ -149,7 +145,6 @@ Single operations using imm8 will run as the DX form.
 
 32-bit IO is currently not supported under V86. String operations are also assumed to be with DF=0
 
-
 # Thread States and Contexts (TODO)
 
 OS/90 provides three contexts:
@@ -173,6 +168,21 @@ enum {
 The scheduler tick interrupt is the core of the scheduler that makes decisions about which processes will run. It concurrently switches between the active threads of each process in the list.
 
 Interrupts are completely turned off within this ISR as with all other IRQs. The low half saves all registers to a trap frame and passes a pointer to it. When the ISR is done, it pushes all the reigsters off of the stack.
+
+## Process Hook Procedures
+
+A process hook is a procedure called in an atomic context with the folowing signature:
+```
+PH_RET ProcessHook(PID pid)
+```
+
+PH_RET is a type which can be `PH_SKIP` or `PH_CONT`.
+
+A function called InsertProcessHook(PID pid) inserts the hook procedure into the specified process. The reason the procedure takes the PID even though it is known when assigning the proc hook is because we may want to reuse the same code for several processes requesting the same service.
+
+Process hooks should never block the process or change anything relating to its execution state. If it is blocked, how can you expect to unblock it? Instead, return PH_SKIP so that the scheduler does not run the process.
+
+Process hooks are a hack meant to allow for simulating multiple addressing spaces in an OS that does not allow for them. It is primarily designed for emulating memory mapped IO for individual processes.
 
 # Controlling Interrupts and Preemption
 
@@ -208,7 +218,13 @@ VOID IntendedUsage()
     RestoreFlags(inf);
 }
 ```
-Never acquire a lock while interrupts are disabled, or the kernel could freeze forever! Remember that data can be protected by disabling interrupts or by locking. Both cannot be used. All clients of the protected data must agree to the same synchronization mechanism.
+Never acquire a lock while interrupts are disabled, or the kernel will freeze forever! Remember that data can be protected by disabling interrupts or by locking, but both cannot be used. All clients of the protected data must agree to the same synchronization mechanism.
+
+# ISR and Kernel Reentrancy
+
+The kernel is only reentrant in a preemptible context. An ISR can only call a function if it checks the locks that it uses and passes if one is acquired. Very few functions are fully reentrant.
+
+Some parts of the kernel such as the memory manager expose a function to check for reentrancy safety within an atomic context.
 
 # Process List
 
@@ -236,7 +252,7 @@ STATUS Execute(P_EXEC_STRUCT);
 ```
 
 The parameter structure is:
-```
+```c
 tstruct {
     PIMUSTR     name;
     PVOID       psp;

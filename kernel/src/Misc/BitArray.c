@@ -1,51 +1,54 @@
-////////////////////////////////////////////////////////////////////////////////
-//                      This file is part of OS/90.
-//
-// It is dual licensed for GPLv2 and MIT.
-//
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
 
 #include <Platform/BitOps.h>
 #include <Type.h>
 
 // WARNING:
 //      All of these functions operate on little endian 32-bit values.
-//      If the bits must be in literal order at byte aligned boundaries,
+//      If the bits must be in literal order at U8aligned boundaries,
 //      this will not help much.
 //
-//      Also, it is recommended that bit arrays are aligned at 4-byte boundaries
+//      Also, it is recommended that bit arrays are aligned at 4-U8boundaries
 //      for high performance.
 //
-VOID KeEnableBitArrayEntry(PDWORD array, DWORD inx)
+VOID KeEnableBitArrayEntry(PU32 array, U32 inx)
 {
-    DWORD bit_offset  = inx & 31;
-    DWORD dword_index = inx >> 5;
+    U32 bit_offset  = inx & 31;
+    U32 U32_index = inx >> 5;
 
-    array[dword_index] |= 1 << bit_offset;
+    array[U32_index] |= 1 << bit_offset;
 }
 
-VOID KERNEL KeDisableBitArrayEntry(PDWORD array, DWORD inx)
+VOID KERNEL KeDisableBitArrayEntry(PU32 array, U32 inx)
 {
-    DWORD bit_offset  = inx & 31;
-    DWORD dword_index = inx >> 5;
+    U32 bit_offset  = inx & 31;
+    U32 U32_index = inx >> 5;
 
-    array[dword_index] &= ~(1 << bit_offset);
+    array[U32_index] &= ~(1 << bit_offset);
 }
 
-BOOL KERNEL KeGetBitArrayEntry(PDWORD array, DWORD inx)
+BOOL KERNEL KeGetBitArrayEntry(PU32 array, U32 inx)
 {
-    DWORD bit_offset  = inx & 31;
-    DWORD dword_index = inx / 32;
+    U32 bit_offset  = inx & 31;
+    U32 U32_index = inx / 32;
 
-    return BIT_IS_SET(array[dword_index], bit_offset);
+    return BIT_IS_SET(array[U32_index], bit_offset);
 }
 
 //
 // Not for driver use
 //
-VOID KeEnableBitArrayRange(PDWORD array, DWORD base_inx, DWORD count)
+VOID KeEnableBitArrayRange(PU32 array, U32 base_inx, U32 count)
 {
-    for (DWORD i = 0; i < count; i++)
+    for (U32 i = 0; i < count; i++)
         KeEnableBitArrayEntry(array, base_inx+i);
 }
 
@@ -62,12 +65,12 @@ VOID KeEnableBitArrayRange(PDWORD array, DWORD base_inx, DWORD count)
 //      Maybe rewrite in assembly.
 //
 STATUS KERNEL KeAllocateBits(
-    PDWORD  array,         // Address of array
-    DWORD   array_bounds,  // Number of bits, multiple of 4, THE LIMIT, NOT NUMBER
-    DWORD   to_alloc,      // Number to allocate
-    PDWORD  out_base_index // Where to store the base index returned by function
+    PU32  array,         // Address of array
+    U32   array_bounds,  // Number of bits, multiple of 4, THE LIMIT, NOT NUMBER
+    U32   to_alloc,      // Number to allocate
+    PU32  out_base_index // Where to store the base index returned by function
 ){
-    DWORD entry;
+    U32 entry;
 
     // This procedure will probably not return correct input if the count
     // is zero. This is an invalid input.
@@ -83,9 +86,9 @@ STATUS KERNEL KeAllocateBits(
 
         if (scan == 0)
         {
-            DWORD free_found = 0;
+            U32 free_found = 0;
 
-            for (DWORD local_entry = entry; ; local_entry++)
+            for (U32 local_entry = entry; ; local_entry++)
             {
                 BOOL scan2 = KeGetBitArrayEntry(array, local_entry);
 
@@ -121,11 +124,11 @@ STATUS KERNEL KeAllocateBits(
 //      entry at the end for most situations.
 //
 STATUS KERNEL AllocateOneBit(
-    PDWORD array,
-    DWORD  array_bounds,
-    PDWORD out_index
+    PU32 array,
+    U32  array_bounds,
+    PU32 out_index
 ){
-    for (DWORD i = array_bounds-1; i != 0; i--)
+    for (U32 i = array_bounds-1; i != 0; i--)
     {
         BOOL bit = KeGetBitArrayEntry(array, i);
         if (!bit)

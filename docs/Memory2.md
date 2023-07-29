@@ -43,11 +43,9 @@ High memory area: The first 65520 bytes of extended memory. Accessible from real
 
 XMS: Extended Memory Specification. Allows real mode programs to allocate extended memory blocks (EMBs) and transfer to/from conventional memory.
 
-# Chains
+Single Address Space Operating System: All program memory lives in a shared linear address space.
 
-## The ID
-
-The ID is a 32-bit number which has no special meaning to userspace or drivers in itself.
+DPMI: DOS Protected Mode Interface. OS/90 implements and reports 0.9 but has some 1.0 features.
 
 # OS/90 is a Single Address Space Operating System
 
@@ -93,22 +91,76 @@ This function is slow.
 ## Map Physical Block to Virtual Block
 
 ```c
-VOID MapBlock(DWORD attr, PVOID virt, PVOID phys)
+STATUS MapBlock(
+    DWORD   attr,
+    PVOID   virt,
+    PVOID   phys
+);
 ```
-Addresses must be page aligned. Mostly for internal use but can be used for MMIO mapping (a better function exists for that).
+
+Addresses must be block aligned. Mostly for internal use but can be used for MMIO mapping (a better function exists for that).
 
 This will modify the page tables and will extend the PTC if necessary. The attributes are simply what is provided by the kernel for page table entries (PG_...).
 
 ## Check Memory Manager Lock
 
 ```c
-VOID KERNEL_ASYNC GetMmLock(VOID)
+BOOL KERNEL_ASYNC MmReentStat(VOID);
 ```
 
-If this returns one, then absolutely no memory manager functions may be called.
+If this returns one, then absolutely no memory manager functions may be called by an interrupt handler.
+
+The memory manager has a single mutex lock that is acquired by every function that reads or writes the block list, PT/PD, and other structures. If it is currently acquired, an interrupt handler cannot safely call anything in the memory manager API. If the lock is not acquired, it is safe to call memory API functions from the atomic context.
+
+## DOS Memory Managment Functions
+
+These functons are convenient interfaces to the DOS API for memory allocation.
+
+There are the following reasons to use these functions:
+1. Memory to communicate from kernel to a DOS program (e.g. TSR).
+2. Loading DOS executables (the kernel does this)
+4. Speed-critical allocations of small size
+3. ISA DMA buffers
+
+Allocating DOS memory has an advantage: it is faster to allocate than extended memory since page tables do not need to be modified and chains do not need to managed. The problem is that at least half of it is going to be used by TSRs and drivers in a typical configuration, so make sure that allocations are small and are freed as soon as possible.
+
+Idealy, there should be at least 72K available in case the main kernel tries to allocate.
+
+### Allocate DOS Memory
+
+```c
+PVOID ConvMemAlloc(DWORD bytes);
+```
+
+RETURN:
+* NULL if failed.
+* Linear pointer to allocated region
+
+### Resize DOS Memory
+
+```c
+PVOID ConvMemRealloc(PVOID addr, DWORD new_bytes);
+```
+
+This makes memory allocation with these functions essentially the same as `malloc`. The program must ensure that it does not double free or free the wrong location beacuse this fails silently.
+
+`addr` is converted to a 16-bit segment.
+
+The only way to deallocate memory is to resize to zero. In such a case, the return value can be ignored. Otherwise, it contains the new address.
+
+Example:
+```c
+PBYTE dma_buffer = ConvMemAlloc(65536);
+
+RequestTransfer(dma_buffer);
+
+ConvMemRealloc(dma_buffer, 0);
+```
+
+
+### Get Available DOS Memory
 
 ## Allocate Chain
-
 
 ```c
 CHID ChainAlloc(
@@ -138,24 +190,19 @@ returns 0 if the id is invalid.
 ## Resize a Chain
 
 ```c
-STATUS ResizeChain(
-    RESIZE_FLAGS   flags,
-    CHID    id,
-    DWORD   new_size
+STATUS KERNEL ChainResize(
+    RESIZE_FLAGS flags,
+    CHID         id,
+    DWORD        bytes_uncommit,
+    DWORD        bytes_commit
 );
 ```
-Options:
-```
-RSZ_UNCOMMITTED    Generate uncommitted blocks (skip indices)
-RSZ_GROW           Increase relative to current size
-RSZ_SHRINK         Decrease size
-```
-
-WAIT. How can I add uncommitted blocks if the chain only works with physical blocks.
 
 If `new_size` is zero, the allocation is deleted.
 
 Resizing the chain does not remap it. It must be mapped to the desired location with the appropriate function. Usually, the address space should be changed after resizing.
+
+In order to recognize uncommitted blocks, the implementation will have to automatically commit at least one block at the end if `bytes_commit` is zero. Uncommitted blocks must exist between committed ones or there is no way to recognize their presence. Later implementations may not have this same behavior. The only garauntee is that committed blocks will always be committed and cause no page faults.
 
 ## Stain/Clean Blocks
 
@@ -165,7 +212,7 @@ This will mark the pages of a block as dirty.
 BOOL GetSetBlockDirtyStatus(
     DBIT_FLAGS  flags,
     PVOID       addr,
-    DWORD   num
+    DWORD       num
 );
 ```
 
@@ -251,9 +298,9 @@ The reason why this does not "know" the size of the allocation is because we may
 
 Pages are sometimes locked by userspace for performance reasons, but OS/90 would probably not benefit because it does not swap memory unless RAM is very low. For this reason, it is not currently supported for userspace through the page locking DPMI service. Pages actually do not need to be locked since local interrupts for processes can safely cause faults; they are not real interrupts.
 
-# Block List
+# Physical Block Table (PBT)
 
-A block list entry:
+A PBT entry:
 ```c
 // 8 bytes long
 tpkstruct
@@ -267,7 +314,7 @@ tpkstruct
 }MB,*P_MB;
 ```
 
-The chain ID is not stored in the block list. It is returned as an integer but internally is a 32-bit offset to the block list pointing to the first entry of the chain.
+The chain ID is not stored in the PBT. It is returned as an integer but internally is an index to the PBT.
 
 With this configuration, OS/90 can access 1GB of physical memory minus any memory holes.
 
@@ -279,11 +326,23 @@ The `owner_pid` is relevant for userspace allocations after a program terminates
 
 An `MB` represents a single block of 16K. This size can be reconfigured. The block is the basic unit of virtual memory in OS/90.
 
+# Page Tables
+
+OS/90 uses one single set of page tables allocated in a special chain. When more are needed, the chain is extended.
+
+Nothing fancy is done here. If a high address is requested for mapping, the kernel will simply allocate page tables all the way to that virtual address.
+
+The issue with the mapping functionality is that memory cannot be accessed unless it is mapped, including chains. This requires making a window in the address space. It is a virtual block at the very end of the entire address space. It should NEVER be accessed by drivers.
+
+Because mapping memory requires TLB flushes, it is not a huge deal.
+
+On the i486, INVLPG can be used on this window, needing only a few iterations and saving the rest of the TLB.
+
 # Virtual Memory List
 
 Memory can be allocated by the kernel and then mapped to a fixed region, but this is not very useful since we may want to reuse regions of our limited addressing space. To do this, we need to be able to allocate virtual addresses.
 
-The kernel and user allocate these regions differently, but use the same chain to hold page tables. The first few page tables allocated there are for kernel PTs.
+The kernel and user allocate these regions differently, but use the same chain to hold page tables. The first few page tables allocated there are for kernel PTs and it grows as more are needed.
 
 ## Relationship With Uncommitted Memory and Swapping
 
@@ -295,7 +354,27 @@ It is important to know what ID a certain virtual page belongs to.
 
 The solution is that each process has something called a process hook, which is a procedure called every time the process is scheduled, if a process hook is specified. This is called inside an atomic context. The process hook can remap the memory for the individual process.
 
-If the memory manager lock is currently
+If the memory manager lock is currently acquired, it is NOT possible to use `MapBlock` and you must pass on this iteration.
+
+The process hook will recieve the PID of the process, which means you can have the same one for several processes.
+
+The general procedure is as follows for MMIO emulation:
+* Insert a proc hook
+* The proc hook checks the MM lock
+* If it is acquired
+  * Return PH_SKIP. Do not block.
+* If the MM lock is not acquired
+  * Look through a list of MMIO clients, probably a list of PIDs matched with either a chain or a virtual address of some sort
+  * Use the `MapBlock` function to map the memory
+
+Process hooks exist solely for the purpose of implementing per-process virtual memory, but can be used for other purposes. See scheduler.md for more details.
+
+# Terminating Processes
+
+When a process is terminated, the following things will happen within the memory manager:
+* All blocks owned by the process are freed. Each block entry contains a PID.
+* All virtual address spaces allocated by the process anywhere are released
+* If the program is 16-bit DOS, the memory of the process or sub-process will be deallocated.
 
 # Rationale
 
@@ -311,20 +390,20 @@ Pros:
 Cons:
 * Memory is wasted due to internal fragmentation
 * More disk IO when swapping
-* Virtual MMIO is complicated
 
 ## Single Address Space
 
 OS/90 is a SASOS, which is unconventional for 32-bit operating systems. It has several advantages as a result.
 
-* Less memory used since we do not have to store page tables per-process
-* CR3 is never changed on context switches, no TLB flushing needed
-* More efficient use of cache lines and the TLB
-* Reduced code complexity
-* Simple IPC
+1. Less memory used since we do not have to store page tables per-process
+2. CR3 is never changed on context switches, no TLB flushing needed
+3. More efficient use of cache lines and the TLB
+4. Reduced code complexity
+5. Simple IPC. Communication between kernel and user is trivial memory copying.
 
 The disadvantages are:
-* Addressing space limited to 3GB for all processes. Ought to be enough for anybody tbh :)
-* Significantly reduced stability
+1. Addressing space is limited to 3GB for all processes. Ought to be enough for anybody tbh :)
+2. Reduced stability and security
+3. Memory mapped IO is difficult to simulate and negates advantage #1 with the workaround.
 
-The address space is still three times larger than the maximum physical memory.
+The address space is still three times larger than the maximum physical memory. OS/90 is also an unstable operating system by design, so isolating address spaces does not make a big difference.

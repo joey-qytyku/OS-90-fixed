@@ -11,10 +11,10 @@ extern VOID IaUseDirectRing3IO(VOID);
 // The IOPB offset is set outside the TSS limit to make it "deny all"
 extern VOID IaUseVirtualRing3IO(VOID);
 
-extern __attribute__((regparm(1))) VOID SetESP0(DWORD);
+extern __attribute__((regparm(1))) VOID SetESP0(U32);
 extern __attribute__((regparm(1))) PVOID GetESP0(VOID);
 
-extern PDWORD abIoPermissionBitmap;
+extern PU32 abIoPermissionBitmap;
 
 #define GetAddrOfIOPB() abIoPermissionBitmap
 

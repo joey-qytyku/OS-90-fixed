@@ -20,9 +20,9 @@
 
 // GCC builtin always refers to the glibc function for some reason
 // so I have to implement it manually
-DWORD KERNEL StrLen(PIMUSTR ps)
+U32 KERNEL StrLen(PIMUSTR ps)
 {
-    DWORD i = 0;
+    U32 i = 0;
     while ((*ps)[i] !=0)
         i++;
     return i;
@@ -35,15 +35,15 @@ DWORD KERNEL StrLen(PIMUSTR ps)
 // https://www.quora.com/What-are-the-most-obscure-useless-x86-assembly-instructions?
 //
 
-VOID KERNEL Hex32ToString(DWORD value,  PBYTE obuffer)
+VOID KERNEL Hex32ToString(U32 value,  PU8 obuffer)
 {
 }
 
-VOID KERNEL Uint32ToString(DWORD value, PBYTE obuffer)
+VOID KERNEL Uint32ToString(U32 value, PU8 obuffer)
 {
-    DWORD digit, digit_divisor;
-    DWORD buff_off = MAX_STR_LENGTH_OF_UINT32 - 2;
-    DWORD i;
+    U32 digit, digit_divisor;
+    U32 buff_off = MAX_STR_LENGTH_OF_UINT32 - 2;
+    U32 i;
 
     // Clear buffer by setting all chars to ascii NUL
     // so that they are not printed
@@ -71,9 +71,9 @@ VOID KERNEL Uint32ToString(DWORD value, PBYTE obuffer)
 
 VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 {
-    DWORD max = StrLen(&string);
+    U32 max = StrLen(&string);
 
-    for (DWORD i = 0; i<max; i++)
+    for (U32 i = 0; i<max; i++)
         od(string[i]);
 }
 
@@ -90,7 +90,7 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 //
 VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
 {
-    BYTE printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
+    U8printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     va_list ap;
     BOOL is_signed;
 
@@ -109,7 +109,7 @@ VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
         {
         // Print hexadecimal, sign is ignored
         case 'x':
-            va_arg(ap, DWORD);
+            va_arg(ap, U32);
         break;
 
         // Print integer, signed or unsigned format
@@ -134,11 +134,11 @@ VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
     va_end(ap);
 }
 
-VOID _KernelPutchar(BYTE ch)
+VOID _KernelPutchar(U8ch)
 {
     outb(0xE9, ch);
 }
 
-VOID KERNEL FatalError(DWORD error_code)
+VOID KERNEL FatalError(U32 error_code)
 {
 }

@@ -9,10 +9,10 @@
 
 #define PnSetOsDsegBase(base)\
     {IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNP_OS_DS*8\
-    (DWORD)base);}
+    (U32)base);}
 
 #define PnSetBiosCsegBase(base)\
     {IaAppendAddressToDescriptor(&aqwGlobalDescriptorTable + GDT_PNPCS*8,\
-    (DWORD)base);}
+    (U32)base);}
 
 #endif /* IA32_PNPSEG_H */

@@ -15,7 +15,7 @@
 #define TYPE_CODE 0x1B
 #define ACCESS_RIGHTS(present, ring, type) (present<<7 | ring<<6 | type)
 
-#define LDT_ENTRIES 128
+#define LDT_ENTRIES 64
 
 enum {
     GDT_NULL        =     0,
@@ -35,12 +35,12 @@ enum {
 extern QWORD *aqwGlobalDescriptorTable;
 extern QWORD *aqwLocalDescriptorTable;
 
-VOID IaAppendAddressToDescriptor(PVOID, DWORD);
-DWORD IaGetBaseAddress(PVOID);
+VOID IaAppendAddressToDescriptor(PVOID, U32);
+U32 IaGetBaseAddress(PVOID);
 
 //
 // Note that the limit supplied must be larger than 1M in bytes.
 //
-VOID IaAppendLimitToDescriptor(PVOID, DWORD);
+VOID IaAppendLimitToDescriptor(PVOID, U32);
 
 #endif /* IA32_SEGMENT_H */

@@ -13,7 +13,7 @@
 
 #include <Type.h>
 
-static inline VOID rep_insb(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_insb(PVOID mem, U32 count, WORD port)
 {
     __asm__ volatile(
         "rep insb"
@@ -23,7 +23,7 @@ static inline VOID rep_insb(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline VOID rep_outsb(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_outsb(PVOID mem, U32 count, WORD port)
 {
     __asm__ volatile (
         "rep outsb"
@@ -33,7 +33,7 @@ static inline VOID rep_outsb(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline VOID rep_insw(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_insw(PVOID mem, U32 count, WORD port)
 {
     __asm__ volatile (
         "rep insw"
@@ -43,7 +43,7 @@ static inline VOID rep_insw(PVOID mem, DWORD count, WORD port)
         );
 }
 
-static inline VOID rep_outsw(PVOID mem, DWORD count, WORD port)
+static inline VOID rep_outsw(PVOID mem, U32 count, WORD port)
 {
     __asm__ volatile (
         "rep outsw"
@@ -78,19 +78,19 @@ static inline _TYPE ReadIOMem ##_TYPE (PVOID addr)\
 
 _MAKE_PORT_OUT(b, BYTE);
 _MAKE_PORT_OUT(w, WORD);
-_MAKE_PORT_OUT(l, DWORD);
+_MAKE_PORT_OUT(l, U32);
 
 _MAKE_PORT_IN(b, BYTE);
 _MAKE_PORT_IN(w, WORD);
-_MAKE_PORT_IN(l, DWORD);
+_MAKE_PORT_IN(l, U32);
 
-static inline VOID delay_outb(WORD port, BYTE val)
+static inline VOID delay_outb(WORD port, U8val)
 {
     outb(port, val);
     outb(0x80, 0); // Output to unused port for delay
 }
 
-static inline BYTE delay_inb(WORD port)
+static inline U8delay_inb(WORD port)
 {
     outb(0x80, 0);
     return inb(port);

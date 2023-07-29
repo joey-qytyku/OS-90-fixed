@@ -1,19 +1,12 @@
-////////////////////////////////////////////////////////////////////////////////
-//                      This file is part of OS/90.
-//
-// OS/90 is free software: you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the Free Software
-// Foundation, either version 2 of the License, or (at your option) any later
-// version.
-//
-// OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-// details.
-//
-// You should have received a copy of the GNU General Public License along
-// with OS/90. If not, see <https://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
 
 // Note: Variables shared by ISRs and kernel must be volatile because
 // they can change unpredictably
@@ -40,14 +33,14 @@
 #include <Type.h>
 
 alignas(4)
-DWORD preempt_count = 0;
+U32 preempt_count = 0;
 
 ALL_KERNEL_LOCKS g_all_sched_locks = { 0 };
 
-INTVAR P_PCB current_pcb;
-INTVAR P_PCB first_pcb; // The first process
+volatile P_PCB current_pcb;
+volatile P_PCB first_pcb; // The first process
 
-INTVAR DWORD number_of_processes = 0;
+volatile U32 number_of_processes = 0;
 
 VOID KERNEL PreemptInc(VOID)
 {
@@ -63,7 +56,7 @@ VOID KERNEL PreemptDec(VOID)
 ////////////////////////////////////////////////////////////////////////////////
 
 alignas(4) static V86_CHAIN_LINK v86_capture_chain[256];
-alignas(4) static DWORD dos_semaphore_seg_off; // ?
+alignas(4) static U32 dos_semaphore_seg_off; // ?
 
 VOID KERNEL ScOnErrorDetatchLinks(VOID)
 {
@@ -71,7 +64,7 @@ VOID KERNEL ScOnErrorDetatchLinks(VOID)
 }
 
 VOID KERNEL ScHookDosTrap(
-    BYTE                  vector,
+    U8                 vector,
     PV86_CHAIN_LINK       ptrnew,
     V86_HANDLER           hnd
 ){
@@ -86,7 +79,7 @@ VOID KERNEL ScHookDosTrap(
     ReleaseMutex(&g_all_sched_locks.real_mode_lock);
 }
 
-VOID KERNEL ScVirtual86_Int(PVOID context, BYTE vector)
+VOID KERNEL ScVirtual86_Int(PVOID context, U8vector)
 {
     PV86_CHAIN_LINK current_link;
 
@@ -134,7 +127,7 @@ VOID InitV86(VOID)
 //////////////////////// INTERRUPT HANDLING SECTION ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline void SendEOI(BYTE vector)
+static inline void SendEOI(U8vector)
 {
     delay_outb(0x20, 0x20);
     if (vector > 7)
@@ -151,7 +144,7 @@ static VOID HandleIRQ0()
 
 
 __attribute__((regparm(1)))
-VOID InterruptDispatch(DWORD diff_spurious)
+VOID InterruptDispatch(U32 diff_spurious)
 {
     const WORD inservice16 = InGetInService16();
     const WORD irq         = BitScanFwd(inservice16);

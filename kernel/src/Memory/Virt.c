@@ -7,16 +7,3 @@
 // source code and can be found at <https://www.gnu.org/licenses/>.          //
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
-
-#ifndef STACKUTILS_H
-#define STACKUTILS_H
-
-#include <Type.h>
-
-VOID RmPush16(PWORD ss, PU32 esp, WORD value);
-WORD RmPop16(PWORD ss, PU32 esp);
-VOID PmPush16(PWORD ss, PU32 esp, WORD value);
-WORD PmPop16(PWORD ss, PU32 esp);
-
-
-#endif /* STACKUTILS_H */

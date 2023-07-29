@@ -6,7 +6,7 @@
 #define _STI { __asm__ volatile ("sti":::"memory"); }
 #define _CLI { __asm__ volatile ("cli":::"memory"); }
 
-typedef DWORD LOCK;
+typedef U32 LOCK;
 
 tstruct {
     LOCK    v86_chain_lock;
@@ -45,9 +45,9 @@ static inline BOOL MutexWasLocked(LOCK *m)
 }
 
 
-static inline DWORD SaveFlags(VOID)
+static inline U32 SaveFlags(VOID)
 {
-    DWORD ret;
+    U32 ret;
     __asm__ volatile (
         "pushf\n\t"
         "pop %0"
@@ -57,7 +57,7 @@ static inline DWORD SaveFlags(VOID)
     );
 }
 
-static inline VOID SetFlags(DWORD flags)
+static inline VOID SetFlags(U32 flags)
 {
     __asm__ volatile (
         "push %0"
@@ -69,7 +69,7 @@ static inline VOID SetFlags(DWORD flags)
 }
 
 extern ALL_KERNEL_LOCKS g_all_sched_locks;
-extern DWORD preempt_count;
+extern U32 preempt_count;
 
 #define _Internal_PreemptDec()\
     __asm__ volatile ("decl %0":"=m"(preempt_count)::"memory")

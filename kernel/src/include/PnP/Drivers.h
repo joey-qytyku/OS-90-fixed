@@ -1,3 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+//                                                                           //
+//                     Copyright (C) 2023, Joey Qytyku                       //
+//                                                                           //
+// This file is part of OS/90 and is published under the GNU General Public  //
+// License version 2. A copy of this license should be included with the     //
+// source code and can be found at <https://www.gnu.org/licenses/>.          //
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
 #ifndef PNP_EVENT_H
 #define PNP_EVENT_H
 
@@ -28,8 +38,8 @@ typedef VOID (*FP_EVENT_HANDLER) (PVOID);
 typedef struct {
     PIMUSTR     driver_name;
     PIMUSTR     description;
-    PBYTE       cmdline;
-    DWORD       driver_flags;
+    PU8      cmdline;
+    U32       driver_flags;
     PVOID       next_driver;
     FP_EVENT_HANDLER event_handler;
 }DRIVER_HEADER,*PDRIVER_HEADER;

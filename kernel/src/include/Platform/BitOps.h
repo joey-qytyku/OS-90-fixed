@@ -7,9 +7,9 @@
 #define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
 // At least one bit must be set for this to work properly
-static inline DWORD BitScanFwd(DWORD val)
+static inline U32 BitScanFwd(U32 val)
 {
-    DWORD ret;
+    U32 ret;
     __asm__ ("bsfl %0, %1":"=r"(ret):"r"(val));
     return ret;
 }
