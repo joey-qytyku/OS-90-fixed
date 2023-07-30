@@ -57,7 +57,7 @@ typedef struct __attribute__((packed))
     U32          size:24;
     U32          alignment:24;
     PVOID          owner;
-    BYTE
+    U8
         is_port:1,
         is_std:1,
         inuse:1,

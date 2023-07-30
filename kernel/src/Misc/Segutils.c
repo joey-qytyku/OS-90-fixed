@@ -25,8 +25,8 @@
 PVOID KERNEL SegmentToLinearAddress(
     BOOL    use_pmode,
     PVOID   relative_to,
-    WORD    seg,
-    U32   off
+    U16     seg,
+    U32     off
 ){
     U32 base_addr;
     if (use_pmode)
@@ -57,8 +57,8 @@ enum {
 //      Input is not checked for correctness.
 //
 U32 SegmentUtil(
-    U8 func,
-    WORD  seg,
+    U8  func,
+    U16 seg,
     U32 operand
 ){
     PVOID desc_ptr  = aqwLocalDescriptorTable + (seg & 0xFFF8);
@@ -95,7 +95,7 @@ U32 SegmentUtil(
         return IaGetBaseAddress(desc_ptr);
 
         case SEG_SET_ACCESS_RIGHTS:
-            BYTE_PTR(desc_ptr, 5) = (BYTE)operand;
+            BYTE_PTR(desc_ptr, 5) = (U8)operand;
         break;
 
         case SEG_SET_BASE_ADDR:

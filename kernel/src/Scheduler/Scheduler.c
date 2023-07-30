@@ -68,7 +68,7 @@ VOID KERNEL ScHookDosTrap(
     PV86_CHAIN_LINK       ptrnew,
     V86_HANDLER           hnd
 ){
-    AcquireMutex(&g_all_sched_locks.real_mode_lock);
+    AcquireMutex(&g_all_sched_locks.v86_lock);
 
     const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
 
@@ -76,10 +76,10 @@ VOID KERNEL ScHookDosTrap(
     ptrnew->handler = hnd;
     ptrnew->next = NULL;
 
-    ReleaseMutex(&g_all_sched_locks.real_mode_lock);
+    ReleaseMutex(&g_all_sched_locks.v86_lock);
 }
 
-VOID KERNEL ScVirtual86_Int(PVOID context, U8vector)
+VOID KERNEL ScVirtual86_Int(PVOID context, U8 vector)
 {
     PV86_CHAIN_LINK current_link;
 
@@ -109,7 +109,7 @@ STATUS V86CaptStub()
 VOID InitV86(VOID)
 {
     // Add the V86 stub.
-    for (WORD i = 0; i<256; i++)
+    for (U16 i = 0; i<256; i++)
     {
         V86_CHAIN_LINK new = {
             .next = NULL,
@@ -127,7 +127,7 @@ VOID InitV86(VOID)
 //////////////////////// INTERRUPT HANDLING SECTION ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline void SendEOI(U8vector)
+static inline void SendEOI(U8 vector)
 {
     delay_outb(0x20, 0x20);
     if (vector > 7)
@@ -146,8 +146,8 @@ static VOID HandleIRQ0()
 __attribute__((regparm(1)))
 VOID InterruptDispatch(U32 diff_spurious)
 {
-    const WORD inservice16 = InGetInService16();
-    const WORD irq         = BitScanFwd(inservice16);
+    const U16 inservice16 = InGetInService16();
+    const U16 irq         = BitScanFwd(inservice16);
 
     // 1. The ISR is set to zero for both PICs upon SpurInt.
     // 2. If an spurious IRQ comes from master, no EOI is sent

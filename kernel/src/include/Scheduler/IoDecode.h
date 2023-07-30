@@ -40,7 +40,7 @@ tstruct
 // typedef struct { }VDEV_IOP_REQUEST_PACKET;
 
 BOOL ScDecodePortOp(
-    PBYTE,
+    PU8,
     BOOL,
     P_DECODED_PORT_OP
 );

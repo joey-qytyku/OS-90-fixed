@@ -21,9 +21,9 @@
 #define ICW4_SLAVE 1<<3
 
 // The in-service register is a bit mask with one turned on
-static inline WORD InGetInService16(void)
+static inline U16 InGetInService16(void)
 {
-    WORD in_service;
+    U16 in_service;
 
     in_service  = delay_inb(0x20);
     in_service |= delay_inb(0xA0) << 8;

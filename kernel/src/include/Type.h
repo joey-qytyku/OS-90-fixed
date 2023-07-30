@@ -77,7 +77,7 @@ enum {
 #define STATUS U32
 #define HANDLE SU32
 
-#define PID WORD
+#define PID U16
 #define VINT U32
 
 typedef __UINT32_TYPE__ U32,*PU32;
@@ -87,6 +87,8 @@ typedef __UINT8_TYPE__  U8, *PU8;
 typedef __INT32_TYPE__ S32,*PS32;
 typedef __INT16_TYPE__ S16,*PS16;
 typedef __INT8_TYPE__  S8, *PS8;
+
+typedef __UINT64_TYPE__ U64,*PU64;
 
 typedef const char*const IMUSTR;
 

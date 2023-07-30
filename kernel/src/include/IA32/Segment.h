@@ -32,15 +32,21 @@ enum {
     GDT_ENTRIES     =     11
 };
 
-extern QWORD *aqwGlobalDescriptorTable;
-extern QWORD *aqwLocalDescriptorTable;
+extern U64 *aqwGlobalDescriptorTable;
+extern U64 *aqwLocalDescriptorTable;
 
 VOID IaAppendAddressToDescriptor(PVOID, U32);
 U32 IaGetBaseAddress(PVOID);
 
-//
+
 // Note that the limit supplied must be larger than 1M in bytes.
-//
+
 VOID IaAppendLimitToDescriptor(PVOID, U32);
+
+// The selector is a valid offset to the table if the botom bits are masked out.
+static inline U32 GetLdescBaseAddress(U16 selector)
+{
+    return IaGetBaseAddress(aqwLocalDescriptorTable + (selector & 0xFFF8));
+}
 
 #endif /* IA32_SEGMENT_H */

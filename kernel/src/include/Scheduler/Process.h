@@ -12,7 +12,8 @@ enum {
     THREAD_IN_KERNEL,
     THREAD_BLOCKED,
     THREAD_RUN_V86,
-    THREAD_RUN_PM
+    THREAD_RUN_PM,
+    THREAD_TYPE_MASK = 0b111
 };
 
 enum {
@@ -116,7 +117,7 @@ tstruct
 }  PCB,
 *P_PCB;
 
-static int x = sizeof(PCB);
+//static int x = sizeof(PCB);
 
 static inline P_PCB GetCurrentPCB(VOID)
 {

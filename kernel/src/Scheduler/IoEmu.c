@@ -50,7 +50,7 @@ BOOL ScDecodePortOp(
 ){
     BOOL  size_ovr = 0;
     BOOL  rep_prefix = 0;
-    PU8op = opcode;
+    PU8   op = opcode;
 
     // An assembler will usually emit the REP prefix before the.
     // The following do this:

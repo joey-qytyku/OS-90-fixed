@@ -18,13 +18,13 @@
 
 typedef VOID (*OUTPUT_DRIVER)(U8);
 
-extern VOID KERNEL Hex32ToString(U32, PU8);
-extern VOID KERNEL Uint32ToString(U32, PU8);
-extern VOID KERNEL KeLogf(OUTPUT_DRIVER, IMUSTR restrict, ...);
-extern VOID KERNEL FatalError(U32);
+VOID KERNEL Hex32ToString(U32, PU8);
+VOID KERNEL Uint32ToString(U32, PU8);
+VOID KERNEL KeLogf(OUTPUT_DRIVER, IMUSTR restrict, ...);
+VOID KERNEL FatalError(U32);
 
-extern VOID KeWriteAsciiz(OUTPUT_DRIVER, IMUSTR);
-extern VOID _KernelPutchar(U8 ch);
+VOID KeWriteAsciiz(OUTPUT_DRIVER, IMUSTR);
+VOID _KernelPutchar(U8 ch);
 
 #define _str(x) #x
 #define _str2(x) _str(x)

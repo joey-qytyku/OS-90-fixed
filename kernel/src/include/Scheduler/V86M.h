@@ -26,47 +26,49 @@
 
 // In the 8086, if we fetch the little endian value
 // AD DE from the memory, AH will be DE and AL will be AD.
+
+// Keep this or nah?
 tpkstruct {
     union {
         struct {
-            U8al;
-            U8ah;
+            U8 al;
+            U8 ah;
         };
-        WORD ax;
+        U16 ax;
     };
     union {
         struct {
-            U8bl;
-            U8bh;
+            U8 bl;
+            U8 bh;
         };
-        WORD bx;
+        U16 bx;
     };
     union {
         struct {
-            U8cl;
-            U8ch;
+            U8 cl;
+            U8 ch;
         };
-        WORD cx;
+        U16 cx;
     };
     union {
         struct {
-            U8dl;
-            U8dh;
+            U8 dl;
+            U8 dh;
         };
-        WORD dx;
+        U16 dx;
     };
-    WORD si;
-    WORD di;
-    WORD bp;
+    U16 si;
+    U16 di;
+    U16 bp;
 
-    WORD es;
-    WORD ds;
+    U16 es;
+    U16 ds;
 
-    WORD ip;
-    WORD cs;
-    WORD flags;
-    WORD sp;
-    WORD ss;
+    U16 ip;
+    U16 cs;
+    U16 flags;
+    U16 sp;
+    U16 ss;
 }DREGW,*P_DREGW;
 
 typedef STATUS (*V86_HANDLER)(P_DREGW);
@@ -79,19 +81,19 @@ typedef struct
 *PV86_CHAIN_LINK;
 
 extern KERNEL VOID ScHookDosTrap(
-    BYTE,
+    U8,
     PV86_CHAIN_LINK,
     V86_HANDLER
 );
 
 extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
-extern VOID KERNEL ScVirtual86_Int(P_DREGW, BYTE);
+extern VOID KERNEL ScVirtual86_Int(PVOID, U8);
 
 extern VOID EnterRealMode(VOID);
 extern U32 _RealModeRegs[7];
 extern U32 _RealModeTrapFrame[9];
 
-static inline PVOID MK_LP(WORD seg, WORD off)
+static inline PVOID MK_LP(U16 seg, U16 off)
 {
     U32 address = seg*16 + off;
     return (PVOID) address;

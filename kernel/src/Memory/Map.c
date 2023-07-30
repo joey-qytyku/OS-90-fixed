@@ -79,8 +79,8 @@ STATUS MapChainToVirtualAddress(
 ){
 }
 
-STATUS MapBlock(
-    U32   attr,
+STATUS KERNEL MapBlock(
+    U32     attr,
     PVOID   virt,
     PVOID   phys
 ){

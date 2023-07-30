@@ -23,8 +23,8 @@ typedef enum {
 
 typedef struct
 {
-    WORD    major;
-    WORD    minor;
+    U16    major;
+    U16    minor;
 
 }DRIVER_EVENT_PACKET,
 *PDRIVER_EVENT_PACKET;
@@ -38,8 +38,8 @@ typedef VOID (*FP_EVENT_HANDLER) (PVOID);
 typedef struct {
     PIMUSTR     driver_name;
     PIMUSTR     description;
-    PU8      cmdline;
-    U32       driver_flags;
+    PU8         cmdline;
+    U32         driver_flags;
     PVOID       next_driver;
     FP_EVENT_HANDLER event_handler;
 }DRIVER_HEADER,*PDRIVER_HEADER;

@@ -225,11 +225,8 @@ RemapPIC:
         ret
 
 ;-------------------------------------------------------------------------------
-;Arguments on cdecl stack:
+; Arguments on cdecl stack:
 ;       PVOID   address
-;
-;
-;Assumes LDT, this does not work on GDT.
 ;
 IaGetBaseAddress:
         ; Descriptors are perfectly valid offsets to the LDT when the DPL

@@ -41,12 +41,12 @@ static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
 // and if so, the original caller of virtual 8086 mode is to be called.
 //
 
-static U8rm_isr_entrance_counter = 0;
+static U8 rm_isr_entrance_counter = 0;
 
 // TODO: Get info about desciptor?
 
-static U8global_orig_vector;
-static U8global_orig_byte_after_iret;
+static U8 global_orig_vector;
+static U8 global_orig_byte_after_iret;
 
 // BRIEF:
 //      This is called by #GP handler only from virtual 8086 mode context.
@@ -58,9 +58,9 @@ static U8global_orig_byte_after_iret;
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
-    PU8ins = MK_LP(iframe->cs, iframe->eip);
+    PU8 ins = MK_LP(iframe->cs, iframe->eip);
 
-    const BOOL sv86 = MutexWasLocked(&g_all_sched_locks.v86_chain_lock);
+    const BOOL sv86 = MutexWasLocked(&g_all_sched_locks.v86_lock);
 
     switch(*ins)
     {
@@ -84,14 +84,15 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
 
 // Reduces cross-referencing in code at a small cost of density
 // Not available to drivers.
-VOID SetHighLevelExceptionHandler(U8e, EXCEPTION_HANDLER handler)
+VOID SetHighLevelExceptionHandler(U8 e, EXCEPTION_HANDLER handler)
 {
     hl_exception_handlers[e] = handler;
 }
 
+//????
 tstruct {
     P_PCB   caused_process;
-    U32   event_id;
+    U32     event_id;
     P_IRET_FRAME iframe;
 }HANDLE_EVENT_INFO;
 
@@ -101,15 +102,15 @@ tstruct {
 //
 static VOID DoRealModeException(HANDLE_EVENT_INFO info)
 {
-    WORD ip;
-    WORD cs;
+    U16 ip;
+    U16 cs;
 
     // Was this vector modified? If it was NOT modified, the process should
     // be terminated.
 
     FAR_PTR_16 jump_to = info.caused_process->rm_local_ivt[info.event_id];
 
-    if (U32_PTR(&jump_to, 0) == 0)
+    if (DWORD_PTR(&jump_to, 0) == 0)
     {
         // The process will be terminated because it caused an exception
         // for which it did not set a handler.
@@ -127,7 +128,7 @@ static VOID DoIretSv86(HANDLE_EVENT_INFO info)
 {
     // EIP now points after the new INT imm8 instruction.
     // One U8before is where we want to write back our value.
-    PU8next_ins = MK_LP(info.iframe->cs, info.iframe->eip);
+    PU8 next_ins = MK_LP(info.iframe->cs, info.iframe->eip);
 
     next_ins[-1] = global_orig_byte_after_iret;
 
@@ -135,7 +136,7 @@ static VOID DoIretSv86(HANDLE_EVENT_INFO info)
     // stack by popping the necessary values into the IRET frame.
     // Remember that IRET is not a termination code. It is emulated like any
     // other privileged instruction.
-    PWORD stack = MK_LP(info.iframe->ss, info.iframe->esp);
+    PU16 stack = MK_LP(info.iframe->ss, info.iframe->esp);
     info.iframe->eip = stack[0]; // ?
 }
 
@@ -168,9 +169,9 @@ VOID CopyIframeToRing3Context(
 //
 VOID SystemEntryPoint(
     U8           event,
-    P_IRET_FRAME    iframe
+    P_IRET_FRAME iframe
 ){
-    U32   old_thread_state;
+    U32     old_thread_state;
     P_PCB   request_from;
     BOOL    was_sv86;
 
@@ -184,7 +185,7 @@ VOID SystemEntryPoint(
     // and interrupts are completely off right now, so access is exclusive.
     //
 
-    was_sv86 = MutexWasLocked(&g_all_sched_locks.v86_chain_lock);
+    was_sv86 = MutexWasLocked(&g_all_sched_locks.v86_lock);
 
     // We will ONLY save registers to the PCB if it was a process and not SV86.
     if (!was_sv86)
@@ -208,7 +209,7 @@ VOID SystemEntryPoint(
         // Block the process.
         request_from->thread_state = THREAD_BLOCKED;
 
-        //
+        // PreemptDec?
     }
 
     // If we reached here, it may be an exception or an INT.
@@ -217,12 +218,13 @@ VOID SystemEntryPoint(
 
     AcquireMutex(&g_all_sched_locks.proc_list_lock);
 
-    request_from->thread_state =
-        request_from->program_type == PROGRAM_V86 ? PROGRAM_V86 : THREAD_RUN_PM;
+//      I think this is wrong?
+//    request_from->thread_state =
+//        request_from->program_type == PROGRAM_V86 ? PROGRAM_V86 : THREAD_RUN_PM;
 
     ReleaseMutex(&g_all_sched_locks.proc_list_lock);
 
     // Now we will hang until reschedule.
     if (was_sv86)
-        here: goto here;
+        while (1);
 }

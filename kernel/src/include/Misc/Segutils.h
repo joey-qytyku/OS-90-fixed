@@ -13,4 +13,9 @@
 
 #include <IA32/Segment.h>
 
+static inline PVOID MK_LP(U32 seg, U32 off)
+{
+    return (PVOID)(seg * 16 + off);
+}
+
 #endif /*SEGUTILS_H*/

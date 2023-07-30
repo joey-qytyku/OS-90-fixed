@@ -27,14 +27,14 @@ U16 RmPop16(PU16 ss, PU32 esp)
 
 VOID PmPush16(PU16 ss, PU32 esp, U16 value)
 {
-    PU16 stack = GetLdescBaseAddress(ss) + *esp;
+    PU16 stack = (PU16)GetLdescBaseAddress(*ss) + *esp;
     *esp -= 2;
     stack[-1] = value;
 }
 
 U16 PmPop16(PU16 ss, PU32 esp)
 {
-    PU16 stack = GetLdescBaseAddress(ss) + *esp;
+    PU16 stack = (PU16)GetLdescBaseAddress(*ss) + *esp;
     *esp += 2;
     return *stack;
 }

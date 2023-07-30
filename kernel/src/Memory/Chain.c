@@ -45,8 +45,8 @@ U32 RoundBytesToBlocks(U32 bytes)
 //      Allocated chain or INVALID_CHAIN
 //
 CHID KERNEL ChainAlloc(
-    U32        bytes,
-    PID          owner_pid
+    U32 bytes,
+    PID owner_pid
 ){
     // This is a value that we write to when allocating the first block.
     // A pointer is used to access the front link of the previous block,
@@ -156,32 +156,55 @@ CHID ChainAllocPhysicalContig()
 
 typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
 
-static U32 ForEachBlockInChain(
+//
+// extra: can be a pointer for input/output or a number input.
+//
+// RETURN:
+//      A pointer to the last block entry checked.
+//
+static P_MB ForEachBlockInChain(
     ITERATE_CHAIN_FUNC _do,
-    CHID                id,
-    U32               extra
+    CHID               id,
+    U32                extra
 ){
+    P_MB block;
     // Pass it the index. If it returns 1, break.
-    for (P_MB block = &block_list[id]; ;)
+    for (block = &block_list[id]; ;)
     {
         if (_do(block, extra))
             break;
         block = &block_list[block->next];
     }
+    return block;
 }
 
 static BOOL SlantIndicesByAddend(P_MB block, U32 addend)
 {
-    block->rel_index += (WORD)addend;
+    block->rel_index += (U16)addend;
+}
+
+static BOOL CheckLast(P_MB block, U32 dummy)
+{
+    UNUSED_PARM(dummy);
+    return (BOOL)block->next;
+}
+
+// Way to speed up this calculation?
+static U32 GetIndexOfLastEntry(CHID id)
+{
+    const U32 last_block_2int = (U32)ForEachBlockInChain(CheckLast, id, 0);
+    const U32 block_list_2int = (U32)block_list;
+
+    return (last_block_2int - block_list_2int) / sizeof(MB);
 }
 
 //
 // Scale the chain by the provided value. This operation is relative only.
 //
-STATUS ChainExtend(
-    CHID         id,
-    U32        bytes_uncommit,
-    U32        bytes_commit
+STATUS KERNEL ChainExtend(
+    CHID    id,
+    U32     bytes_uncommit,
+    U32     bytes_commit
 ){
     U32 blocks_commit   = RoundBytesToBlocks(bytes_commit);
     U32 blocks_uncommit = RoundBytesToBlocks(bytes_uncommit);
@@ -204,13 +227,13 @@ STATUS ChainExtend(
 
     // The last block allocated before extention. To find it, we have to
     // iterate blocks_in_chain times
-    U32 final_block_before_ext = ChainGetLastEntryIndex(id);
+    const U32 final_block_before_ext = GetIndexOfLastEntry(id);
 
     // BOOL is_user = (block_list[id].owner_pid != 0);
 
     // We will use the chain alloc function to get a new chain. This will
-    // be linked to the previous one later
-    CHID ext_chain = ChainAlloc(blocks_commit * MEM_BLOCK_SIZE, 0);
+    // be linked to the previous one later.
+    const CHID ext_chain = ChainAlloc(blocks_commit * MEM_BLOCK_SIZE, 0);
 
     if (ext_chain == INVALID_CHAIN)
         return OS_ERROR_GENERIC;
@@ -241,12 +264,11 @@ PVOID ChainWalk(
     CHID    id,
     U32     req_index
 ){
-    P_MB    block = &block_list[id];
+    P_MB block = &block_list[id];
     U32 i = 0;
 
     for (; i < req_index + 1 ;i++)
     {
-
         // Return the address if we found the entry.
 
         if (block->rel_index == req_index)

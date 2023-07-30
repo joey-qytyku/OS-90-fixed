@@ -13,10 +13,10 @@
 
 #include <Type.h>
 
-VOID RmPush16(PWORD ss, PU32 esp, WORD value);
-WORD RmPop16(PWORD ss, PU32 esp);
-VOID PmPush16(PWORD ss, PU32 esp, WORD value);
-WORD PmPop16(PWORD ss, PU32 esp);
+VOID RmPush16(PU16 ss, PU32 esp, U16 value);
+U16  RmPop16( PU16 ss, PU32 esp);
+VOID PmPush16(PU16 ss, PU32 esp, U16 value);
+U16  PmPop16( PU16 ss, PU32 esp);
 
 
 #endif /* STACKUTILS_H */

@@ -37,6 +37,7 @@
         "random": "cpp",
         "stdalign.h": "c",
         "log2.h": "c",
-        "map.h": "c"
+        "map.h": "c",
+        "segutils.h": "c"
     }
 }

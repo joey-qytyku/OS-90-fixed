@@ -31,7 +31,7 @@
 
 typedef VOID (*EXCEPTION_HANDLER)(PU32);
 
-VOID SetHighLevelExceptionHandler(BYTE, EXCEPTION_HANDLER);
+VOID SetHighLevelExceptionHandler(U8, EXCEPTION_HANDLER);
 
 // Checking if the context was a supervisory virtual 8086 call
 // is done by checking the value of the mutex lock for real mode.

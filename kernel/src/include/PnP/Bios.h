@@ -13,20 +13,21 @@
 
 #include <Type.h>
 
+// PACK?
 typedef struct {
-    U32   signature;
-    U8   version;
-    U8   length;
-    WORD    control_field;
-    U8   checksum;
+    U32     signature;
+    U8      version;
+    U8      length;
+    U16     control_field;
+    U8      checksum;
     PVOID   event_notification;
-    WORD    _real_mode_code_off;
-    WORD    _real_mode_code_seg;
-    WORD    protected_off;
-    U32   protected_base;
-    U32   oem_device_id;
-    WORD    _real_mode_data_seg;
-    WORD    protected_data_base;
+    U16     _real_mode_code_off;
+    U16     _real_mode_code_seg;
+    U16     protected_off;
+    U32     protected_base;
+    U32     oem_device_id;
+    U16     _real_mode_data_seg;
+    U16     protected_data_base;
 }*PPNP_INSTALL_CHECK;
 
 #endif /* PNP_BIOS_H */

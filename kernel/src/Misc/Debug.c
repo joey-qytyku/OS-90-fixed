@@ -90,13 +90,13 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 //
 VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
 {
-    U8printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
+    U8 printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     va_list ap;
     BOOL is_signed;
 
     va_start(ap, fmt);
 
-    for (WORD i=0; fmt[i] != 0; i++)
+    for (U16 i=0; fmt[i] != 0; i++)
     {
         if     (fmt[i] == '@') {is_signed = 0;}
         else if(fmt[i] == '#') {is_signed = 1;}
@@ -134,7 +134,7 @@ VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
     va_end(ap);
 }
 
-VOID _KernelPutchar(U8ch)
+VOID _KernelPutchar(U8 ch)
 {
     outb(0xE9, ch);
 }

@@ -38,32 +38,9 @@
 
 // Chain ID is exposed as 32-bit for future extensibility
 // In the current implementation, it is an index to the block list.
-
-tpkstruct
-{
-    WORD    chain;
-    WORD    index;
-}VML_ENT;
-
-typedef enum {
-    DBIT_STAIN,
-    DBIT_SET
-}DBIT_FLAGS;
+// Chains are operated on by all parts of MM, so it is defined here.
+typedef U32 CHID;
 
 BOOL KERNEL_ASYNC MmReentStat(VOID);
-
-VOID KERNEL MapBlock(PVOID virt, PVOID phys);
-
-VOID SetBlockDirtyStatus(
-    BOOL    do_stain,
-    PVOID   addr,
-    U32   num
-);
-
-STATUS MapChainToVirtualAddress(
-    U32   attr,
-    CHID    id,
-    PVOID   address
-);
 
 #endif /* MMDEFS_H */
