@@ -11,9 +11,11 @@
 #include <Memory/Memory.h>
 #include <Memory/Chain.h>
 #include <Misc/log2.h>
+#include <Scheduler/V86M.h>
+#include <Misc/Linker.h>
 
-static U32    num_total_blocks = 0;
-static P_MB   block_list       = NULL;
+static U32    num_total_blocks;
+static P_MB   block_list;
 
 // Size of PBT is dynamic and determined by checking size of physical RAM.
 
@@ -119,6 +121,7 @@ BOOL ChainIsValid(CHID chain)
 //
 // RETURN:
 //      A chain cannot be zero bytes long, so a return value of zero is invalid.
+//      Valid return value will *always* be block granular.
 //
 U32 ChainSize(CHID chain)
 {
@@ -142,22 +145,13 @@ End:
 //      Allocate a contiguous range of blocks. This is done toward the end of extended memory
 //      for simplicity.
 //
-// Uncommitted memory is partially kept track of in the block table.
-// curr_block.index - prev_block.index - 1 = Uncommitted blocks between
-//
-// The only issue is that committed blocks must surround it or there will be no
-// way to detect the presence of uncommitted blocks.
-//
-// That is why the function takes the uncommitted and committed size.
-// If committed is 0, then we have to commit blocks anyway.
-//
 CHID ChainAllocPhysicalContig()
 {}
 
 typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
 
-//
-// extra: can be a pointer for input/output or a number input.
+// BRIEF:
+//      Run this function for each entry in this chain.
 //
 // RETURN:
 //      A pointer to the last block entry checked.
@@ -201,6 +195,16 @@ static U32 GetIndexOfLastEntry(CHID id)
 //
 // Scale the chain by the provided value. This operation is relative only.
 //
+// Uncommitted memory is partially kept track of in the block table.
+// curr_block.index - prev_block.index - 1 = Uncommitted blocks between
+//
+// The only issue is that committed blocks must surround it or there will be no
+// way to detect the presence of uncommitted blocks.
+//
+// That is why the function takes the uncommitted and committed size.
+// If committed is 0, then we have to commit blocks anyway.
+//
+
 STATUS KERNEL ChainExtend(
     CHID    id,
     U32     bytes_uncommit,
@@ -285,4 +289,14 @@ PVOID ChainWalk(
     // If the loop finished, it means that all blocks in this chain
     // were exhausted and this entry does not exist.
     return NULL;
+}
+
+VOID ChainInit(VOID)
+{
+    const U32 lkr_end_int = &LKR_END;
+    const U32 mbsize = MEM_BLOCK_SIZE;
+    block_list = (lkr_end_int + mbsize-1) & (~(mbsize-1));
+
+    // We must determine how many free blocks there are. This requires V86.
+
 }

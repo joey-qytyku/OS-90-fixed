@@ -288,9 +288,11 @@ LoadKernel:
         jnz     .loadloop
 
 .end:
-        ;Close the file, this will flush all buffers
+        ;Close the file
         mov     ah,CLOSE
         int     21h
+        mov     ah,0Dh  ; Reset disk and flush all buffers
+        int     21h     ; We will be done with files now.
 
 PageSetup:
         ; We will make the HMA look like this

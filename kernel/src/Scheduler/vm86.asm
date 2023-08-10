@@ -1,19 +1,12 @@
-;===============================================================================
-;    This file is part of OS/90.
-;
-;   OS/90 is free software: you can redistribute it and/or modify it under the
-;   terms of the GNU General Public License as published by the Free Software
-;   Foundation, either version 2 of the License, or (at your option) any later
-;   version.
-;
-;   OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-;   WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-;   FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-;   details.
-;
-;   You should have received a copy of the GNU General Public License along
-;   with OS/90. If not, see <https://www.gnu.org/licenses/>.
-;===============================================================================
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                           ;;
+;;                     Copyright (C) 2023, Joey Qytyku                       ;;
+;;                                                                           ;;
+;; This file is part of OS/90 and is published under the GNU General Public  ;;
+;; License version 2. A copy of this license should be included with the     ;;
+;; source code and can be found at <https://www.gnu.org/licenses/>.          ;;
+;;                                                                           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
         %include "Asm/Kernel.inc"
 
@@ -34,11 +27,10 @@
 EnterRealMode:
         lea     eax,[esp+4]
         call    SetESP0
-        inc     dword [preempt_count]
 
-        mov     [RealModeCalleeSaved.lEsi],esi
-        mov     [RealModeCalleeSaved.lEdi],edi
         mov     [RealModeCalleeSaved.lEbp],ebp
+        mov     ebx,[esp]
+        mov     [RealModeCalleeSaved.lEip]
 
         mov     ebx,_RealModeRegs
         mov     eax,[ebx]
@@ -65,6 +57,8 @@ EnterRealMode:
         section .data
         section .bss
 
+; The order here is expedient to EnterRealMode and does not have anything
+; to do with the trap frame
 _RealModeRegs:
         RESD    7
 _RealModeTrapFrame:
@@ -73,7 +67,5 @@ _RealModeTrapFrame:
 RealModeCalleeSaved:
 .lEsp:  RESD    1
 .lEbp:  RESD    1
-.lEsi:  RESD    1
-.lEdi:  RESD    1
 .lEip:  RESD    1
 .lEflags:  RESD    1

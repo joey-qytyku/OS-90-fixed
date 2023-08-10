@@ -43,3 +43,10 @@ BUS_INUSE:    32-bit handler
 BUS_FREE:     No specific use
 UNDEFINED:    Not to be used
 ```
+## meminf
+
+```
+Physical memory:    2480 KB / 4096 KB
+Swap:               0 KB / 1024 KB
+Uncommitted:        0 KB
+```

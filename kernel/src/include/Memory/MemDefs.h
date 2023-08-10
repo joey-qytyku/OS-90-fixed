@@ -20,7 +20,12 @@
 
 #define INVALID_CHAIN 0xFFFFFFFF
 
-#define PG_SHIFT 12
+#define PDE_SHIFT 22
+#define PTE_SHIFT 12
+#define PDE_MASK 0b1111111111
+#define PTE_MASK 0b1111111111
+
+#define PAGE_SIZE (4096)
 
 #define PG_D     (1<<6) /* Page is dirty, was accessed */
 #define PG_A     (1<<5) /* The page table/dir was used */

@@ -18,5 +18,4 @@ U16  RmPop16( PU16 ss, PU32 esp);
 VOID PmPush16(PU16 ss, PU32 esp, U16 value);
 U16  PmPop16( PU16 ss, PU32 esp);
 
-
 #endif /* STACKUTILS_H */

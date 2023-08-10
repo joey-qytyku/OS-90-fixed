@@ -38,17 +38,6 @@ PVOID KERNEL SegmentToLinearAddress(
     return relative_to + base_addr;
 }
 
-enum {
-    SEG_GET_ACCESS_RIGHTS,
-    SEG_GET_EXT_ACCESS_RIGHTS,
-    SEG_GET_BASE_ADDR,
-    SEG_GET_LIMIT,
-
-    SEG_SET_ACCESS_RIGHTS,
-    SEG_SET_BASE_ADDR,
-    SEG_SET_LIMIT
-};
-
 // BREIF:
 //      This procedure is the compelte solution to all segment descriptor
 //      problems. Get functions return a value. Set functions use the
@@ -64,7 +53,7 @@ U32 SegmentUtil(
     PVOID desc_ptr  = aqwLocalDescriptorTable + (seg & 0xFFF8);
 
     // The segment selector with the RPL and TI bits masked out are a valid
-    // U8offset from the base of the table.
+    // byte offset from the base of the table.
 
     switch (func)
     {
@@ -78,6 +67,7 @@ U32 SegmentUtil(
         // LSL will unscramble the segment limit, making it really easy
         // to get the value.
         case SEG_GET_LIMIT:
+        {
             U32 seg_lim;
             __asm__ volatile (
                 "lsl %0,%1"
@@ -85,7 +75,8 @@ U32 SegmentUtil(
                 :"r"(seg)
                 :"memory"
             );
-        return seg_lim;
+            return seg_lim;
+        }
 
         case SEG_SET_LIMIT:
             IaAppendLimitToDescriptor(desc_ptr, operand);

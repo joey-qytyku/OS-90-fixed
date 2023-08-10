@@ -77,12 +77,16 @@ ICW4_SLAVE      EQU     1<<3
 ;                               E X P O R T S
 
         global  IaAppendAddressToDescriptor
+        global  IaGetBaseAddress
+        global  IaAppendLimitToDescriptor
+
         global  _SetIntVector
 
         ; Functions for local descriptor table management
-        global  GetLdescBaseAddress
-        global  GetLdescExtAttr
-        global  GetLdescAttr
+        ; global  GetLdescBaseAddress
+        ; global  GetLdescExtAttr
+        ; global  GetLdescAttr
+
 
         global  aqwGlobalDescriptorTable
         global  aqwLocalDescriptorTable
@@ -253,7 +257,9 @@ IaGetBaseAddress:
         ;EAX now contains the address, we are done.
         ret
 
-IaAppendAddressToDescriptor:;(PVOID gdt_entry, DWORD address)
+IaAppendAddressToDescriptor:
+        ;(PVOID gdt_entry, DWORD address)
+
         push    ebp
         mov     ebp,esp
 

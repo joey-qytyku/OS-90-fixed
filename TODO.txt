@@ -50,3 +50,21 @@ The steps I will take:
 == 2 May 2023
 
 I must admit that I have a SERIOUS code quality problem in Scheduler.c. It is a complete mess. Maybe the comment subsections that I made are only creating more problems. It is time that I separate the file. V86 can stay in the same file, but other things have to go elsewhere.
+
+== 7 Aug 2023 ==
+
+Good stuff going on with the memory manager.
+
+The scheduler though. I need to get it done.
+
+TODO: I need to make the trap frame and user register dump IDENTICAL. There is no reason not to at this point. The rdump in the PCB can be whatever I want it to be, so if it is more convenient to make it the same as the register dump, I might as well. This allows for reusing and simplifying code.
+
+The problems are mainly rooted in the fact that V86 autosaves the segment registers to a different place than I would if I pushed them after.
+
+I can unify the two structures with PM and RM sregs, or I can abstract it all in assembly to save space.
+
+Appears that my low syentry procedure is completely wrong and unfinished. It even destroys segment registers.
+
+Okay, I will make a unified register dump structure that works regardless of the last mode.
+
+What if the kernel changes the V86 mode in the flags register? I guess I would have to honor it.

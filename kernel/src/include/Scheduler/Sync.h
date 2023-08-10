@@ -42,7 +42,7 @@ static inline BOOL MutexWasLocked(LOCK *m)
 {
     BOOL ret;
     __asm__ volatile(
-        "cmp $0, %1"
+        "cmpl $0, %1"
         :"=@ccz"(ret)
         :"m"(m)
         :"memory","cc"
@@ -74,17 +74,22 @@ static inline VOID SetFlags(U32 flags)
     );
 }
 
-extern ALL_KERNEL_LOCKS g_all_sched_locks;
 extern U32 preempt_count;
 
 #define _Internal_PreemptDec()\
-    __asm__ volatile ("decl %0":"=m"(preempt_count)::"memory")
+    __asm__ volatile ("decl preempt_count":::"memory")
 
 #define _Internal_PreemptInc()\
-    __asm__ volatile ("incl %0":"=m"(preempt_count)::"memory")
+    __asm__ volatile ("incl preempt_count":::"memory")
+
+static inline BOOL _InternalPreemptCheckZero()
+{
+    BOOL ret;
+    __asm__ volatile ("cmpl $0,preempt_count":"=@ccz"(ret)::"memory","cc");
+    return ret;
+}
 
 VOID KERNEL PreemptInc(VOID);
 VOID KERNEL PreemptDec(VOID);
-
 
 #endif /* SCHEDULER_SYNC_H */

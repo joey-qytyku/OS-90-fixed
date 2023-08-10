@@ -1,19 +1,12 @@
-;===============================================================================
-;                         This file is part of OS/90.
-;
-;    OS/90 is free software: you can redistribute it and/or modify it under the
-;    terms of the GNU General Public License as published by the Free Software
-;    Foundation, either version 2 of the License, or (at your option) any later
-;    version.
-;
-;    OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-;    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-;    FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-;    details.
-;
-;    You should have received a copy of the GNU General Public License along
-;    with OS/90. If not, see <https://www.gnu.org/licenses/>.
-;===============================================================================
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                           ;;
+;;                     Copyright (C) 2023, Joey Qytyku                       ;;
+;;                                                                           ;;
+;; This file is part of OS/90 and is published under the GNU General Public  ;;
+;; License version 2. A copy of this license should be included with the     ;;
+;; source code and can be found at <https://www.gnu.org/licenses/>.          ;;
+;;                                                                           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 %include "Asm/Kernel.inc"
 
@@ -78,6 +71,11 @@ LowRest:
 Low15:
 Low7:
 
+;
+; This is a series of call instuctions with 16-bit operands.
+; The EIP saved onto the stack is copied.
+;
+        align   16
 LowE0:  DB      66h,0E8h, 72, 0
 LowE1:  DB      66h,0E8h, 68, 0
 LowE2:  DB      66h,0E8h, 64, 0
@@ -98,33 +96,59 @@ LowE16: DB      66h,0E8h, 8, 0
 LowE17: DB      66h,0E8h, 4, 0
 LowSwi: DB      66h,0E8h, 0, 0
 
-        pop     dword [ss: .smc]
+        pop     dword [ss: dwEIP]
 
+        ; Did we come from virtual 8086 mode? If so, there is no need to save
+        ; the sregs
+
+        test    [ss:esp+8],1<<17
+        jz      .WasV86
+
+        ; push the segment registers because they could be anything right now.
         push    gs
         push    fs
         push    es
         push    ds
+
+.WasV86:
         SaveTrapRegs
 
-        DB      0B8h    ; MOV EAX,
-.smc:   DD      0       ;         Imm32
-        jmp .clcache    ; Cache flush or i486 may not execute correctly
-.clcache:
+        ; (Call table saved EIP - Base of call Table) / sizeof(CtabEntry)
+        mov     eax,[dwEIP]
         mov     ebx,LowE0
         sub     eax,ebx
         shr     eax,2
-        mov     ebx,esp
+
+        mov     ebx,esp         ; Trap frame pointer
         call    SystemEntryPoint
 
-        ; To IRET or not to IRET?
+        ; The kernel may have switched the VM flag in EFLAGS. We have to
+        ; honor the VM flag as it currently is and check it AGAIN.
+
         RestTrapRegs
+        ; If we were in protected mode, the sregs are restored normally.
+        ; If it was V86, only IRET should pop the segment registers because
+        ; they are real mode segments.
+
+        test    [esp+8],1<<17   ; No need for override
+
+        push    ds
+        push    es
+        push    fs
+        push    gs
+
+        iret
+
+        ; Note that the IRET may not actually be reached. If this is an
+        ; entry to the kernel from a process, the kernel thread will simply
+        ; hang until completion.
 
         section .bss
 
         global _ErrorCode, _ExceptIndex
+dwEIP           RESD    1
 
 _dwErrorCode    RESD    1
-_dwExceptIndex  RESD    1
 
 ; DO NOT MAKE THIS GLOBAL
 dwActualIRQ     RESD    1

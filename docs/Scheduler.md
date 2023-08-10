@@ -184,9 +184,9 @@ Process hooks should never block the process or change anything relating to its 
 
 Process hooks are a hack meant to allow for simulating multiple addressing spaces in an OS that does not allow for them. It is primarily designed for emulating memory mapped IO for individual processes.
 
-# Controlling Interrupts and Preemption
+# Controlling Interrupts, Syncrhonization, and Preemption
 
-To disable preemption, call the function PreemptInc() to increment the preempt counter. To go back to the previous call level, use PreemptDec(). When it is nonzero, the kernel cannot be preempted. These are functions because variables are never exported to drivers by the kernel. Disabling preemption will prevent any other threads from being scheduled until it becomes zero again. It can be used for syncrhonization between kernel threads since the operations are atomic and all other threads are suspended within the section, but could make the system sluggish if used unwisely.
+To disable preemption, call the function PreemptInc() to increment the preempt counter. To go back to the previous call level, use PreemptDec(). When it is nonzero, the kernel cannot be preempted. These are functions because variables are never exported to drivers by the kernel. Disabling preemption will prevent any other threads from being scheduled until it becomes zero again. It can be used for synchronization between kernel threads since the operations are atomic and all other threads are suspended within the section, but could make the system sluggish if used unwisely.
 
 Preemption can be enabled/disabled within a non-interruptible section. In the system entry, we do this to prevent the scehduler from scheduling the process before we have blocked it.
 
@@ -220,19 +220,82 @@ VOID IntendedUsage()
 ```
 Never acquire a lock while interrupts are disabled, or the kernel will freeze forever! Remember that data can be protected by disabling interrupts or by locking, but both cannot be used. All clients of the protected data must agree to the same synchronization mechanism.
 
+## Summary
+
+OS/90 can synchronize concurrent data access by:
+* Preemption off points
+* Disabling interrupts
+* Mutual exclusion lock
+
+As long as one method is used consistently for the item being protected, each will work. Disabling interrupts is overkill for most situations except when doing programmed IO.
+
+Mutual exclusion is the more common approach. It is best when the critical section is quite long and processes should be scheduled freely.
+
+# Preemption Counter in Detail and Uses in Kernel
+
+Decrementing the preemption counter is a viable synchronization method if the critical section is relatively short.
+
+If the critical section is rather complex, a lock is better since it allows other tasks to run until they access the same resource.
+
+## SV86
+
+SV86 cannot be accessed by multiple tasks, so they will race to increment the counter atomically.
+
+The reason why a lock is not used is because there is no need to allow other tasks the opportunity to run at all since they will be blocked later on anyway.
+
+## Process List
+
+Disabling preemption will acquire a critical section for the thread that increments the counter first. It will ensure that any non-isr code will not access the data. Operations on the preemption counter are always atomic.
+
+### Accessing the Process List
+
+When a process enters the system, it will be blocked with interrupts disabled. It will be automatically be unblocked by the system entry procedure.
+
 # ISR and Kernel Reentrancy
 
-The kernel is only reentrant in a preemptible context. An ISR can only call a function if it checks the locks that it uses and passes if one is acquired. Very few functions are fully reentrant.
+The kernel is only reentrant in a preemptible context. An ISR can only call a function if it checks the locks that it uses and passes if one is acquired. Few functions are fully reentrant.
 
 Some parts of the kernel such as the memory manager expose a function to check for reentrancy safety within an atomic context.
 
-# Process List
-
-The process list lock must be acquired before making any changes to the process list except in one specific instance in the kernel. In the system entry procedure, the stack is used to calculate the location of the PCB. It can be safely accessed here regardless of the state of the lock.
-
 # System Entry Point
 
-To control access to real mode, `v86_chain_lock` must be acquired. This prevents instances of Int16 from colliding with modifications to the INT chain. If `v86_chain_lock` is acquired, then the last context was non-preemtible virtual 8086 mode. The act of entering virtual 8086 mode to do a supervisory service call merely requires disabling preemption.
+To control access to real mode, `v86_lock` must be acquired. This prevents instances of Int16 from colliding with modifications to the INT chain. If `v86_lock` is acquired, then the last context was non-preemtible virtual 8086 mode. The act of entering virtual 8086 mode to do a supervisory service call merely requires disabling preemption.
+
+## Low SysEntry Handler
+
+The trap frame is made to be identical for both protected mode and real mode.
+
+The algorithm:
+```
+{
+CALL_TABLE:
+    ...
+BEGIN:
+    SavedEIP <- pop()
+
+    if (stack[eflags].vm)
+    {
+        // No need to save sregs
+    }
+    else
+    {
+        push(data_sregs)
+    }
+
+    IsrIndex = (SavedEIP - Base of call Table) / sizeof(CtabEntry)
+
+    HighSysEntry(IframeAddress, IsrIndex)
+
+    if (stack[eflags].vm)
+    {
+
+    }
+}
+
+U32 SavedEIP
+```
+
+We must check the VM bit again because it could have changed (e.g. DPMI raw switch).
 
 # Termination of a Process
 

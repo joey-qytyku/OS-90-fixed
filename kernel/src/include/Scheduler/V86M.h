@@ -24,54 +24,33 @@
 #define CAPT_HND   0 /* Handled captured trap */
 #define CAPT_NOHND 1 /* Did not handle */
 
-// In the 8086, if we fetch the little endian value
-// AD DE from the memory, AH will be DE and AL will be AD.
 
-// Keep this or nah?
-tpkstruct {
-    union {
-        struct {
-            U8 al;
-            U8 ah;
-        };
-        U16 ax;
-    };
-    union {
-        struct {
-            U8 bl;
-            U8 bh;
-        };
-        U16 bx;
-    };
-    union {
-        struct {
-            U8 cl;
-            U8 ch;
-        };
-        U16 cx;
-    };
-    union {
-        struct {
-            U8 dl;
-            U8 dh;
-        };
-        U16 dx;
-    };
-    U16 si;
-    U16 di;
-    U16 bp;
+//
+// This is the structure used by EnterRealMode and as an input to Svint86.
+//
+typedef struct {
+    U32 eax;
+    U32 ebx;
+    U32 ecx;
+    U32 edx;
+    U32 esi;
+    U32 edi;
+    U32 ebp;
 
-    U16 es;
-    U16 ds;
+    // RM Trap Frame
+    U32 gs;
+    U32 fs;
+    U32 ds;
+    U32 es;
+    U32 ss;
+    U32 esp;
+    U32 eflags;
+    U32 cs;
+    U32 eip;
 
-    U16 ip;
-    U16 cs;
-    U16 flags;
-    U16 sp;
-    U16 ss;
-}DREGW,*P_DREGW;
+}SV86_REGS,*P_SV86_REGS;
 
-typedef STATUS (*V86_HANDLER)(P_DREGW);
+typedef BOOL (*V86_HANDLER)(P_SV86_REGS);
 
 typedef struct
 {
@@ -87,16 +66,41 @@ extern KERNEL VOID ScHookDosTrap(
 );
 
 extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
-extern VOID KERNEL ScVirtual86_Int(PVOID, U8);
+extern VOID KERNEL Svint86(P_SV86_REGS, U8);
 
 extern VOID EnterRealMode(VOID);
-extern U32 _RealModeRegs[7];
-extern U32 _RealModeTrapFrame[9];
+extern SV86_REGS _RealModeRegs;
+
+// We will not expose this.
+//extern U32 _RealModeTrapFrame[9];
 
 static inline PVOID MK_LP(U16 seg, U16 off)
 {
     U32 address = seg*16 + off;
     return (PVOID) address;
+}
+
+extern U8 g_sv86;
+
+static inline VOID SignalSV86()
+{
+    FENCE;
+    g_sv86 = 1;
+    FENCE;
+}
+
+static inline VOID UnsignalSV86()
+{
+    FENCE;
+    g_sv86 = 0;
+    FENCE;
+}
+
+static BOOL WasSV86()
+{
+    FENCE;
+    return g_sv86;
+    FENCE;
 }
 
 #endif /* SCHEDULER_V86M_H */

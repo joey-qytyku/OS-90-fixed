@@ -376,6 +376,39 @@ When a process is terminated, the following things will happen within the memory
 * All virtual address spaces allocated by the process anywhere are released
 * If the program is 16-bit DOS, the memory of the process or sub-process will be deallocated.
 
+# Initialization of Memory Manager
+
+## XMS
+
+The XMS manager of the system may or may not have allocated blocks. It was told by the bootloader to allocate all available memory to the kernel. Only this block of memory minus the kernel can be made available.
+
+This means that if the computer has more than 16MB of RAM, the kernel will be loaded __above__ the ISA memory hole. We need to ensure that memory below the ISA memory hole is available if possible.
+
+Here are two possible situatons:
+```
+1.
+    [640K][UMA][...][KERNEL][...][FREE][ISA][FREE]
+
+2.
+    [640K][UMA][...][FREE][ISA][...][KERNEL][FREE]
+```
+
+`...` indicates that something may or may not be allocated there. `KERNEL` is the contiguous block of memory that the kernel is loaded into. `FREE` means that there could be memory that is unallocated at this point.
+
+In order for this to work, we need a way to detect what DOS may have allocated already. This involves probing HIMEM repeadedly with a number of handles to find the locations.
+
+The number of free EMB handles is obtained by getting EMB handle information about a particular handle. I do not know if a bogus value will return the free handles, so we instead just use a loop that constantly puts this in a variable.
+
+Maybe I should do this in DOS instead. Place this in some kind of extended memory map buffer.
+
+### Current State
+
+We do not currently handle XMS memory that has already been allocated. It will be destroyed.
+
+## Order of Initialization
+
+Virtual 8086 mode needs to be ready.
+
 # Rationale
 
 ## Fixed Blocks as the Unit of Paging

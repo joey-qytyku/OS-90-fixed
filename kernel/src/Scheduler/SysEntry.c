@@ -28,9 +28,10 @@ In Protected Mode:
 */
 
 #include <Scheduler/SysEntry.h>
-#include <Scheduler/V86M.h>
 #include <Scheduler/Process.h>
 #include <Platform/BitOps.h>
+#include <Misc/StackUtils.h>
+#include <Scheduler/V86M.h>
 #include <Scheduler/Sync.h>
 
 static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
@@ -58,9 +59,9 @@ static U8 global_orig_byte_after_iret;
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
-    PU8 ins = MK_LP(iframe->cs, iframe->eip);
+    const PU8 ins = MK_LP(iframe->cs, iframe->eip);
 
-    const BOOL sv86 = MutexWasLocked(&g_all_sched_locks.v86_lock);
+    const BOOL sv86 = WasSV86();
 
     switch(*ins)
     {
@@ -120,26 +121,6 @@ static VOID DoRealModeException(HANDLE_EVENT_INFO info)
     cs = info.caused_process->rm_local_ivt[info.event_id].seg;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//                     I N T / I R E T   E m u l a t i o n                    //
-////////////////////////////////////////////////////////////////////////////////
-
-static VOID DoIretSv86(HANDLE_EVENT_INFO info)
-{
-    // EIP now points after the new INT imm8 instruction.
-    // One U8before is where we want to write back our value.
-    PU8 next_ins = MK_LP(info.iframe->cs, info.iframe->eip);
-
-    next_ins[-1] = global_orig_byte_after_iret;
-
-    // Now that we wrote back the U8after IRET, we need to emulate the
-    // stack by popping the necessary values into the IRET frame.
-    // Remember that IRET is not a termination code. It is emulated like any
-    // other privileged instruction.
-    PU16 stack = MK_LP(info.iframe->ss, info.iframe->esp);
-    info.iframe->eip = stack[0]; // ?
-}
-
 VOID CopyIframeToRing3Context(
     BOOL            dir,
     P_IRET_FRAME    iframe,
@@ -158,37 +139,44 @@ VOID CopyIframeToRing3Context(
         dest = source;
         source = dest;
     }
+    *source = *dest;
 }
 
 // BRIEF:
+//
+//      Exceptions and INT calls are handled by this function.
+//
+//
+//
+// PARAMS:
+//
+//  iframe: Trap frame
+//  event:  The interrupt vector being invoked.
 //
 // ENTRY STATE:
 //      Interrupts are off
 //      Preemption is off by proxy, but the preempt counter can be anything
 //      Registers have not been saved anywhere, they are just on the stack
 //
+__attribute__((regparm(2), aligned(16)))
 VOID SystemEntryPoint(
     U8           event,
     P_IRET_FRAME iframe
 ){
     U32     old_thread_state;
     P_PCB   request_from;
-    BOOL    was_sv86;
 
     // First, we need to copy the registers on the stack into
     // a context into the PCB corresponding with the thread that just entered
     // this function instance.
 
-    //
     // Normally, it is not okay to modify the PCB without acquiring the lock
     // but a system entry cannot be caused more than once by the same process
     // and interrupts are completely off right now, so access is exclusive.
-    //
 
-    was_sv86 = MutexWasLocked(&g_all_sched_locks.v86_lock);
-
-    // We will ONLY save registers to the PCB if it was a process and not SV86.
-    if (!was_sv86)
+    // We will ONLY save registers to the PCB if it was a real or protected
+    // mode process and not SV86.
+    if (!g_sv86)
     {
         // Prevent scheduling of tasks because this task is about to be blocked
         // and we do not want it to run when we enable interrupts.
@@ -206,25 +194,33 @@ VOID SystemEntryPoint(
         // Save thread state.
         old_thread_state = request_from->thread_state;
 
-        // Block the process.
+        // Block the process so it is not scheduled when preemption is enabled.
         request_from->thread_state = THREAD_BLOCKED;
 
-        // PreemptDec?
+        _Internal_PreemptDec();
+
+    } else {
+        // This was SV86. We will now dispatch the event code.
+        switch (event)
+        {
+            // INT from real mode process. Generic stack emulation using
+            // the PCB
+            case VEC_INT_RMPROC:
+            break;
+
+            // INT from SV86. Direct access to the trap frame.
+            case VEC_INT_SV86:
+            break;
+
+        }
     }
 
-    // If we reached here, it may be an exception or an INT.
 
     // We will return only if it was an SV86.
 
-    AcquireMutex(&g_all_sched_locks.proc_list_lock);
-
-//      I think this is wrong?
-//    request_from->thread_state =
-//        request_from->program_type == PROGRAM_V86 ? PROGRAM_V86 : THREAD_RUN_PM;
-
-    ReleaseMutex(&g_all_sched_locks.proc_list_lock);
-
-    // Now we will hang until reschedule.
-    if (was_sv86)
+    // Now  will hang until reschedule.
+    if (!g_sv86)
         while (1);
+
+    // Otherwise, return.
 }

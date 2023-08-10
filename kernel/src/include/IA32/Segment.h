@@ -32,16 +32,17 @@ enum {
     GDT_ENTRIES     =     11
 };
 
-extern U64 *aqwGlobalDescriptorTable;
-extern U64 *aqwLocalDescriptorTable;
+// These must be imported as arrays. If I did pointers, the compiler would
+// think that the first GDT/LDT entry is the base address! The compiler
+// will always generate arrays as a series of bytes with a single data;
+// no pointers.
+
+extern U64 aqwGlobalDescriptorTable[GDT_ENTRIES];
+extern U64 aqwLocalDescriptorTable[LDT_ENTRIES];
 
 VOID IaAppendAddressToDescriptor(PVOID, U32);
-U32 IaGetBaseAddress(PVOID);
-
-
-// Note that the limit supplied must be larger than 1M in bytes.
-
 VOID IaAppendLimitToDescriptor(PVOID, U32);
+U32  IaGetBaseAddress(PVOID);
 
 // The selector is a valid offset to the table if the botom bits are masked out.
 static inline U32 GetLdescBaseAddress(U16 selector)

@@ -42,7 +42,7 @@ VOID SetHighLevelExceptionHandler(U8, EXCEPTION_HANDLER);
 #define OP_IRET 0xCF
 
 enum {
-    VEC_SYS_RES     = 252, // same as next
+    VEC_SYS_RES_BASE= 252, // same as next
     VEC_INT_SV86    = 252,
     VEC_INT_RMPROC  = 253,
     VEC_IRET_SV86   = 254,

@@ -101,7 +101,7 @@ void Bad(int j, PEXAMPLE k);
 
 ## Comments
 
-Single line comments only except if they do not work (macro comments.)
+Single line comments only except if they do not work (macro comments)
 
 ## Function Naming
 
@@ -119,19 +119,21 @@ Ia | IA32 and IBM PC related functions
 Sy | System call
 Fs | Filesystem
 
-Recently, this method is being avoided for aesthetic and because some functions do not have a specific functional group. Functions with this naming convention are still retained.
+Recently, this method is being avoided for aesthetic and because some functions do not have a specific functional group. Functions with this naming convention are retained.
 
 ## Global Variables
 
-Global variables are acceptable for improving performance, as long as they are accessed using static inline functions or macros in the same header file that externs them. An underscore prefix should be used to indicate that they are abstracted by other functions in the header. Otherwise, globals should be avoided.
+Global variables are acceptable as long as they are accessed using static inline functions or macros in the same header file that externs them. An underscore prefix should be used to indicate that they are abstracted by other functions in the header. Otherwise, globals should be avoided.
 
 ## Structures
 
 Structures of arrays should be prefered in most cases unless the reverse is more acceptable. This is to improve cache locality and reduce memory usage.
 
+Structures should be used to encapsulate complex data.
+
 ## Parameters
 
-Double pointers are tolerable and are somtimes preffered. For example, an IMUSTR type should be treated as any other object and PIMUSTR should be used as a parameter to a function that reads a string.
+No three star programming is allowed. The only time pointer parameters need to be used is if the function needs to return it to the caller along with another value through the return type. In other situations, double and triple pointers are not a good idea and there is very little need for that sort of indirection.
 
 Array parameters should never be used (eg. param[x]) because it does nothing useful. Arrays, however, can be passed to functions by value in place of a pointer.
 
@@ -160,7 +162,7 @@ const char * const str = "Hello";
 
 If the variable is declared static, this extra pointer is not generated.
 
-To aleviate the confusion, a type called IMUSTR is used, which means immutable string. It is impossible to export the IMUSTR type to the global scope due to an incomplete type without the array initializer. It has no definite size and `sizeof` cannot be used on the type.
+To aleviate the confusion, a type called IMUSTR is used, which means immutable string. It is impossible to export the IMUSTR type to the global scope due to an incomplete type without the array initializer. It has no definite size and `sizeof` cannot be used on the type name.
 
 This makes incorrect use of strings impossible, imo.
 
@@ -194,6 +196,12 @@ Some are general concepts, while other tips here are specific to OS/90.
 * Use a structure of arrays when possible or when benefitial
 * Pack structures and use bit fields to save memory
 * Align certain structures for performance
+
+## Kernel Code Size and Memory Usage
+
+Currently, the bid for maximum kernel size is 48K. The compiler uses size optimization by default.
+
+The kernel must avoid memory allocation like the plague. The only things that should be dynamically allocated are process control blocks and other large data structures that are page-multiple sized.
 
 # Assembly Guidelines
 

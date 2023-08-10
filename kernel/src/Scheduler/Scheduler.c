@@ -35,12 +35,16 @@
 alignas(4)
 U32 preempt_count = 0;
 
-ALL_KERNEL_LOCKS g_all_sched_locks = { 0 };
+// Get rid of this crap!
+ALL_KERNEL_LOCKS g_all_sched_locks;
 
 volatile P_PCB current_pcb;
 volatile P_PCB first_pcb; // The first process
+volatile U32 number_of_processes;
 
-volatile U32 number_of_processes = 0;
+// A flag that indicates if the last context was SV86. Must be set with
+// preemption disabled.
+U8 g_sv86;
 
 VOID KERNEL PreemptInc(VOID)
 {
@@ -56,7 +60,7 @@ VOID KERNEL PreemptDec(VOID)
 ////////////////////////////////////////////////////////////////////////////////
 
 alignas(4) static V86_CHAIN_LINK v86_capture_chain[256];
-alignas(4) static U32 dos_semaphore_seg_off; // ?
+alignas(4) static U32 dos_semaphore_seg_off; // ???
 
 VOID KERNEL ScOnErrorDetatchLinks(VOID)
 {
@@ -64,7 +68,7 @@ VOID KERNEL ScOnErrorDetatchLinks(VOID)
 }
 
 VOID KERNEL ScHookDosTrap(
-    U8                 vector,
+    U8                    vector,
     PV86_CHAIN_LINK       ptrnew,
     V86_HANDLER           hnd
 ){
@@ -79,7 +83,13 @@ VOID KERNEL ScHookDosTrap(
     ReleaseMutex(&g_all_sched_locks.v86_lock);
 }
 
-VOID KERNEL ScVirtual86_Int(PVOID context, U8 vector)
+/////////////////////////////////////////////////////
+//
+// WARNINGS:
+//      This function does not provide a stack.
+//
+//
+VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
 {
     PV86_CHAIN_LINK current_link;
 
@@ -99,6 +109,28 @@ VOID KERNEL ScVirtual86_Int(PVOID context, U8 vector)
             continue;
         }
     }
+
+    // We must lock real mode when accessing this structure
+    _Internal_PreemptInc();
+
+    FENCE;
+    g_sv86 = 1;
+    FENCE;
+
+    // Copy parameters to the context.
+    C_memcpy(&_RealModeRegs, context,sizeof(SV86_REGS));
+
+    // EIP and CS are not set properly. Get them from the IVT.
+    _RealModeRegs.eip = WORD_PTR(0, vector * 4);
+    _RealModeRegs.cs  = WORD_PTR(0, vector * 4 + 2);
+
+    // Fall back to real mode.
+    EnterRealMode();
+
+    FENCE;
+    g_sv86 = 0;
+    FENCE;
+    _Internal_PreemptInc();
 }
 
 STATUS V86CaptStub()
@@ -136,9 +168,9 @@ static inline void SendEOI(U8 vector)
 
 //
 // BRIEF:
-//      Scheduler interrupt handler.
+//      Scheduler interrupt handler. This handles task switching.
 //
-static VOID HandleIRQ0()
+static VOID HandleIRQ0(P_IRET_FRAME iframe)
 {
 }
 
@@ -180,11 +212,7 @@ VOID InterruptDispatch(U32 diff_spurious)
     }
 }
 
-static VOID SetupIDT()
-{}
-// The PnP manager must be initialized before the scheduler
-// Return value is the address to the first PCB
-P_PCB InitScheduler()
+VOID SchedulerPhase1(VOID)
 {
     ConfigurePIT();
 }

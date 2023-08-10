@@ -30,6 +30,8 @@ CHID KERNEL ChainAlloc(
     PID owner_pid
 );
 
+U32 ChainSize(CHID chain);
+
 STATUS KERNEL ChainExtend(
     CHID    id,
     U32     bytes_uncommit,
@@ -37,5 +39,6 @@ STATUS KERNEL ChainExtend(
 );
 
 PVOID ChainWalk(CHID id, U32 req_index);
+VOID ChainInit(VOID);
 
 #endif /* MM_CHAIN_H */
