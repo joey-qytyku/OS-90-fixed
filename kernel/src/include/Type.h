@@ -90,7 +90,7 @@ typedef __INT8_TYPE__  S8, *PS8;
 
 typedef __UINT64_TYPE__ U64,*PU64;
 
-typedef const char*const IMUSTR;
+typedef const char IMUSTR[];
 
 // Pointer to IMUSTR may change, but the IMUSTR itself must not.
 typedef IMUSTR *PIMUSTR;
@@ -117,6 +117,15 @@ typedef IMUSTR *PIMUSTR;
 #define CAST(val, type) ((type)(val))
 
 #define FLAG_PARAM_ON(flags, mask) ((flags & mask)!=0)
+
+// stdarg? Pfffff. Too bloated. We know we are using cdecl and that the callee is
+// going to clean up the arguments, so might as well use a pointer.
+// On the stack, each item is going to be low-to-high in memory since cdecl
+// goes in reverse (it has to for variadic arguments to work reasonably).
+//
+// So no need for va_start and va_end!
+#define GET_VAR_LIST(last_fixed) (&(last_fixed) + 4)
+
 
 /////////////////////////////
 // G C C   B u i l t i n s //

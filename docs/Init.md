@@ -18,13 +18,15 @@ This is the order of initialization:
 
 Some subsystem initialize internal functionality on their own, but that is not covered here.
 
+OS/90 does not have a FS subsystem and relies completely on the DOS interface for it. The filesystem only works after (4).
+
 ## SchedulerInitPhase1
 
 This is the first phase of the scheduler and the first to initialize. It enables virtual 8086 mode, which is critical for enabling the other subsystems.
 
 System entry is also safe after this point, but only by V86.
 
-Is the FS available? Does the BIOS work when interrupts are off? It will probably enable them on its own if not.
+Filesystem is not yet available.
 
 ## MemoryInit
 
@@ -34,14 +36,20 @@ Virtual memory will be operational, but it will not be used during initializatio
 
 ## PnP_Init
 
-The PnP manager needs to access the PnP BIOS, hence why it needs (1). Init will use the BIOS to detect hardware and reserve the resources.
+The PnP manager needs to access the PnP BIOS, hence why it needs (1). PnP_Init will use the BIOS to detect hardware and reserve resources.
 
 ## SchedulerInitPhase2
 
 SchedulerInitPhase2 depends on MemoryInit and PnP_Init because it needs to allocate memory for process control blocks and to dispatch interrupts through the PnP subsystem.
 
-This will access the filesystem using V86 in order to execute USER.EXE.
+This will access the filesystem using V86 in order to execute USER.EXE. The process is blocked for now.
 
 ## DriversInit
 
-This step will load drivers into memory and run their initcode, so it requires a fully operational kernel.
+This step will load drivers into memory and run their initcode, and it requires a fully operational kernel.
+
+Additionally, this procedure may parse configuration files.
+
+## SchedulerInitPhase3
+
+Drivers have set up their interrupt hook etc and can provide services to processes. USER.EXE is unblocked.

@@ -35,8 +35,7 @@
 alignas(4)
 U32 preempt_count = 0;
 
-// Get rid of this crap!
-ALL_KERNEL_LOCKS g_all_sched_locks;
+LOCK v86_lock;
 
 volatile P_PCB current_pcb;
 volatile P_PCB first_pcb; // The first process
@@ -48,12 +47,12 @@ U8 g_sv86;
 
 VOID KERNEL PreemptInc(VOID)
 {
-    _Internal_PreemptInc();
+    AtomicFencedInc(&preempt_count);
 }
 
 VOID KERNEL PreemptDec(VOID)
 {
-    _Internal_PreemptDec();
+    AtomicFencedDec(&preempt_count);
 }
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////VIRTUAL 8086 MODE SECTION///////////////////////////
@@ -72,7 +71,7 @@ VOID KERNEL ScHookDosTrap(
     PV86_CHAIN_LINK       ptrnew,
     V86_HANDLER           hnd
 ){
-    AcquireMutex(&g_all_sched_locks.v86_lock);
+    AcquireMutex(&v86_lock);
 
     const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
 
@@ -80,7 +79,7 @@ VOID KERNEL ScHookDosTrap(
     ptrnew->handler = hnd;
     ptrnew->next = NULL;
 
-    ReleaseMutex(&g_all_sched_locks.v86_lock);
+    ReleaseMutex(&v86_lock);
 }
 
 /////////////////////////////////////////////////////

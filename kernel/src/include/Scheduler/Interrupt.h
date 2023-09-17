@@ -24,27 +24,6 @@
 //
 #define IRQ_RESERVED_VECTOR 0xA0
 
-tpkstruct {
-    U32   eax;
-    U32   ebx;
-    U32   ecx;
-    U32   edx;
-    U32   esi;
-    U32   edi;
-    U32   ebp;
-    U32   eip;
-    U32   cs;
-    U32   eflags;
-
-    U32   esp;
-    U32   ss;
-
-    U32   es;
-    U32   ds;
-    U32   fs;
-    U32   gs;
-}IRET_FRAME,*P_IRET_FRAME;
-
 // The previous context is of no concern to a driver.
 // DPMI allows the PIC base vectors to be reported through the get version
 // function call.

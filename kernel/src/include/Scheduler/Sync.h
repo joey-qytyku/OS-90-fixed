@@ -6,45 +6,48 @@
 #define _STI { __asm__ volatile ("sti":::"memory"); }
 #define _CLI { __asm__ volatile ("cli":::"memory"); }
 
-typedef U32 LOCK;
+// Opaque type that could change later on. No garauntees on how
+// large it is.
+typedef alignas(4) struct ATOMIC,*P_ATOMIC;
 
+// The m constraint takes the address of the symbol passed to it.
+// If we pass the name of the pointer rather than the theoretical
+// thing that it points to, it will not interpret it as the address of
+// the target object.
 //
-// v86_lock: Protects the V86 chain AND any access to real mode whatsoever.
-//           It MUST be called before entering V86.
-//
-// proc_list_lock: Protects the process list.
-//
-tstruct {
-    LOCK    v86_lock;
-    LOCK    proc_list_lock;
-}ALL_KERNEL_LOCKS;
+// This causes GCC to think that we are trying to access the pointer argument
+// itself and uses the stack pointer as an address.
 
-static inline VOID ReleaseMutex(LOCK *m)
+static inline VOID ReleaseMutex(P_ATOMIC m)
 {
-    __asm__ volatile (\
-       "btrl $0,%0":"=m"(m)::"memory"\
+    __asm__ volatile (
+       "btrl $0,%0":"=m"(*m)::"memory"
     );
 }
 
-static inline VOID AcquireMutex(LOCK *m)
+static inline VOID AcquireMutex(P_ATOMIC m)
 {
-    __asm__ volatile (\
-        "spin%=:\n\t"\
-        "btsl $0,%0\n\t"\
-        "jc spin%="\
-        :"=m"(m)\
-        :"m"(m)\
-        :"memory"\
+    __asm__ volatile (
+        "spin%=:\n\t"
+        "btsl $0,%0\n\t"
+        "jc spin%="
+        :"=m"(*m)
+        :"m"(*m)
+        :"memory"
     );
 }
 
-static inline BOOL MutexWasLocked(LOCK *m)
+//
+// To avoid the use of recursive mutexes, we have a function to check if the
+// mutex is currently locked.
+//
+static inline BOOL MutexWasLocked(P_ATOMIC m)
 {
     BOOL ret;
     __asm__ volatile(
         "cmpl $0, %1"
         :"=@ccz"(ret)
-        :"m"(m)
+        :"m"(*m)
         :"memory","cc"
     );
     return ret;
@@ -74,22 +77,56 @@ static inline VOID SetFlags(U32 flags)
     );
 }
 
-extern U32 preempt_count;
-
-#define _Internal_PreemptDec()\
-    __asm__ volatile ("decl preempt_count":::"memory")
-
-#define _Internal_PreemptInc()\
-    __asm__ volatile ("incl preempt_count":::"memory")
-
-static inline BOOL _InternalPreemptCheckZero()
+__attribute__((always_inline))
+static inline void AtomicFencedStore(P_ATOMIC address, U32 value)
 {
-    BOOL ret;
-    __asm__ volatile ("cmpl $0,preempt_count":"=@ccz"(ret)::"memory","cc");
+    __asm__ volatile(
+        "movl %1,%0"
+        :"=m"(*address)
+        :"n"(value)
+        :"memory"
+    );
+}
+
+__attribute__((always_inline))
+static inline U32 AtomicFencedLoad(P_ATOMIC address)
+{
+    U32 ret;
+    __asm__ volatile(
+        "movl %1,%0"
+        :"=r"(ret)
+        :"m"(*address)
+        :"memory"
+    );
+}
+
+__attribute__((always_inline))
+static inline VOID AtomicFencedDec(P_ATOMIC address)
+{
+    __asm__ volatile ( "dec %0" :"=m"(*address) :"m"(*address) :"memory");
+}
+
+__attribute__((always_inline))
+static inline VOID AtomicFencedInc(P_ATOMIC address)
+{
+    __asm__ volatile ( "inc %0" :"=m"(*address) :"m"(*address) :"memory");
+}
+
+__attribute__((always_inline))
+static inline BOOL AtomicFencedCompare(P_ATOMIC address, U32 imm)
+{
+    _Bool ret;
+    __asm__ volatile (
+        "cmp %1, %2"
+        : "=@ccz"(ret)
+        : "i"(imm), "m"(*address)
+        : "cc", "memory"
+    );
     return ret;
 }
 
 VOID KERNEL PreemptInc(VOID);
 VOID KERNEL PreemptDec(VOID);
 
+extern U32 preempt_count;
 #endif /* SCHEDULER_SYNC_H */

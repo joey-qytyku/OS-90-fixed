@@ -382,32 +382,13 @@ When a process is terminated, the following things will happen within the memory
 
 The XMS manager of the system may or may not have allocated blocks. It was told by the bootloader to allocate all available memory to the kernel. Only this block of memory minus the kernel can be made available.
 
-This means that if the computer has more than 16MB of RAM, the kernel will be loaded __above__ the ISA memory hole. We need to ensure that memory below the ISA memory hole is available if possible.
+The issue is that this block will be after the ISA memory hole.
 
-Here are two possible situatons:
-```
-1.
-    [640K][UMA][...][KERNEL][...][FREE][ISA][FREE]
-
-2.
-    [640K][UMA][...][FREE][ISA][...][KERNEL][FREE]
-```
-
-`...` indicates that something may or may not be allocated there. `KERNEL` is the contiguous block of memory that the kernel is loaded into. `FREE` means that there could be memory that is unallocated at this point.
-
-In order for this to work, we need a way to detect what DOS may have allocated already. This involves probing HIMEM repeadedly with a number of handles to find the locations.
-
-The number of free EMB handles is obtained by getting EMB handle information about a particular handle. I do not know if a bogus value will return the free handles, so we instead just use a loop that constantly puts this in a variable.
-
-Maybe I should do this in DOS instead. Place this in some kind of extended memory map buffer.
-
-### Current State
-
-We do not currently handle XMS memory that has already been allocated. It will be destroyed.
+To "solve" the problem, we simply require that the XMS manager has the memory restricted to no larger than 15MB minus 64K for the HMA so that all allocated memory remains underneath the ISA memory hole. The kernel binary will never exceed it. For the number of KBs to give to XMS, place something like `/MAX=15296` and hope for the best. The kernel will simply assume all other memory is available.
 
 ## Order of Initialization
 
-Virtual 8086 mode needs to be ready.
+Virtual 8086 mode needs to be ready for detecting memory.
 
 # Rationale
 

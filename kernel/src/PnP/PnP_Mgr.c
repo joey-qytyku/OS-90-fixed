@@ -230,7 +230,12 @@ STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
     return 0;
 }
 
-STATUS KERNEL Bus_AllocateIO(U16 size, U8 align)
+// BRIEF:
+//      Allocate IO port space. Returns all ones (-1) if failed. Otherwise
+//      returns base IO port.
+//
+//
+STATUS KERNEL U32 PnAllocateIOPorts(U16 num, U8 align)
 {
 }
 
@@ -291,7 +296,7 @@ static VOID Init_DetectFreeInt(VOID)
 static VOID DetectCOM(VOID)
 {
     U8 i, com_ports;
-    const PU16 bda = (PU16)phys(0x400);
+    const PU16 bda = (PU16)0x400;
 
     // Check BIOS data area for number of serial ports
     // The beginning words are the COM port IO addresses
@@ -316,8 +321,8 @@ VOID InitPnP(VOID)
 {
     // Clear all interrupt and resource entries. Zeroing them ensures they
     // are recognized as not in use.
-    C_memset(&interrupts, 0U, sizeof(INTERRUPTS));
-    C_memset(&resources,  0U, sizeof(IO_RESOURCE) * MAX_IO_RSC);
+    C_memset(&interrupts, 0, sizeof(INTERRUPTS));
+    C_memset(&resources,  0, sizeof(IO_RESOURCE) * MAX_IO_RSC);
 
     Init_DetectFreeInt();
     DetectCOM();

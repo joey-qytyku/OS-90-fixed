@@ -41,6 +41,28 @@ VOID SetHighLevelExceptionHandler(U8, EXCEPTION_HANDLER);
 #define OP_INTO 0xCE
 #define OP_IRET 0xCF
 
+tpkstruct {
+    U32   eax;
+    U32   ebx;
+    U32   ecx;
+    U32   edx;
+    U32   esi;
+    U32   edi;
+    U32   ebp;
+    U32   eip;
+    U32   cs;
+    U32   eflags;
+
+    U32   esp;
+    U32   ss;
+
+    U32   es;
+    U32   ds;
+    U32   fs;
+    U32   gs;
+}IRET_FRAME,*P_IRET_FRAME;
+
+
 enum {
     VEC_SYS_RES_BASE= 252, // same as next
     VEC_INT_SV86    = 252,
@@ -56,9 +78,12 @@ enum {
 // or VEC_INT_RMPROC. Then it memorizes the original byte.
 //
 // If it replaces the IRET instruction, it must save two bytes.
+
 //
-// VEC_INT_SV86:
+// INT VEC_IRET_SV86 is caught by SysEntry and causes it to go back to the caller of
+// EnterRealMode.
 //
+// INT VEC_INT_SV86
 //
 
 #endif

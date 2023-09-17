@@ -13,9 +13,16 @@
 
 #include <Type.h>
 
-VOID RmPush16(PU16 ss, PU32 esp, U16 value);
-U16  RmPop16( PU16 ss, PU32 esp);
-VOID PmPush16(PU16 ss, PU32 esp, U16 value);
-U16  PmPop16( PU16 ss, PU32 esp);
+VOID RmPush16(U16 ss, PU32 esp, U16 value);
+U16  RmPop16( U16 ss, PU32 esp);
+VOID PmPush16(U16 ss, PU32 esp, U16 value);
+U16  PmPop16( U16 ss, PU32 esp);
+
+VOID RmPushMult16(
+    U16     ss,
+    PU32    esp,
+    U32     num_to_push,
+    ...
+)
 
 #endif /* STACKUTILS_H */

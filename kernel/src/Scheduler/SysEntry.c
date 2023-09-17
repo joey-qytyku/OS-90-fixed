@@ -166,6 +166,10 @@ VOID SystemEntryPoint(
     U32     old_thread_state;
     P_PCB   request_from;
 
+    // We may not NEED this, but I will predictively fetch this value. It is
+    // a cheap calculation.
+    request_from = GetCurrentPCB();
+
     // First, we need to copy the registers on the stack into
     // a context into the PCB corresponding with the thread that just entered
     // this function instance.
@@ -205,8 +209,30 @@ VOID SystemEntryPoint(
         {
             // INT from real mode process. Generic stack emulation using
             // the PCB
+
+            // Fun fact: The compiler can optimize repetitive arguments
+            // by moving directly to the stack. This is an
+            // advantage that only caller cleaning has.
+
             case VEC_INT_RMPROC:
-            break;
+            {
+                U32 push_ip, push_cs, push_flags;
+
+                // Direct access to PCB while process is inactive.
+
+                push_ip    = iframe->eip; // EIP saved is AFTER the INT code.
+                push_cs    = iframe->;
+                push_flags =;
+
+                RmPushMult16(
+                    request_from->user_regs.ss,
+                    &request_from->user_regs.esp,
+                    3,                              // IP + CS + FLAGS
+                    ,
+                    ,
+                    ,
+                );
+            }break;
 
             // INT from SV86. Direct access to the trap frame.
             case VEC_INT_SV86:

@@ -88,7 +88,7 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 // It is the output driver's responsibility to handle ascii sequences
 // Logf sends the character when it is not a format escape
 //
-VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR restrict fmt, ...)
+VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR fmt, ...)
 {
     U8 printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     va_list ap;

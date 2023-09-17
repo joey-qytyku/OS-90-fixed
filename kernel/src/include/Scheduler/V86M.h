@@ -82,21 +82,22 @@ static inline PVOID MK_LP(U16 seg, U16 off)
 
 extern U8 g_sv86;
 
-static inline VOID SignalSV86()
+// Change to a MOV instruction?
+static inline VOID AssertSV86(VOID)
 {
     FENCE;
     g_sv86 = 1;
     FENCE;
 }
 
-static inline VOID UnsignalSV86()
+static inline VOID UnsignalSV86(VOID)
 {
     FENCE;
     g_sv86 = 0;
     FENCE;
 }
 
-static BOOL WasSV86()
+static BOOL WasSV86(VOID)
 {
     FENCE;
     return g_sv86;

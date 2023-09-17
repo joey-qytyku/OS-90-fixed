@@ -13,44 +13,49 @@
 
 #include <Type.h>
 
-static inline VOID rep_insb(PVOID mem, U32 count, U16 port)
+static inline void rep_insb(void* mem, int count, short port)
 {
     __asm__ volatile(
+        "cld" ASNL
         "rep insb"
-        :
-        :"esi"(mem),"ecx"(count),"dx"(port)
-        :"esi","edi","dx","memory"
-        );
+        : "=D"(mem), "=c"(count)
+        : "D"(mem), "c"(count), "d"(port)
+        : "memory"
+    );
 }
 
 static inline VOID rep_outsb(PVOID mem, U32 count, U16 port)
 {
-    __asm__ volatile (
+    __asm__ volatile(
+        "cld" ASNL
         "rep outsb"
         :
-        :"esi"(mem),"ecx"(count),"dx"(port)
-        :"esi","edi","dx","memory"
-        );
+        : "S"(mem), "c"(count), "d"(port)
+        : "esi", "ecx", "edx", "memory"
+    );
+}
 }
 
 static inline VOID rep_insw(PVOID mem, U32 count, U16 port)
 {
-    __asm__ volatile (
+    __asm__ volatile(
+        "cld" ASNL
         "rep insw"
         :
-        :"esi"(mem),"ecx"(count),"dx"(port)
-        :"esi","edi","dx","memory"
-        );
+        : "D"(mem), "c"(count), "d"(port)
+        : "edi", "ecx", "edx", "memory"
+    );
 }
 
 static inline VOID rep_outsw(PVOID mem, U32 count, U16 port)
 {
-    __asm__ volatile (
-        "rep outsw"
+    __asm__ volatile(
+        "cld" ASNL
+        "rep outsw;"
         :
-        :"esi"(mem),"ecx"(count),"dx"(port)
-        :"esi","edi","dx","memory"
-        );
+        : "S"(mem), "c"(count), "d"(port)
+        : "esi", "ecx", "edx", "memory"
+    );
 }
 
 #define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\

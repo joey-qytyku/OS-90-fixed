@@ -84,11 +84,7 @@ The PCB is 8192 bytes large and naturally aligned. It includes the stack and inf
 
 # Elevated Virtual 8086 Mode (SV86)
 
-# Context and Trap Frame
-
-## Trap Frame Definition
-
-In the source code, the trap frame is called the "iret frame," but it refers to the same thing. The trap frame is the registers saved to the stack for interrupt and system entry. Because OS/90 has a preemtible kernel, the trap frame only reflects the state of the invoking process as long as interrupts are disabled and preemption is off by proxy. The trap frame must be copied onto the process control block for processes.
+# Contexts
 
 ## Non-Preemptible Context
 
@@ -145,7 +141,11 @@ Single operations using imm8 will run as the DX form.
 
 32-bit IO is currently not supported under V86. String operations are also assumed to be with DF=0
 
-# Thread States and Contexts (TODO)
+# Interrupt Frame
+
+Virtual 8086 mode automatically pushes the data segment registers but if we switched from protected mode then this will not occur. The segment registers have to be pushed manually.
+
+# Thread States and Context Types (TODO)
 
 OS/90 provides three contexts:
 * User   (PM/RM)
@@ -259,8 +259,6 @@ Some parts of the kernel such as the memory manager expose a function to check f
 
 # System Entry Point
 
-To control access to real mode, `v86_lock` must be acquired. This prevents instances of Int16 from colliding with modifications to the INT chain. If `v86_lock` is acquired, then the last context was non-preemtible virtual 8086 mode. The act of entering virtual 8086 mode to do a supervisory service call merely requires disabling preemption.
-
 ## Low SysEntry Handler
 
 The trap frame is made to be identical for both protected mode and real mode.
@@ -296,6 +294,8 @@ U32 SavedEIP
 ```
 
 We must check the VM bit again because it could have changed (e.g. DPMI raw switch).
+
+
 
 # Termination of a Process
 
