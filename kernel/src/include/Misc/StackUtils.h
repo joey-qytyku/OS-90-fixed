@@ -23,6 +23,6 @@ VOID RmPushMult16(
     PU32    esp,
     U32     num_to_push,
     ...
-)
+);
 
 #endif /* STACKUTILS_H */

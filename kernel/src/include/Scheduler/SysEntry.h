@@ -80,8 +80,7 @@ enum {
 // If it replaces the IRET instruction, it must save two bytes.
 
 //
-// INT VEC_IRET_SV86 is caught by SysEntry and causes it to go back to the caller of
-// EnterRealMode.
+// INT VEC_IRET_SV86
 //
 // INT VEC_INT_SV86
 //

@@ -14,9 +14,8 @@ This module handles entry and exit of kernel mode as well as emulation
 of certain instructions involved in this process for V86 mode.
 
 Classes of function used here:
-* Stack frame simulation for opcodes (Sim_xxx)
+* Stack frame simulation for opcodes
 * Interrupt and exception behavior for SV86, user V86, and protected mode.
-  (Do_xxx)
 
 In SV86:
     IRET will return to caller if isr counter reaches zero.
@@ -39,7 +38,7 @@ static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
 //
 // When the INT instruction is called in SV86, this number is incremented.
 // IRET decrements it. After each dec/inc, the kernel checks if zero
-// and if so, the original caller of virtual 8086 mode is to be called.
+// and if so, the original caller of virtual 8086 mode is entered.
 //
 
 static U8 rm_isr_entrance_counter = 0;
@@ -88,37 +87,6 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
 VOID SetHighLevelExceptionHandler(U8 e, EXCEPTION_HANDLER handler)
 {
     hl_exception_handlers[e] = handler;
-}
-
-//????
-tstruct {
-    P_PCB   caused_process;
-    U32     event_id;
-    P_IRET_FRAME iframe;
-}HANDLE_EVENT_INFO;
-
-//
-// Exceptions that occur in real mode will go through the per-process IVT.
-// They can also nest, so accurate stack emulation is necessary.
-//
-static VOID DoRealModeException(HANDLE_EVENT_INFO info)
-{
-    U16 ip;
-    U16 cs;
-
-    // Was this vector modified? If it was NOT modified, the process should
-    // be terminated.
-
-    FAR_PTR_16 jump_to = info.caused_process->rm_local_ivt[info.event_id];
-
-    if (DWORD_PTR(&jump_to, 0) == 0)
-    {
-        // The process will be terminated because it caused an exception
-        // for which it did not set a handler.
-    }
-
-    ip = info.caused_process->rm_local_ivt[info.event_id].off;
-    cs = info.caused_process->rm_local_ivt[info.event_id].seg;
 }
 
 VOID CopyIframeToRing3Context(
@@ -184,7 +152,7 @@ VOID SystemEntryPoint(
     {
         // Prevent scheduling of tasks because this task is about to be blocked
         // and we do not want it to run when we enable interrupts.
-        _Internal_PreemptInc();
+        AtomicFencedInc(&preempt_count);
 
         // Enable interrupts
         _STI;
@@ -201,9 +169,9 @@ VOID SystemEntryPoint(
         // Block the process so it is not scheduled when preemption is enabled.
         request_from->thread_state = THREAD_BLOCKED;
 
-        _Internal_PreemptDec();
-
-    } else {
+        AtomicFencedDec(&preempt_count);
+    }
+    else {
         // This was SV86. We will now dispatch the event code.
         switch (event)
         {
@@ -218,21 +186,24 @@ VOID SystemEntryPoint(
             {
                 U32 push_ip, push_cs, push_flags;
 
-                // Direct access to PCB while process is inactive.
+                // The segment register dillema persists. I think branching
+                // can be used to save some space and get better locality.
 
+                // Direct access to PCB while process is inactive.
                 push_ip    = iframe->eip; // EIP saved is AFTER the INT code.
-                push_cs    = iframe->;
-                push_flags =;
+                push_cs    = iframe->cs;
+                push_flags = ;
 
                 RmPushMult16(
                     request_from->user_regs.ss,
                     &request_from->user_regs.esp,
                     3,                              // IP + CS + FLAGS
-                    ,
-                    ,
-                    ,
+                    push_ip,
+                    push_cs,
+                    push_flags,
                 );
-            }break;
+            }
+            break;
 
             // INT from SV86. Direct access to the trap frame.
             case VEC_INT_SV86:

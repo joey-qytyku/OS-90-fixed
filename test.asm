@@ -1,28 +1,44 @@
-mov esp, 63334
+section .text
 
-;
-; To detect CPUID, we have to check if the CPUID flag is modifiable.
-; If it is, we can use CPUID. The value of the bit itself is
-; not relevant.
-;
-SupportCPUID:
-        ; We will write the flags, so we must save it
-        pushf
-        pushf
-        ; Flip the bit on the flags register on the stack
-        xor     dword[esp],1<<21
-        ; Save the current value to register
-        mov     eax,[esp]
-        ; Write the one on the stack to EFLAGS
-        popf
-        pushf
-        pop     ebx
-        ; Are they the same? If so, there is no CPUID
-        cmp     eax,ebx
-        setne   al      ; If NOT the same, set AL to 1 for SUPPORTED
-        popf
+global _start
 
-        jmp $
+StrUpper:
+        mov     ebx,0E0h        ; -32 as signed byte
+        jmp     Skip
+StrLower:
+        mov     ebx,32
+Skip:
 
-times 510-($-$$) DB 0
-DB 55h,0AAh
+        mov     esi,[esp+4]
+.l:
+        lodsb
+        test    al,al
+        jz      .end
+
+        sub     al,'a'
+        cmp     al,'z'-'a'
+        ja      .l
+
+        add     byte [esi-1],bl
+        jmp     .l
+.end    ret
+
+_start:
+        push    msg
+        call    StrUpper
+
+        mov     eax,4
+        mov     ebx,1
+        mov     ecx,msg
+        mov     edx,len
+        int     80h
+
+        mov     ebx,eax
+        mov     eax,1
+        int     0x80
+
+section .data
+    msg db  "rip bozo",0
+    len equ $ - msg - 1
+
+segment .bss

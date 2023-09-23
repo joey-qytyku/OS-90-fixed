@@ -241,9 +241,12 @@ The PnP BIOS does not report everything. It will not report PCI devices. PCI VGA
 
 The ISA bus is 16-bit so it does not support 32-bit memory access or addressing (24-bit). The ISA PnP specification seems to support this anyway, but the physical interface cannot possible handle that. ISA also can use 10-bit port decode or 16-bit decode, which could vary between cards because the ISA bus multiplexes the address pins for port access.
 
-In the ISA bus, each card is sent the pin signals and, hopefully, only one responds by transmitting data. The difference in address decode bits is problematic because a card with 10-bit IO decode will only get 10 bits, and the upper ones mean nothing. E.g. if the base is 2F8, the address AF8 would access the exact same address. This can become a source of conflict. To solve this, OS/90 limits the PnP allocatable port space to 1024 bytes.
+In the ISA bus, each card is sent the pin signals and, hopefully, only one responds by transmitting data. The difference in address decode bits is problematic because a card with 10-bit IO decode will only get 10 bits, and the upper ones mean nothing. E.g. if the base is 2F8, the address AF8 would access the exact same address. This can become a source of conflict. To solve this, OS/90 limits the PnP allocatable port space to 1024 bytes. Other ports can be accessed directly, such as the PCI conf space.
 
 This applies to memory as well. Because of the 24-bit addressing, accessing address zero would be equivalent to accessing 0x01000000 or 0xFF000000. That explains why computers with the ISA bus normally do not have more than 16 MB of RAM, since a chunk of the memory will have to be reserved for ISA devices.
+
+Computers that supported PCI and 16MB+ of RAM probably had measures to prevent problems. Perhaps they could refuse to assert the address pins of the address is above the ISA range.
+
 
 The ISA PnP bus has more specifics that require specific design choices in the PnP manager. Devices can have certain memory addresses and ports which they can optionally be configured to use by software. For example, a parallel port card can be configured to the three standard ports and nothing else for compatibility.
 

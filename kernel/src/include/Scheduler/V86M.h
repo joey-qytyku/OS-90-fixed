@@ -85,23 +85,17 @@ extern U8 g_sv86;
 // Change to a MOV instruction?
 static inline VOID AssertSV86(VOID)
 {
-    FENCE;
-    g_sv86 = 1;
-    FENCE;
+    AtomicFencedStore(&g_sv86, 1);
 }
 
-static inline VOID UnsignalSV86(VOID)
+static inline VOID DeassertSV86(VOID)
 {
-    FENCE;
-    g_sv86 = 0;
-    FENCE;
+    AtomicFencedStore(&g_sv86, 0);
 }
 
-static BOOL WasSV86(VOID)
+static inline BOOL WasSV86(VOID)
 {
-    FENCE;
-    return g_sv86;
-    FENCE;
+    return AtomicFencedCompare(&g_sv86, 1);
 }
 
 #endif /* SCHEDULER_V86M_H */

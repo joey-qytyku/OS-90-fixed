@@ -186,50 +186,18 @@ Process hooks are a hack meant to allow for simulating multiple addressing space
 
 # Controlling Interrupts, Syncrhonization, and Preemption
 
-To disable preemption, call the function PreemptInc() to increment the preempt counter. To go back to the previous call level, use PreemptDec(). When it is nonzero, the kernel cannot be preempted. These are functions because variables are never exported to drivers by the kernel. Disabling preemption will prevent any other threads from being scheduled until it becomes zero again. It can be used for synchronization between kernel threads since the operations are atomic and all other threads are suspended within the section, but could make the system sluggish if used unwisely.
+OS/90 supports the ATOMIC type which behaves outwardly as a counter or boolean lock, depending on how it is used.
 
-Preemption can be enabled/disabled within a non-interruptible section. In the system entry, we do this to prevent the scehduler from scheduling the process before we have blocked it.
+The following operations are supported and are done in a single instruction for atomicity:
+* Increment: AtomicFencedInc
+* Decrement: AtomicFencedDec
+* Load:      AtomicFencedLoad
+* Store:     AtomicFencedStore
+* Compare:   AtomicFencedCompare
+* Acquire:   AcquireMutex
+* Release:   ReleaseMutex
 
-For disabling interrupts, use the macro SaveFlags() and RestoreFlags(). Disabling interrupts will make instructions inside the uninterruptible section fully atomic. If a resource is only used within a non-interruptible section, all access is synchronized.
-
-Disabling interrupts will disable preemption as well.
-
-```c
-VOID IntendedUsage()
-{
-    PreemptInc();
-
-    KeLogf("I cannot be preempted!\n\r");
-
-    PreemptDec();
-}
-```
-
-```c
-VOID IntendedUsage()
-{
-    DWORD f;
-
-    f = PushFlags()
-    _CLI;
-
-    // ...
-
-    RestoreFlags(inf);
-}
-```
-Never acquire a lock while interrupts are disabled, or the kernel will freeze forever! Remember that data can be protected by disabling interrupts or by locking, but both cannot be used. All clients of the protected data must agree to the same synchronization mechanism.
-
-## Summary
-
-OS/90 can synchronize concurrent data access by:
-* Preemption off points
-* Disabling interrupts
-* Mutual exclusion lock
-
-As long as one method is used consistently for the item being protected, each will work. Disabling interrupts is overkill for most situations except when doing programmed IO.
-
-Mutual exclusion is the more common approach. It is best when the critical section is quite long and processes should be scheduled freely.
+These are implemented as macros/inline
 
 # Preemption Counter in Detail and Uses in Kernel
 
@@ -241,7 +209,25 @@ If the critical section is rather complex, a lock is better since it allows othe
 
 SV86 cannot be accessed by multiple tasks, so they will race to increment the counter atomically.
 
+A global variable called `g_sv86`  determines if the kernel should handle INT/IRET and other opcodes for SV86 or for V86 processes.
+
 The reason why a lock is not used is because there is no need to allow other tasks the opportunity to run at all since they will be blocked later on anyway.
+
+### SV86 Interrupts
+
+SV86 can be interrupted by SV86. The interrupt handler will call NOT call `EnterV86` since it cannot nest, but instead will change the control flow of the SV86 context with stack emulation.
+
+The process is as follows:
+* Kernel enters SV86
+* Interrupt is recieved and kernel needs to reflect
+* ISR handler realizes saved context is SV86
+* ISR handler calls a function that emulates the stack behavior of an IRQ.
+* ISR handler returns and executes the real mode ISR. It has no control after this point.
+* Real mode ISR executes `INT VEC_IRET_SV86`
+* IRET stack behavior
+* Computer continues executing in SV86 after
+
+Stack emulation for an IRQ is different because it requires IF=0 on entry, but is identical otherwise.
 
 ## Process List
 

@@ -32,10 +32,9 @@
 #include <Debug.h>
 #include <Type.h>
 
-alignas(4)
-U32 preempt_count = 0;
-
-LOCK v86_lock;
+ATOMIC preempt_count;
+ATOMIC v86_lock; // REMOVE
+ATOMIC g_sv86;
 
 volatile P_PCB current_pcb;
 volatile P_PCB first_pcb; // The first process
@@ -43,7 +42,6 @@ volatile U32 number_of_processes;
 
 // A flag that indicates if the last context was SV86. Must be set with
 // preemption disabled.
-U8 g_sv86;
 
 VOID KERNEL PreemptInc(VOID)
 {
@@ -110,14 +108,12 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     }
 
     // We must lock real mode when accessing this structure
-    _Internal_PreemptInc();
+    AtomicFencedInc(&preempt_count);
 
-    FENCE;
-    g_sv86 = 1;
-    FENCE;
+    AssertSV86();
 
     // Copy parameters to the context.
-    C_memcpy(&_RealModeRegs, context,sizeof(SV86_REGS));
+    C_memcpy(&_RealModeRegs, context, sizeof(SV86_REGS));
 
     // EIP and CS are not set properly. Get them from the IVT.
     _RealModeRegs.eip = WORD_PTR(0, vector * 4);
@@ -126,10 +122,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     // Fall back to real mode.
     EnterRealMode();
 
-    FENCE;
-    g_sv86 = 0;
-    FENCE;
-    _Internal_PreemptInc();
+    DeassertSV86();
 }
 
 STATUS V86CaptStub()

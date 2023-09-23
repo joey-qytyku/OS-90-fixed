@@ -8,7 +8,10 @@
 
 // Opaque type that could change later on. No garauntees on how
 // large it is.
-typedef alignas(4) struct ATOMIC,*P_ATOMIC;
+alignas(4)
+typedef struct {} ATOMIC,*P_ATOMIC;
+
+#define ATOMIC_INIT {0}
 
 // The m constraint takes the address of the symbol passed to it.
 // If we pass the name of the pointer rather than the theoretical
@@ -40,6 +43,8 @@ static inline VOID AcquireMutex(P_ATOMIC m)
 //
 // To avoid the use of recursive mutexes, we have a function to check if the
 // mutex is currently locked.
+//
+// REMOVE THIS, WE DONT NEED IT NOW
 //
 static inline BOOL MutexWasLocked(P_ATOMIC m)
 {
