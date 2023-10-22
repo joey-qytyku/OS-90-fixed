@@ -7,7 +7,7 @@ It supports:
 * Reserving and releasing virtual memory regions
 * Virtual memory with disk and uncommitted RAM backing
 * Emulating framebuffers through virtual MMIO
-* Complete compatibility with DPMI 0.9 and 1.0 memory functions
+* Complete compatibility with DPMI 0.9 and some 1.0 memory functions
 
 # Terminology
 
@@ -70,7 +70,7 @@ The following is a full description of the API implemented by the memory manager
 ## Memory Info
 
 ```c
-DWORD MemInfo(BYTE op);
+U32 MemInfo(U8 op);
 ```
 
 Operations:
@@ -86,13 +86,13 @@ CFG_BLOCK_SIZE      Size of block in bytes
 CFG_ADDRESSABLE     Number of blocks addressable
 ```
 
-This function is slow.
+This function is slow. Store the information in a variable if needed.
 
 ## Map Physical Block to Virtual Block
 
 ```c
 STATUS MapBlock(
-    DWORD   attr,
+    U32     attr,
     PVOID   virt,
     PVOID   phys
 );
@@ -111,6 +111,8 @@ BOOL KERNEL_ASYNC MmReentStat(VOID);
 If this returns one, then absolutely no memory manager functions may be called by an interrupt handler.
 
 The memory manager has a single mutex lock that is acquired by every function that reads or writes the block list, PT/PD, and other structures. If it is currently acquired, an interrupt handler cannot safely call anything in the memory manager API. If the lock is not acquired, it is safe to call memory API functions from the atomic context.
+
+> MMS functions are thread safe unless otherwise specified when called in a preemptible context.
 
 ## DOS Memory Managment Functions
 
@@ -150,10 +152,9 @@ The only way to deallocate memory is to resize to zero. In such a case, the retu
 
 Example:
 ```c
-PBYTE dma_buffer = ConvMemAlloc(65536);
+P86 dma_buffer = ConvMemAlloc(65536);
 
 RequestTransfer(dma_buffer);
-
 ConvMemRealloc(dma_buffer, 0);
 ```
 
@@ -268,16 +269,16 @@ Allocate a range of virtual blocks. This does not allocate the memory or modify 
 
 Returns `NULL` if failed.
 
-Example:
+Driver example:
 ```c
 VOID Example(VOID)
 {
     PBYTE buffer;
     CHID  id;
 
-    id = ChainAlloc(ALLOC_NORMAL, 1000);
-    buffer = ReserveLinearRegion(1000);
-    MapChainToVirtualAddress(ATR_NORMAL, id, buffer);
+    id = System.Memory.ChainAlloc(ALLOC_NORMAL, 1000);
+    buffer = System.Memory.ReserveLinearRegion(1000);
+    System.Memory.MapChainToVirtualAddress(ATR_NORMAL, id, buffer);
 }
 ```
 

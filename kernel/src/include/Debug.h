@@ -13,18 +13,13 @@
 
 #include <Type.h>
 
-// What was this for? I made the function thread safe.
-#define ERROR_IF_ISR()
-
 typedef VOID (*OUTPUT_DRIVER)(U8);
 
-VOID KERNEL Hex32ToString(U32, PU8);
-VOID KERNEL Uint32ToString(U32, PU8);
-VOID KERNEL KeLogf(OUTPUT_DRIVER, IMUSTR, ...);
-VOID KERNEL FatalError(U32);
+API_DECL(VOID, Logf,        OUTPUT_DRIVER, const char*, ...);
+API_DECL(VOID, FatalError,  U32);
 
-VOID KeWriteAsciiz(OUTPUT_DRIVER, IMUSTR);
-VOID _KernelPutchar(U8 ch);
+VOID KeWriteAsciiz(OUTPUT_DRIVER, const char*);
+VOID _KernelPutchar(char ch);
 
 #define _str(x) #x
 #define _str2(x) _str(x)
@@ -39,7 +34,7 @@ VOID _KernelPutchar(U8 ch);
 
 #define BREAK() __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
 
-#define KASSERT(x) {\
+#define kassert(x) {\
     if (!(x)) {\
         TRACE("ASSERT FAILED");\
     }\

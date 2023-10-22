@@ -141,39 +141,27 @@ Array parameters should never be used (eg. param[x]) because it does nothing use
 
 ### Strings
 
-The one thing I dislike about C is the handling of strings.
+OS/90 has strict rules in regards to strings.
 
-```
-const char *str = "Hello";
-```
-The compiler generates an array of bytes and a pointer to that array.
+What type to use:
+* `const char *` or `char *` for a __function parameter__ or pointer to a string in any scope.
+* `const char[]` or `char[]` for a string that behaves as array of bytes __in file scope__.
+* Apply `const` if the string/character does not __change location or values__.
 
-```
-.LC0:
-        .string "hello"
-hello2:
-        .long   .LC0
-```
+Rules for using strings:
+* __Never__ define a string in local scope, even with static.
+* __Never__ define strings with global visibility.
+* __Never__ initialize `char *` or `const char *` with a string constant. Use `const char[]` in file scope.
+* Use `[const] char *` for __parameters__ to function `ONLY` with no exception.
 
-Same thing here, despite the pointer being constant.
-```
-const char * const str = "Hello";
-```
-
-If the variable is declared static, this extra pointer is not generated.
-
-To aleviate the confusion, a type called IMUSTR is used, which means immutable string. It is impossible to export the IMUSTR type to the global scope due to an incomplete type without the array initializer. It has no definite size and `sizeof` cannot be used on the type name.
-
-This makes incorrect use of strings impossible, imo.
-
-A function should not take an IMUSTR unless it is a constant expression. The PIMUSTR type represents a pointer to IMUSTR. It must be dereferenced.
+A `const char*` parameter does not need to be passed with the exact type. It is okay to pass a pointer to a non-constant pointer paramter since it only ensures the function does not change it.
 
 ## Mutual Exclusion
 
 If two procedures operate on identical input and are both called by the same caller, mutual exclusion of these procedures must be done by the caller. Telling a function to simply "take care of it" should be avoided, as the mutual exclusion conditions are separated despite being related.
 
 Prefered:
-```
+```c
 if (cond1)
     Proc1();
 if (cond2)
@@ -181,7 +169,7 @@ if (cond2)
 ```
 
 Not Prefered:
-```
+```c
 Proc1();
 Proc2();
 ```

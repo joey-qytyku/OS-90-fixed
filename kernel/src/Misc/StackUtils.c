@@ -62,3 +62,13 @@ VOID RmPushMult16(
         RmPush16(ss, esp, args[i]);
 }
 
+// :| Is this right?
+VOID RmPopMult16(
+    U16     ss,
+    PU32    esp,
+    U32     num_to_pop,
+    PU32    buff
+){
+    PVOID stack = (ss*16) + esp;
+    C_memcpy(buff, stack, num_to_pop*4);
+}

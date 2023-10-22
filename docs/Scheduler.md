@@ -70,6 +70,7 @@ A few DPMI functions are slightly different between 16 and 32-bit protected mode
 # What this Document is About
 
 * How processes enter and exit the kernel
+* How tasks are switched
 * Syhcronization
 * Sending user-trapped events like IRQs and exceptions
 * Virtual 8086 mode
@@ -112,11 +113,13 @@ The TSS may be a very large structure with the IOPB, but we will use it to simpl
 
 But IO opcodes are faster in ring-0 protected mode because they do not need to access the IOPB or check IOPL. String instructions justify emulation overhead. Protected mode IO is apparently faster than real mode.
 
-The boost is significant and proven by the manual. When in virtual 8086 mode, INS iteration is 29 clocks and an OUTS is 28. If CPL <= IOPL, like with the ring 0 kernel, the IO takes a mere 8 clocks. That is potentially three times more performance per instruction minus the overhead of entering ring 0. For disk access involving many reads and writes, this is massive.
+The boost is significant and proven by the 80386 manual. When in virtual 8086 mode, INS iteration is 29 clocks and an OUTS is 28. If CPL <= IOPL, like with the ring 0 kernel, the IO takes a mere 8 clocks. That is potentially three times more performance per instruction minus the overhead of entering ring 0. For disk access involving many reads and writes, this is massive.
 
 For example, reading a 512-byte sector, which is 256 IO operations, will take *approximately* 100 + 2048 clocks, with a hundred or more for the emulation overhead. If we did this with virtual 8086 mode, 7168 clocks would be used.
 
-Setting the emulation policy is not possible because IOPL is always three and a zero allow bit in the IOPB would cause ring 3 IO to actually take place. For this reason, IO is __fully__ emulated under OS/90.
+Setting the emulation policy is not possible because IOPL is always three and a zero allow bit in the IOPB would cause ring 3 IO to actually take place.
+
+> Long story short, IO is __fully__ emulated under OS/90. This is done within a __non-preemptible context__.
 
 ## Implementation
 
@@ -139,11 +142,23 @@ OUTSW       6F
 
 Single operations using imm8 will run as the DX form.
 
-32-bit IO is currently not supported under V86. String operations are also assumed to be with DF=0
+> 32-bit IO is currently not supported under V86. String operations are also assumed to be with DF=0
 
-# Interrupt Frame
+# The IRET Frame
 
-Virtual 8086 mode automatically pushes the data segment registers but if we switched from protected mode then this will not occur. The segment registers have to be pushed manually.
+When a switch from ring-3 to ring-0 takes place, the kernel will have an system entry procedure that will save registers onto the stack and call a higher level procedure.
+
+This is a complicated matter. If a switch happens from V86, the segment registers will automatically be saved onto the stack before the rest can be. This means that the IRET frame structure will have two sets of segment registers.
+
+This is not a problem. Regardless of the previous mode, segment registers are always pushed and popped after the system entry is finished. This can have the effect of restoring the ring-3 protected mode state's segment registers or zeroing them out as specified by V86. IRET will check EFLAGS and decide based on that.
+
+What this all means is that code that modifies the trap frame directly--particularly the segment registers--must know what mode the context was in. The VM flag is all this is needed, though checking the process type ID works too.
+
+## For IRQs and Exceptions
+
+Exceptions use system entry and are subject to the same rules as software interrupts. The only difference is that exceptions are non-preemptible.
+
+IRQs use the same entry/return method but do not go through system entry.
 
 # Thread States and Context Types (TODO)
 
@@ -197,9 +212,11 @@ The following operations are supported and are done in a single instruction for 
 * Acquire:   AcquireMutex
 * Release:   ReleaseMutex
 
-These are implemented as macros/inline
+These are implemented as macros/inline.
 
 # Preemption Counter in Detail and Uses in Kernel
+
+The preeption counter is not really a recursive mutex. It is a single atomic variable that has the special meaning of blocking all threads except the currently running one (kernel).
 
 Decrementing the preemption counter is a viable synchronization method if the critical section is relatively short.
 
@@ -207,11 +224,13 @@ If the critical section is rather complex, a lock is better since it allows othe
 
 ## SV86
 
-SV86 cannot be accessed by multiple tasks, so they will race to increment the counter atomically.
+SV86 cannot be accessed by multiple tasks, so they will race to increment the preempt counter atomically.
 
 A global variable called `g_sv86`  determines if the kernel should handle INT/IRET and other opcodes for SV86 or for V86 processes.
 
 The reason why a lock is not used is because there is no need to allow other tasks the opportunity to run at all since they will be blocked later on anyway.
+
+SV86 cannot be entered unless IOPL=0. This is different than the usual IOPL=3 for regular processes and garauntees that only the #GP handler will deal with INT opcodes within its non-preempible context. This separates SV86 from the more complicated handling of INT for protected mode.
 
 ### SV86 Interrupts
 
@@ -225,17 +244,23 @@ The process is as follows:
 * ISR handler returns and executes the real mode ISR. It has no control after this point.
 * Real mode ISR executes `INT VEC_IRET_SV86`
 * IRET stack behavior
-* Computer continues executing in SV86 after
+* Computer continues executing in SV86
 
-Stack emulation for an IRQ is different because it requires IF=0 on entry, but is identical otherwise.
+Stack emulation for a RECL_16 IRQ while inside SV86 is different because it requires IF=0 on entry, but is identical otherwise.
 
 ## Process List
 
-Disabling preemption will acquire a critical section for the thread that increments the counter first. It will ensure that any non-isr code will not access the data. Operations on the preemption counter are always atomic.
-
-### Accessing the Process List
+Disabling preemption will acquire a critical section for the thread that increments the counter first. It will ensure that any non-isr code will not access the data.
 
 When a process enters the system, it will be blocked with interrupts disabled. It will be automatically be unblocked by the system entry procedure.
+
+# INT Capture
+
+INT capturing must work with SV86 and regular processes. The same procedure is called in both in either case. If different behavior is required depending on the context type, it is necessary to know what the current context type is.
+
+The INT capture structure contains a handler for SV86 and user V86. Both __must__ be provided. It cannot be the same procedure.
+
+> todo: add a check preempt zero operation. Make SV86 regs and proc regs somewhat compatible? Why would they be though?
 
 # ISR and Kernel Reentrancy
 
@@ -245,67 +270,17 @@ Some parts of the kernel such as the memory manager expose a function to check f
 
 # System Entry Point
 
-## Low SysEntry Handler
+There are difficulties with getting exceptions to work using the direct IDT approach. Calling an exception handler with INT is not possible and will cause an error. The problem is that DPMI requires all INT calls to go directly to real mode by default. This means that it is possible to call a vector overlapping with an exception handler. Yuck.
 
-The trap frame is made to be identical for both protected mode and real mode.
+OS/90 has a way of handling this. When it enters the high level system entry function, interrupts are off and the context is atomic and non-preemptible. The function is passed an event code which differentiates between exceptions and INTs. There is not need to check for the INT opcode.
 
-The algorithm:
+User V86 and protected mode (16/32-bit) have different ways of simulating the INT instruction. It can be done as a trap or an IRQ.
+
 ```
-{
-CALL_TABLE:
-    ...
-BEGIN:
-    SavedEIP <- pop()
-
-    if (stack[eflags].vm)
-    {
-        // No need to save sregs
-    }
-    else
-    {
-        push(data_sregs)
-    }
-
-    IsrIndex = (SavedEIP - Base of call Table) / sizeof(CtabEntry)
-
-    HighSysEntry(IframeAddress, IsrIndex)
-
-    if (stack[eflags].vm)
-    {
-
-    }
-}
-
-U32 SavedEIP
 ```
-
-We must check the VM bit again because it could have changed (e.g. DPMI raw switch).
-
-
 
 # Termination of a Process
 
 For a process to fully terminate and leave the memory permanently, several steps need to be taken that require the cooperation of several subsystems.
 
 All memory must be deallocated. Locked pages are forcefully unlocked and removed from the swap file.
-
-# Executing Programs (TODO)
-
-Executing processes does not require the filesystem. The same mechanism is used to create kernel threads.
-```
-Flags:
-    EXEC_NOFILE
-    EXEC_NEW_ENV
-
-STATUS Execute(P_EXEC_STRUCT);
-```
-
-The parameter structure is:
-```c
-tstruct {
-    PIMUSTR     name;
-    PVOID       psp;
-    PVOID       new_env;
-    DWORD       flags;
-};
-```

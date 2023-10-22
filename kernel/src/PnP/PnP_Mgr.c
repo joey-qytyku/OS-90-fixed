@@ -19,23 +19,24 @@
 #define PNP_ROM_STRING BYTESWAP(0x24506e50) /* "$PnP" */
 #define NUM_INT 16 /* For consistency */
 
-static IMUSTR driver_name = "KERNL386.EXE";
-static IMUSTR description = "Kernel plug-and-play support";
+static char driver_name[] = "KERNL386.EXE";
+static char description[] = "Kernel plug-and-play support";
 
 ////////////////////////////////////////////////////////////////////////////////
 // The kernel is a bus and has access to all resources on the system
 // It handles regular PnP functionality with system board devices
 // (obviously not remove/insert events)
 //
-DRIVER_HEADER kernel_bus_hdr =
-{
-    .driver_name   = &driver_name,
-    .description   = &description,
-    .cmdline       = NULL,
-    .driver_flags  = DRV_IMPLEMENT_BUS,
-    .event_handler = NULL,
-    .next_driver   = NULL
-};
+
+// DRIVER_HEADER kernel_bus_hdr =
+// {
+//     .driver_name   = &driver_name,
+//     .description   = &description,
+//     .cmdline       = NULL,
+//     .driver_flags  = DRV_IMPLEMENT_BUS,
+//     .event_handler = NULL,
+//     .next_driver   = NULL
+// };
 
 //
 // Non-standard IRQs are FREE but if they are found
@@ -85,14 +86,14 @@ Get operations:
 //
 STATUS SetInterruptEntry(
     VINT            irq,
-    INTERRUPT_LEVEL lvl,
+    INTERRUPT_LEVEL iclass,
     FP_IRQ_HANDLER  handler,
     PDRIVER_HEADER  owner
 ){
 
     interrupts.handlers[irq] = handler;
     interrupts.owners[irq] = owner;
-    interrupts.lvl_bmp |= lvl << (irq * 2);
+    interrupts.iclass |= iclass << (irq * 2);
 
     return OS_OK;
 }
@@ -101,6 +102,7 @@ STATUS SetInterruptEntry(
 // A driver or the kernel can voluntarily give an interrupt back to DOS
 // Potentially to unload.
 //
+// CHANGE INT LVL TO INT TYPE?
 VOID KERNEL InSurrenderInterrupt()
 {}
 
@@ -177,7 +179,7 @@ VOID KERNEL PnBiosCall()
 STATUS SetupPnP(VOID)
 {
     // ROM space should not be prefetched or written
-    volatile PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
+    volatile const PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
     BOOL supports_pnp;
     U8   compute_checksum;
 

@@ -32,9 +32,8 @@
 #include <Debug.h>
 #include <Type.h>
 
-ATOMIC preempt_count;
-ATOMIC v86_lock; // REMOVE
-ATOMIC g_sv86;
+ATOMIC preempt_count = {0};
+ATOMIC g_sv86 = {0};
 
 volatile P_PCB current_pcb;
 volatile P_PCB first_pcb; // The first process
@@ -52,6 +51,12 @@ VOID KERNEL PreemptDec(VOID)
 {
     AtomicFencedDec(&preempt_count);
 }
+
+BOOL KERNEL Preemptible(VOID)
+{
+    // TODO
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////VIRTUAL 8086 MODE SECTION///////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,12 +69,12 @@ VOID KERNEL ScOnErrorDetatchLinks(VOID)
     C_memset(&v86_capture_chain, '\0', sizeof(v86_capture_chain));
 }
 
-VOID KERNEL ScHookDosTrap(
+VOID KERNEL HookDosTrap(
     U8                    vector,
     PV86_CHAIN_LINK       ptrnew,
     V86_HANDLER           hnd
 ){
-    AcquireMutex(&v86_lock);
+    AtomicFencedInc(&preempt_count);
 
     const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
 
@@ -77,14 +82,19 @@ VOID KERNEL ScHookDosTrap(
     ptrnew->handler = hnd;
     ptrnew->next = NULL;
 
-    ReleaseMutex(&v86_lock);
+    AtomicFencedDec(&preempt_count);
+
 }
 
-/////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// BRIEF:
+//      A general purpose function for calling virtual 8086 mode INT calls.
+//
+//      This is called any time the kernel is trying to emulate INT.
+//      To avoid confusion: there is ZERO relation with the trap frame here.
 //
 // WARNINGS:
 //      This function does not provide a stack.
-//
 //
 VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
 {
@@ -107,6 +117,9 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
         }
     }
 
+    // FALLBACK TO REAL MODE USING IVT
+    // In this case, we change the stack itself using the reg buffer
+
     // We must lock real mode when accessing this structure
     AtomicFencedInc(&preempt_count);
 
@@ -123,6 +136,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     EnterRealMode();
 
     DeassertSV86();
+    // Write back results
 }
 
 STATUS V86CaptStub()

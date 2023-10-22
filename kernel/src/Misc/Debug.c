@@ -21,16 +21,6 @@
 
 #define MAX_STR_LENGTH_OF_UINT32 10
 
-// GCC builtin always refers to the glibc function for some reason
-// so I have to implement it manually
-U32 KERNEL StrLen(PIMUSTR ps)
-{
-    U32 i = 0;
-    while ((*ps)[i] !=0)
-        i++;
-    return i;
-}
-
 //
 // The following functions are probably slow, but there does not
 // seem to be a perfect way of doing it, besides this one I found?
@@ -41,7 +31,7 @@ U32 KERNEL StrLen(PIMUSTR ps)
 // {
 // }
 
-// NOW IN ASSEMBLY!
+// NOW IN ASSEMBLY! TODO, BRING BACK C VERSION?
 //
 // VOID KERNEL Uint32ToString(U32 value, PU8 obuffer)
 // {
@@ -73,9 +63,9 @@ U32 KERNEL StrLen(PIMUSTR ps)
 //     }
 // }
 
-VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
+VOID KeWriteAsciiz(OUTPUT_DRIVER od, const char *string)
 {
-    U32 max = StrLen(&string);
+    U32 max = StrLen(string);
 
     for (U32 i = 0; i<max; i++)
         od(string[i]);
@@ -86,15 +76,15 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, IMUSTR string)
 // @s - string (@/# irrelevant)
 // # for signed
 // Example:
-//  KeLogf(LptDebug, "Value = @d\n\r", value)
+//  Logf(LptDebug, "Value = @d\n\r", value)
 //
 //
 // It is the output driver's responsibility to handle ascii sequences
 // Logf sends the character when it is not a format escape
 //
-VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR fmt, ...)
+VOID KERNEL Logf(OUTPUT_DRIVER od, const char *fmt, ...)
 {
-    U8 printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
+    char printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     va_list ap;
     BOOL is_signed;
 
@@ -138,7 +128,7 @@ VOID KERNEL KeLogf(OUTPUT_DRIVER od, IMUSTR fmt, ...)
     va_end(ap);
 }
 
-VOID _KernelPutchar(U8 ch)
+VOID _KernelPutchar(char ch)
 {
     outb(0xE9, ch);
 }

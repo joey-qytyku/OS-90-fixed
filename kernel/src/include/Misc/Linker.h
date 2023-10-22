@@ -26,11 +26,11 @@
 #define phys(a) ((PVOID)(a-HIGHER_HALF))
 
 /* In C, get these linker symbols using address-of operator (&) */
-extern int LKR_STARTTEXT;
-extern int LKR_ENDTEXT;
-extern int LKR_STARTDATA;
-extern int LKR_ENDDATA;
-extern int LKR_STARTBSS;
-extern int LKR_END;
+extern char LKR_STARTTEXT;
+extern char LKR_ENDTEXT;
+extern char LKR_STARTDATA;
+extern char LKR_ENDDATA;
+extern char LKR_STARTBSS;
+extern char LKR_END;
 
 #endif

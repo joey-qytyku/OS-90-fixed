@@ -13,11 +13,11 @@
 
 // WARNING:
 //      All of these functions operate on little endian 32-bit values.
-//      If the bits must be in literal order at U8aligned boundaries,
+//      If the bits must be in literal order at byte aligned boundaries,
 //      this will not help much.
 //
-//      Also, it is recommended that bit arrays are aligned at 4-U8boundaries
-//      for high performance.
+//      Also, it is recommended that bit arrays are aligned at 4-byte boundaries
+//      for performance.
 //
 VOID KeEnableBitArrayEntry(PU32 array, U32 inx)
 {

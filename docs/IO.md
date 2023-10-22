@@ -1,3 +1,17 @@
+# Special File Handles (Update)
+
+The file handles for standard IO are automatically closed and never to be used. After initializing the filesystem, subsequent IO to stdio handles will have the handle replaced by a process-local one stored in the process control block.
+
+The process local handle is where SFH is involved. The SFH allows drivers to recieve the data perform the necessary operations. This has to be done within the kernel, however. The display server must communicate with a stdio driver to virtualize IO for several DOS programs.
+
+## Note
+
+Research how stdio works if more/less bytes are recieved than requested. If I read 10 characters from stdin, will it just stop once it reads 10 or will it save the data for the next read?
+
+It seems that it allows for partial reads and writes because the INT 21H function will return how many bytes were read.
+
+DOS will terminate the read command for stdin once it finishes recieving the number of requested characters. A special characters are also be sent, such as newlines.
+
 # Special File Handles
 
 The default file handles will write to the VGA text mode console using INT 21H and will block the system. A multitasking window manager will not do it this way, and will close the default handles and replace them with a special handle by requesting a kernel-mode driver to do so. Special handles are similar to device files, but are only handles.
@@ -71,44 +85,25 @@ VOID SpecialHandleProc(P_SPECIAL_HANDLE_REQUEST rqst)
 ```
 
 Extended error codes are not supported. Internally, the carry flag will be used to return an error code. This is not of any importance to the SFH interface, however.
+
 ## Use Cases
 
-This functionality is primarily for the possibility of a multitasking windowing system where program can output to independent console windows. This can also be used to implement device IO for userspace. A driver could recieve an event call from userspace.
+This functionality is primarily for the possibility of a multitasking windowing system where programs can output to independent console windows. This can also be used to implement device IO for userspace. A driver could recieve an event call from userspace.
 
 # Display Drivers
 
-Display drivers must conform with this standard to be compatible with existing OS/90 software. This specification is designed to allow for multitasking of programs that request direct access to the framebuffer. Non-accelerated displays, including VESA, are supported by the display driver model. The display driver model is userspace directed and provides useful functions to window managers.
+There is no specification on the display driver model. It needs to have a protocol that can communicate with the display controller.
 
-## Mode Switch Behavior
+# The Display Controller
 
-When a video mode is switched using INT 10H, the display will actually be switched to that mode and the program will be fullscreen with direct access to the actual framebuffer. The interrupt call still has to be trapped to ensure that memory is mutually excluded and mapped appropriately.
+The DC is a program which controls access to the display. It directs the CONIO driver to create special handles to manage IO for DOS programs and instructs the video adapter driver. The DC must support the protocol of the VD and can support several different driver architectures if necessary.
 
-If the mode switch is to monochrome or color (03H)
+A DC needs a video driver in order to create local framebuffers for DOS programs that require it. The actual framebuffer can be accessed directly.
 
-If a program attempts to access VGA registers, the driver must give it exclusive access.
+The DC must declare itself as a DC so that the memory region for the framebuffer is the real one.
 
-## Pre-empting fullscreen programs
+## Fullscreen Video Mode Switching
 
-It would be hard to multitask if fullscreen-only programs could not release control of the screen until termination. For that reason, the display driver must support the ability for userspace to switch back to the default mode.
+If a program switches video mode, the BIOS routine for that purpose must be called. The only issue is with this is how we go back to the original one, since DOS programs will assume the 80x25 mode.
 
-## Virtual Framebuffer Management
-
-Some framebuffers belong to DOS programs that have attempted to access video memory. Any framebuffers controlled by a windowing system are none of the business of the display driver but instead that of the window manager. The userspace can write to the main framebuffer after compositing the buffers. The framebuffer can only contain text mode memory for either monochrome displays or color and only 80x25.
-
-"DOS Boxes" can be implemented using virtual framebuffers, but the userspace must direct this process.
-
-## ANSI.SYS
-
-ANSI.SYS may be supported but does not have to be. Most programs that need advanced video features simply access the video BIOS directly. If this is invoked, the program will have to enter virtual framebuffer mode. If it is not supported, the multiplex for ANSI.SYS should be captured to report non-presence so that it is not accessed directly.
-
-## Input Event Calls
-
-The major code is 1 for kernel-to-kernel calls and 2 for userspace to kernel calls.
-
-### MN_SET_ACTUAL_MODE
-
-### MN_READ_VFB
-
-This function takes the PID of a process that has used the framebuffer and an address to write it to.
-
-The process calling this is not the one using the virtual framebuffer, so shared virtual address space is used.
+Local video mode table?

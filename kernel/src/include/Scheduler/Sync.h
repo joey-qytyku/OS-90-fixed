@@ -6,10 +6,9 @@
 #define _STI { __asm__ volatile ("sti":::"memory"); }
 #define _CLI { __asm__ volatile ("cli":::"memory"); }
 
-// Opaque type that could change later on. No garauntees on how
-// large it is.
-alignas(4)
-typedef struct {} ATOMIC,*P_ATOMIC;
+// Opaque type. 32-bit.
+ALIGN(4)
+typedef struct { U32 :32; } ATOMIC,*P_ATOMIC;
 
 #define ATOMIC_INIT {0}
 
@@ -118,7 +117,7 @@ static inline VOID AtomicFencedInc(P_ATOMIC address)
 }
 
 __attribute__((always_inline))
-static inline BOOL AtomicFencedCompare(P_ATOMIC address, U32 imm)
+static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
 {
     _Bool ret;
     __asm__ volatile (
@@ -130,8 +129,8 @@ static inline BOOL AtomicFencedCompare(P_ATOMIC address, U32 imm)
     return ret;
 }
 
-VOID KERNEL PreemptInc(VOID);
-VOID KERNEL PreemptDec(VOID);
+API_DECL(VOID, PreemptDec, VOID);
+API_DECL(VOID, PreemptInc, VOID);
 
 extern U32 preempt_count;
 #endif /* SCHEDULER_SYNC_H */

@@ -17,7 +17,8 @@
 //------------------------------------------------------------------------------
 // Brief:
 //  When a userspace process uses IO operations, it is necessary to decode it
-//  and fully virtualize the instruction.
+//  and fully virtualize the instruction. I was able to accomplish this by
+//  reverse engineering the x86 ISA.
 //
 // opcode:
 //  A pointer to the instruction to decode
@@ -121,17 +122,42 @@ BOOL ScDecodePortOp(
     // that bit to determine the remaining size of the sequence
     if (dec->variable)
     {
-        // One U8opcode
+        // One byte opcode
         dec->size_of_op++;
     }
     else {
-        // Two U8opcode with 8-bit immediate value
+        // Two byte opcode with 8-bit immediate value
         dec->size_of_op += 2;
         dec->imm8 = op[1];
     }
     return 0;
 }
 
+// BRIEF:
+//      This function emulates an IO instruction for SV86. It directly
+//      performs the IO.
+//
+//      The BIOS may need to be able to do 32-bit IO for something like PCI
+//      configuration space, so that is supported.
+//
+//      IO is faster in ring-0 protected mode than in V86, especially for string
+//      ops, which improves disk transfer speeds when using the BIOS.
+//      The branch path is anticipated as likely if REP INSW or
+//      REP OUTSW are detected.
+//
+VOID IoEmuSV86(PVOID ins)
+{
+    PU16 as_words = ins;
+    PU8  as_bytes = ins;
+
+    if (likely(*as_words == 0x6DF3)) {
+        // REP INSW
+    } else if (*as_words == 0x6FF3) {
+        // REP OUTSW
+    }
+}
+
+// MOVE THIS WHERE?
 // By default, the PIT is set to pitifully slow intervals, clocking at
 // about 18.4 Hz (or IRQs per second). This is unsuitable
 // for pre-emptive multitasking. We must configure this to a

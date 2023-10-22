@@ -31,6 +31,7 @@ In Protected Mode:
 #include <Platform/BitOps.h>
 #include <Misc/StackUtils.h>
 #include <Scheduler/V86M.h>
+#include <Scheduler/IoDecode.h>
 #include <Scheduler/Sync.h>
 
 static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
@@ -45,16 +46,18 @@ static U8 rm_isr_entrance_counter = 0;
 
 // TODO: Get info about desciptor?
 
-static U8 global_orig_vector;
-static U8 global_orig_byte_after_iret;
-
 // BRIEF:
 //      This is called by #GP handler only from virtual 8086 mode context.
 //
-//      Emulating INT and IRET is done by writing a INT operation
-//      entirely and memorizing the original vector. The return EIP is adjusted.
-//      After handling, it must be written back.
+//      SV86 is used with IOPL=0 at all times, which causes INT and others
+//      to be trapped to the monitor in a non-preemptible context and separately
+//      from userspace.
 //
+//      We still need to know if it was SV86 because some instructions can be
+//      emulated for userspace regardless of IOPL. CLI and STI also
+//      behave differently too.
+//
+//      Emulated instructions: All IO, CLI/STI, INT, IRET
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
@@ -62,23 +65,24 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
 
     const BOOL sv86 = WasSV86();
 
-    switch(*ins)
-    {
-        case OP_INT:
-            global_orig_vector = ins[1];
-            ins[1]             = sv86 ? VEC_INT_SV86 : VEC_INT_RMPROC;
-            iframe->eip       -= 2;
-        break;
+    if (sv86) {
+        if (*ins == OP_INT) {
+            RmPushMult16(
+                iframe->ss,
+                &iframe->esp,
+                3,
+                iframe->eip+2,
+                iframe->cs,
+                iframe->eflags
+            );
+        }
 
-        case OP_IRET:
-            global_orig_byte_after_iret = ins[1];
-            ins[0]                      = OP_INT;
-            ins[1]                      = sv86 ? VEC_IRET_SV86 : VEC_IRET_RMPROC;
-            iframe->eip                -= 2;
-        break;
-
-        default:
-        // Wtf?
+        else if (*ins == OP_IRET) {
+            RmPopMult16(iframe->ss, &iframe->esp, 5, &iframe->eip);
+        }
+        else if (IS_IO_OPCODE(*ins) || IS_IO_OPCODE(ins[1])) {
+            IoEmuSV86(ins);
+        }
     }
 }
 
@@ -112,14 +116,15 @@ VOID CopyIframeToRing3Context(
 
 // BRIEF:
 //
-//      Exceptions and INT calls are handled by this function.
-//
-//
+//      Exceptions and INT calls are handled by this function,
+//      which includes userspace V86 and protected mode (32-bit and 64-bit).
 //
 // PARAMS:
 //
 //  iframe: Trap frame
-//  event:  The interrupt vector being invoked.
+//  event:  A code representing the exception index OR a special index called
+//          SWI. Getting the interrupt vector that was invoked is local to
+//          handling INT specifically.
 //
 // ENTRY STATE:
 //      Interrupts are off
@@ -133,9 +138,8 @@ VOID SystemEntryPoint(
 ){
     U32     old_thread_state;
     P_PCB   request_from;
+    BOOL    thread_was_v86 = request_from->procflags;///////
 
-    // We may not NEED this, but I will predictively fetch this value. It is
-    // a cheap calculation.
     request_from = GetCurrentPCB();
 
     // First, we need to copy the registers on the stack into
@@ -170,43 +174,67 @@ VOID SystemEntryPoint(
         request_from->thread_state = THREAD_BLOCKED;
 
         AtomicFencedDec(&preempt_count);
+
+        // Now the process is block and we are free to service it. //
+
+        // Was it an exception? If so, dispatch to an exception handler.
+
+        // Reserved vectors is 32. I should expand the table in Intr_Trap.asm
+        // so that it includes them
+
+        if (event < RESERVED_IDT_VECTORS)
+            hl_exception_handlers[event](0); // TODO ERROR CODE?
+        else {
+            // INT family instruction caused the entry. INT more likely.
+            // We do not
+        }
+
+        // IOPL (?)
+
     }
     else {
+        // Wait, how are we supposed to deal with VEC_INT_RMPROC. That is not SV86.
+        // THIS IS WRONG.
+
         // This was SV86. We will now dispatch the event code.
         switch (event)
         {
             // INT from real mode process. Generic stack emulation using
             // the PCB
 
-            // Fun fact: The compiler can optimize repetitive arguments
-            // by moving directly to the stack. This is an
-            // advantage that only caller cleaning has.
-
             case VEC_INT_RMPROC:
             {
                 U32 push_ip, push_cs, push_flags;
 
-                // The segment register dillema persists. I think branching
-                // can be used to save some space and get better locality.
-
                 // Direct access to PCB while process is inactive.
-                push_ip    = iframe->eip; // EIP saved is AFTER the INT code.
+                push_ip    = iframe->eip;   // EIP saved is AFTER the INT code.
                 push_cs    = iframe->cs;
-                push_flags = ;
+                push_flags = iframe->eflags;
 
                 RmPushMult16(
                     request_from->user_regs.ss,
                     &request_from->user_regs.esp,
-                    3,                              // IP + CS + FLAGS
+                    3,
                     push_ip,
                     push_cs,
-                    push_flags,
+                    push_flags
                 );
+
+                // Two things can happen here:
+                // No local vector was set, so we must enter SV86.
+                // We were not already in it.
+
+                // Switch control flow to a local interrupt vector
+                FAR_PTR_16 vector = request_from->rm_local_ivt[global_orig_vector];
+                iframe->cs  = (U32)vector.seg;
+                iframe->eip = (U32)vector.off;
             }
             break;
 
-            // INT from SV86. Direct access to the trap frame.
+            // INT from SV86. This will access the TRAP FRAME and not the PCB.
+            // For the first INT, it will actually
             case VEC_INT_SV86:
+                rm_isr_entrance_counter++;
             break;
 
         }

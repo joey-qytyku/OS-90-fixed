@@ -42,7 +42,9 @@ Uint32ToString:
         mov     ecx,MAX_STR_LENGTH_OF_UINT32
         rep     stosb
 
-        mov     edi,[ebp+12]                      ; obuffer
+        ; Eliminate memory access by simply subtracting EDI
+
+        sub     edi,MAX_STR_LENGTH_OF_UINT32     ; Get origninal obuffer
         mov     esi,MAX_STR_LENGTH_OF_UINT32 - 2 ; buff_off
         mov     ebx,1                            ; digit_divisor
         xor     ecx,ecx                          ; i
@@ -94,7 +96,8 @@ Uint32ToString:
 ;-------------------------------------------------------------------------------
 ; PARAM: CDECL(value, obuffer) -> VOID
 ; TESTED WORKING
-; TODO: Count leading zeroes and return address to skip them.
+;
+; I will not be counting leading zeroes so that hex output is aligned.
 ;
 ; The buffer must at least 8 bytes long and can include a null terminator.
 ; Takes a number in AL and converts it to a hex nibble character.

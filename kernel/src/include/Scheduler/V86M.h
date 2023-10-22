@@ -1,18 +1,11 @@
 ////////////////////////////////////////////////////////////////////////////////
-//                      This file is part of OS/90.
-//
-// OS/90 is free software: you can redistribute it and/or modify it under the
-// terms of the GNU General Public License as published by the Free Software
-// Foundation, either version 2 of the License, or (at your option) any later
-// version.
-//
-// OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY
-// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-// FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-// details.
-//
-// You should have received a copy of the GNU General Public License along
-// with OS/90. If not, see <https://www.gnu.org/licenses/>.
+//                                                                            //
+//                     Copyright (C) 2023, Joey Qytyku                        //
+//                                                                            //
+// This file is part of OS/90 and is published under the GNU General Public   //
+// License version 2. A copy of this license should be included with the      //
+// source code and can be found at <https://www.gnu.org/licenses/>.           //
+//                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef SCHEDULER_V86M_H
@@ -27,6 +20,8 @@
 
 //
 // This is the structure used by EnterRealMode and as an input to Svint86.
+// It is independent of anything trap frame related because it is a separate
+// buffer for entering SV86.
 //
 typedef struct {
     U32 eax;
@@ -50,6 +45,13 @@ typedef struct {
 
 }SV86_REGS,*P_SV86_REGS;
 
+//
+// TODO:
+//      Is SV86_REGS really what I want to pass? Can it depend?
+//      Remeber that the behavior can be radically different depending
+//      on whether it is SV86 or not. I should probably pass it as a
+//      parameter.
+//
 typedef BOOL (*V86_HANDLER)(P_SV86_REGS);
 
 typedef struct
@@ -59,14 +61,14 @@ typedef struct
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
 
-extern KERNEL VOID ScHookDosTrap(
+API_DECL(VOID, HookDosTrap,
     U8,
     PV86_CHAIN_LINK,
     V86_HANDLER
 );
 
-extern VOID KERNEL ScOnErrorDetatchLinks(VOID);
-extern VOID KERNEL Svint86(P_SV86_REGS, U8);
+API_DECL(VOID, ScOnErrorDetatchLinks, VOID);
+API_DECL(VOID, Svint86, P_SV86_REGS, U8);
 
 extern VOID EnterRealMode(VOID);
 extern SV86_REGS _RealModeRegs;

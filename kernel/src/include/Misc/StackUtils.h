@@ -25,4 +25,10 @@ VOID RmPushMult16(
     ...
 );
 
+VOID RmPopMult16(
+    U16     ss,
+    PU32    esp,
+    U32     num_to_pop,
+    PU32    buff
+);
 #endif /* STACKUTILS_H */

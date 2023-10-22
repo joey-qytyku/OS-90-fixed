@@ -12,14 +12,13 @@
 #define PNP_RESOURCE_H
 
 #include <Type.h>
-#include "Drivers.h"
 
 typedef enum {
     UNDEFINED = 0,
     BUS_FREE  = 1,  // Available interrupt
     BUS_INUSE = 2,  // 32-bit interrupt controlled by a BUS
     RECL_16   = 3   // Legacy DOS driver interrupt, can be reclaimed
-}INTERRUPT_LEVEL;
+}INTERRUPT_CLASS;
 
 #define MAX_IO_RSC 64
 
@@ -51,7 +50,7 @@ typedef enum {
 
 typedef VOID (*FP_IRQ_HANDLER)(VOID);
 
-typedef struct __attribute__((packed))
+tpkstruct
 {
     U32          start;
     U32          size:24;
@@ -62,7 +61,7 @@ typedef struct __attribute__((packed))
         is_std:1,
         inuse:1,
         mem_cachable:1,
-        io_decode:2,
+        io_decode:2,        // IO decode is now forced to 10-bit
         io_access:2;
 }IO_RESOURCE,
 *PIO_RESOURCE;
@@ -72,7 +71,7 @@ typedef struct __attribute__((packed))
     // Each level is two bits, which means that all interrupt levels fit in
     // a single 32-bit U32
 
-    U32           lvl_bmp;
+    U32             class_bmp;
     FP_IRQ_HANDLER  handlers[16];
     PDRIVER_HEADER  owners[16];
 }INTERRUPTS,

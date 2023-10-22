@@ -40,6 +40,14 @@
         "map.h": "c",
         "segutils.h": "c",
         "stackutils.h": "c",
-        "dpmi.h": "c"
+        "dpmi.h": "c",
+        "string.h": "c",
+        "event.h": "c",
+        "sync.h": "c",
+        "typeinfo": "c",
+        "tss.h": "c",
+        "optional": "cpp",
+        "system_error": "cpp",
+        "ostream": "cpp"
     }
 }

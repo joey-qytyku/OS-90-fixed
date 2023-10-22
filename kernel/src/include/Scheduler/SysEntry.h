@@ -49,17 +49,22 @@ tpkstruct {
     U32   esi;
     U32   edi;
     U32   ebp;
+
     U32   eip;
     U32   cs;
     U32   eflags;
-
     U32   esp;
     U32   ss;
 
-    U32   es;
-    U32   ds;
-    U32   fs;
-    U32   gs;
+    U32   pm_es;
+    U32   pm_ds;
+    U32   pm_fs;
+    U32   pm_gs;
+
+    U32   v86_es;
+    U32   v86_ds;
+    U32   v86_fs;
+    U32   v86_gs;
 }IRET_FRAME,*P_IRET_FRAME;
 
 

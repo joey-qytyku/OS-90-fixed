@@ -4,16 +4,17 @@
 #include <Type.h>
 #include <Misc/log2.h>
 
-// If all threads inside the PCB are dead, the whole process may be replaced
-// when executing a new process.
-
+// Relates to the thread state variable
+//
+//
+//
 enum {
     THREAD_DEAD,
     THREAD_IN_KERNEL,
     THREAD_BLOCKED,
     THREAD_RUN_V86,
     THREAD_RUN_PM,
-    THREAD_TYPE_MASK = 0b111
+    THREAD_TYPE_MASK = 0b111 // All other bits reserved
 };
 
 enum {
@@ -125,6 +126,7 @@ static inline P_PCB GetCurrentPCB(VOID)
     return (P_PCB)(sp & (~0x1FFF));
 }
 
+// Remove this?
 PVOID KERNEL ProcSegmentToLinearAddress(
     P_PCB,
     U16,
