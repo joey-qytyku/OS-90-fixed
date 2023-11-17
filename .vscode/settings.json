@@ -48,6 +48,7 @@
         "tss.h": "c",
         "optional": "cpp",
         "system_error": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "ranges": "c"
     }
 }

@@ -45,26 +45,24 @@ typedef struct {
 
 }SV86_REGS,*P_SV86_REGS;
 
+// SV86 and process V86 require radically different behavior and must be known
+// by the handler. The register dump is also different.
+// Returns 1 if swallowed the interrupt and 0 if passed down the chain.
 //
-// TODO:
-//      Is SV86_REGS really what I want to pass? Can it depend?
-//      Remeber that the behavior can be radically different depending
-//      on whether it is SV86 or not. I should probably pass it as a
-//      parameter.
-//
-typedef BOOL (*V86_HANDLER)(P_SV86_REGS);
+typedef BOOL (*SV86_HANDLER)(P_SV86_REGS);
+typedef BOOL (*UV86_HANDLER)(P_UREGS);
 
 typedef struct
 {
-    V86_HANDLER handler;  // Set the handler
-    PVOID next;           // Initialize to zero
+    SV86_HANDLER    if_sv86;
+    UV86_HANDLER    if_uv86;
+    PVOID next;           // Initialize to NULL
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
 
 API_DECL(VOID, HookDosTrap,
     U8,
-    PV86_CHAIN_LINK,
-    V86_HANDLER
+    PV86_CHAIN_LINK
 );
 
 API_DECL(VOID, ScOnErrorDetatchLinks, VOID);

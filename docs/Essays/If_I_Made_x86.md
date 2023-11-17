@@ -3,7 +3,7 @@
 I will remove the following opcodes:
 * INTO: Why would anyone ever use this?
 * INT3: Just use INT 3!
-* XLAT
+* XLAT: Why waste microcode on this?
 
 ARM-style predication prefix byte for all instructions. It could be used to implement conditional procedure calls and near jumps.
 
@@ -12,7 +12,7 @@ mov.z ax,10
 call.ge GreaterOrEqual
 ```
 
-Extended INT instruction that also sets the AH register.
+Extended INT instruction that also sets the AH register before going in.
 
 ```
 mov     dx,MyString

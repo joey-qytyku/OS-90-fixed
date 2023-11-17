@@ -2,6 +2,12 @@
 
 OS/90 features a fully-preemptible and reentrant kernel. The scheduler is the most complex part of OS/90 because of the high degree of DOS compatibility and modern features built on top of it.
 
+* How processes enter and exit the kernel
+* How tasks are switched
+* Syhcronization
+* Sending user-trapped events like IRQs and exceptions
+* Virtual 8086 mode
+
 # Terms to Know
 
 Virtual INT: A feature in OS/90 that allows the kernel thread to enter real mode to call a software interrupt vector. This is terminated by the IRET instruction at the highest INT call level.
@@ -67,14 +73,6 @@ All processes are DPMI/DOS applications and can run in one of the following mode
 
 A few DPMI functions are slightly different between 16 and 32-bit protected mode.
 
-# What this Document is About
-
-* How processes enter and exit the kernel
-* How tasks are switched
-* Syhcronization
-* Sending user-trapped events like IRQs and exceptions
-* Virtual 8086 mode
-
 # Synchronization
 
 OS/90 makes use of non-reentrant locks. It is expected that all functions that require a lock to be acquired prior to calling document this. A function that acquires a lock should be the one that releases it.
@@ -84,6 +82,8 @@ OS/90 makes use of non-reentrant locks. It is expected that all functions that r
 The PCB is 8192 bytes large and naturally aligned. It includes the stack and information about the process, both being 4096 bytes.
 
 # Elevated Virtual 8086 Mode (SV86)
+
+SV86 is a non-preemptible context that is entered by the kernel to perform a task in real mode with direct hardware access. INTs can be captured, but IO is always direct.
 
 # Contexts
 
@@ -160,23 +160,13 @@ Exceptions use system entry and are subject to the same rules as software interr
 
 IRQs use the same entry/return method but do not go through system entry.
 
-# Thread States and Context Types (TODO)
+# Bimodal Thread
 
-OS/90 provides three contexts:
-* User   (PM/RM)
-* Kernel (PM)
-* SV86   (RM)
+A single process has one register dump for both kernel and user. It can be in kernel or in userspace (V86 or PM).
 
-The following thread states are supported:
-```c
-enum {
-    THREAD_DEAD,
-    THREAD_IN_KERNEL,
-    THREAD_BLOCKED,
-    THREAD_RUN_V86,
-    THREAD_RUN_PM
-};
-```
+When the kernel thread is done its work, it can go back to the original process. It does not need to unblock it, switch to its previous execution state and wait for reschedule. just as the user thread can enter the kernel thread with only one single non-preemptible context between them, the same can happen in reverse. This is done by entering a __non-interruptible context__, setting up the PCB as necessary, and copying the ring-3 regdump to the IRET frame before returning (which will reset IF).
+
+## System Calls and Latency
 
 # Scheduler Tick Interrupt
 
@@ -260,7 +250,17 @@ INT capturing must work with SV86 and regular processes. The same procedure is c
 
 The INT capture structure contains a handler for SV86 and user V86. Both __must__ be provided. It cannot be the same procedure.
 
-> todo: add a check preempt zero operation. Make SV86 regs and proc regs somewhat compatible? Why would they be though?
+# Far Call Capture
+
+Far calls are captured by reporting a special address through installation check functions for individual APIs. This address is then indirectly called by real mode software. A small stub procedure then makes an INT 255 call with a... <TODO>
+
+Only real mode processes can have far calls hooked. SV86 should never call a far call location.
+
+## API
+
+```
+STATUS GetRealModeFarCallAddress(FAR_PTR_16  *out);
+```
 
 # ISR and Kernel Reentrancy
 

@@ -71,15 +71,13 @@ VOID KERNEL ScOnErrorDetatchLinks(VOID)
 
 VOID KERNEL HookDosTrap(
     U8                    vector,
-    PV86_CHAIN_LINK       ptrnew,
-    V86_HANDLER           hnd
+    PV86_CHAIN_LINK       ptrnew
 ){
     AtomicFencedInc(&preempt_count);
 
     const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
 
     prev_link->next = ptrnew;
-    ptrnew->handler = hnd;
     ptrnew->next = NULL;
 
     AtomicFencedDec(&preempt_count);

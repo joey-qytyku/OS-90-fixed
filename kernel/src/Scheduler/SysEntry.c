@@ -61,8 +61,7 @@ static U8 rm_isr_entrance_counter = 0;
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
-    const PU8 ins = MK_LP(iframe->cs, iframe->eip);
-
+    const PU8  ins  = MK_LP(iframe->cs, iframe->eip);
     const BOOL sv86 = WasSV86();
 
     if (sv86) {
@@ -78,11 +77,15 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
         }
 
         else if (*ins == OP_IRET) {
-            RmPopMult16(iframe->ss, &iframe->esp, 5, &iframe->eip);
+            // Each value is coppied to the pop location in x86 reverse order
+            RmPopMult16(iframe->ss, &iframe->esp, 5, &iframe->ss);
         }
         else if (IS_IO_OPCODE(*ins) || IS_IO_OPCODE(ins[1])) {
             IoEmuSV86(ins);
         }
+    }
+    else {
+        //
     }
 }
 

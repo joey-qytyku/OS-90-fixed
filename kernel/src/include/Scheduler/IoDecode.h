@@ -20,7 +20,7 @@
 
 #include <Type.h>
 
-#define IS_IO_OPCODE(op) ( ((op) & 0b01100100) != 0)
+#define IS_IO_OPCODE(op) ( ((op) & 0b01100100) > 0)
 
 // When emulating port IO instructions, this structure is generated after
 // decoding

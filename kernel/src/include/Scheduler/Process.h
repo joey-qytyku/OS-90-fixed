@@ -4,7 +4,7 @@
 #include <Type.h>
 #include <Misc/log2.h>
 
-// Relates to the thread state variable
+// Relates to the thread state variable.
 //
 //
 //
@@ -49,7 +49,7 @@ tstruct {
     U32 esp;
     U32 eflags;
     U32 eip;
-}UREGS;
+}UREGS,*P_UREGS;
 
 //
 // Context of a kernel thread. Segment registers are omitted because the kernel
@@ -84,6 +84,7 @@ typedef struct PACKED
 // Very performance sensitive. Beware of structure ordering.
 // This structure is NOT packed by default.
 
+// Create "methods" for this?
 tstruct
 {
     UREGS   user_regs;
@@ -100,12 +101,15 @@ tstruct
 
     // Real mode control section
     FAR_PTR_16 rm_local_ivt[256];
-    U32   rm_kernel_ss_sp;
 
-    U16   rm_subproc_exit_code;
+    // This is the SS:SP to be used when performing DPMI translation services.
+    // Because they are not SV86, it is local to each process.
+    U32 rm_dpmi_xlat_ss_sp;
 
-    U32   ctrl_c_handler_seg_off;
-    U32   crit_error_seg_off;
+    U16 rm_subproc_exit_code;
+
+    U32 ctrl_c_handler_seg_off;
+    U32 crit_error_seg_off;
 
     // Add subprocess stack. It contains:
     // * PSP
@@ -114,17 +118,52 @@ tstruct
     U8   current_working_dir[80];
     // The command line remembers the current disk path
     // Default behavior is to CD to the root. (I think)
-    // This includes the drive letter.
-}  PCB,
-*P_PCB;
+    // This includes the drive letter as "[LETTER]:C"
+}PCB, *P_PCB;
 
-//static int x = sizeof(PCB);
+// static int x = sizeof(PCB);
 
 static inline P_PCB GetCurrentPCB(VOID)
 {
     register U32 sp __asm__("sp");
-    return (P_PCB)(sp & (~0x1FFF));
+    return (P_PCB)(sp & (~0x1FFFL));
 }
+
+// "Methods" for the PCB because it has so many members without a clear
+// indication as to how they are meant to be accessed.
+// These are all static inlines and the compiler will optimize most of the
+// calls away with direct access. If necessary, it could also generate static
+// procedures.
+// IGNORE THESE FOR DRIVERS!
+
+#define MK_GETTER(rettype, funcname, member)\
+    rettype PcbGet_##funcname(P_PCB pcb)\
+    { return pcb->member; }\
+
+#define MK_SETTER(type, funcname, member)\
+    VOID PcbSet_##funcname(P_PCB pcb, type value)\
+    { pcb->member = value; }
+
+// Get/set next process
+MK_GETTER(P_PCB, Next, next);
+MK_SETTER(P_PCB, Next, next);
+
+// Get/set last process
+MK_GETTER(P_PCB, Last, last);
+MK_SETTER(P_PCB, Last, last);
+
+// Get/set PM IDT entries
+
+static inline VOID PcbSetLocalIdtEntry(P_PCB p, U8 i, LOCAL_PM_IDT_ENTRY e)
+{ p->local_idt[i] = e; }
+
+static inline LOCAL_PM_IDT_ENTRY PcbGetLocalIdtEntry(P_PCB p, U8 i)
+{ return p->local_idt[i]; }
+
+// Get/set real mode IVT vectors
+
+static inline VOID PcbSetLocalRmVector(P_PCB p, U8 i, FAR_PTR_16 v)
+{ p->rm_local_ivt[i] = v; }
 
 // Remove this?
 PVOID KERNEL ProcSegmentToLinearAddress(

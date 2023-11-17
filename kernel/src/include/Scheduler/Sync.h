@@ -129,6 +129,9 @@ static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
     return ret;
 }
 
+#define K_PreemptDec() AtomicFencedDec(&preempt_count)
+#define K_PreemptInc() AtomicFencedInc(&preempt_count)
+
 API_DECL(VOID, PreemptDec, VOID);
 API_DECL(VOID, PreemptInc, VOID);
 
