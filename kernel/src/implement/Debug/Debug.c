@@ -14,7 +14,7 @@
 #include <Platform/IO.h>
 
 #include <stdarg.h>
-#include <Debug.h>
+#include <Debug/Debug.h>
 #include <Type.h>
 
 #include <Misc/String.h>
@@ -63,7 +63,15 @@
 //     }
 // }
 
-VOID KeWriteAsciiz(OUTPUT_DRIVER od, const char *string)
+VOID KERNEL Putchar(char ch)
+{
+    outb(0xE9, ch);
+}
+
+static OUTPUT_DRIVER od = Putchar;
+
+
+VOID KERNEL WriteAsciiz(const char *string)
 {
     U32 max = StrLen(string);
 
@@ -71,47 +79,62 @@ VOID KeWriteAsciiz(OUTPUT_DRIVER od, const char *string)
         od(string[i]);
 }
 
+VOID SetOutputDriver(OUTPUT_DRIVER od)
+{}
+
 // @x - Hex32
 // @i - Int32
 // @s - string (@/# irrelevant)
 // # for signed
 // Example:
-//  Logf(LptDebug, "Value = @d\n\r", value)
-//
+//  Logf("Value = @d\n\r", value)
 //
 // It is the output driver's responsibility to handle ascii sequences
 // Logf sends the character when it is not a format escape
 //
-VOID KERNEL Logf(OUTPUT_DRIVER od, const char *fmt, ...)
+VOID KERNEL Logf(const char *fmt, ...)
 {
     char printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
-    va_list ap;
     BOOL is_signed;
 
-    va_start(ap, fmt);
+    PU32 args = GET_VAR_LIST(fmt);
+    U32 argindex = 0;
 
-    for (U16 i=0; fmt[i] != 0; i++)
+    for (U32 i=0; fmt[i] != 0; i++)
     {
-        if     (fmt[i] == '@') {is_signed = 0;}
-        else if(fmt[i] == '#') {is_signed = 1;}
-        else               {od(fmt[i]); continue;}
+        if     (fmt[i] == '@') { is_signed = 0;       }
+        else if(fmt[i] == '#') { is_signed = 1;       }
+        else                   { od(fmt[i]); continue;}
 
         // The following runs if this is a format character
         i+=2; // Skip the format characters
 
         switch (fmt[i-1])
         {
-        // Print hexadecimal, sign is ignored
+        // Print hexadecimal, sign is ignored but should be @ for logical reasons
         case 'x':
-            va_arg(ap, U32);
+            Hex32ToString(args[argindex], printfmt_buffer);
+            argindex++;
         break;
 
         // Print integer, signed or unsigned format
         case 'i':
+            // Well, *is* it negative?
+            const BOOL negative = args[argindex];
+
+            if (negative) {
+                // In two's complement, a 4-bit number like 1000
+                // would be -1. Whatever exists without the top bit plus one
+                // is the magnitude, exclusive of sign.
+                const S32 mag = (args[argindex] & (~(-1))) + 1;
+            }
+
+            argindex++;
         break;
 
         case 's':
-            // TODO?
+            // TODO? Just use write asciiz
+
         break;
 
         case '#':
@@ -126,11 +149,6 @@ VOID KERNEL Logf(OUTPUT_DRIVER od, const char *fmt, ...)
     FailSilent:
     // This function must end with va_end
     va_end(ap);
-}
-
-VOID _KernelPutchar(char ch)
-{
-    outb(0xE9, ch);
 }
 
 VOID KERNEL FatalError(U32 error_code)

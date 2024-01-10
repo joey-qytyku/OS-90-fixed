@@ -9,7 +9,7 @@ CC := $(TOOLCHAIN)/i386-linux-gcc
 # Assembler
 AS := nasm
 
-SRCDIR := src
+SRCDIR := src/implement
 OBJDIR := build/obj
 BINDIR := build
 
@@ -30,7 +30,6 @@ AFLAGS := -f elf32 -Ox -i src/include/
 LD := $(TOOLCHAIN)/i386-linux-ld
 
 .PHONY: all clean
-
 all: $(EXEC)
 
 $(EXEC): $(OBJS)

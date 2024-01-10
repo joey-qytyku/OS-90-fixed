@@ -47,6 +47,10 @@ typedef struct {
 
 // SV86 and process V86 require radically different behavior and must be known
 // by the handler. The register dump is also different.
+//
+// Regardless, a handler must be implemented for both
+// A single front link is used.
+//
 // Returns 1 if swallowed the interrupt and 0 if passed down the chain.
 //
 typedef BOOL (*SV86_HANDLER)(P_SV86_REGS);
@@ -56,7 +60,7 @@ typedef struct
 {
     SV86_HANDLER    if_sv86;
     UV86_HANDLER    if_uv86;
-    PVOID next;           // Initialize to NULL
+    PVOID next;
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
 

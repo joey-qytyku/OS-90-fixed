@@ -29,18 +29,18 @@
 #include <Misc/BitArray.h>   /* Bit array procedures for LDT managment */
 #include <PnP/Resource.h>    /* Getting interrupt information */
 
-#include <Debug.h>
+#include <Debug/Debug.h>
 #include <Type.h>
 
-ATOMIC preempt_count = {0};
-ATOMIC g_sv86 = {0};
+// Organize using structs
 
-volatile P_PCB current_pcb;
-volatile P_PCB first_pcb; // The first process
-volatile U32 number_of_processes;
+ATOMIC preempt_count = ATOMIC_INIT;
 
-// A flag that indicates if the last context was SV86. Must be set with
-// preemption disabled.
+// Why volatile? You will only access these when you have authority to do so.
+
+P_PCB current_pcb;
+P_PCB first_pcb; // The first process
+U32   number_of_processes;
 
 VOID KERNEL PreemptInc(VOID)
 {
@@ -52,14 +52,19 @@ VOID KERNEL PreemptDec(VOID)
     AtomicFencedDec(&preempt_count);
 }
 
+// BRIEF:
+//      Are we in a preemptible context?
+//
 BOOL KERNEL Preemptible(VOID)
 {
-    // TODO
+    return AtomicFencedCompare(&preempt_count, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////VIRTUAL 8086 MODE SECTION///////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+
+ATOMIC g_sv86 = {0};
 
 alignas(4) static V86_CHAIN_LINK v86_capture_chain[256];
 alignas(4) static U32 dos_semaphore_seg_off; // ???
@@ -88,8 +93,10 @@ VOID KERNEL HookDosTrap(
 // BRIEF:
 //      A general purpose function for calling virtual 8086 mode INT calls.
 //
-//      This is called any time the kernel is trying to emulate INT.
-//      To avoid confusion: there is ZERO relation with the trap frame here.
+//      This is called any time the kernel is trying to emulate INT. SV86 is
+//      used here.
+//      To avoid confusion: there is ZERO relation with the trap frame or the
+//      PCB register dump. A separate buffer is used.
 //
 // WARNINGS:
 //      This function does not provide a stack.
@@ -106,7 +113,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     // As long as there is another link
     while (current_link->next != NULL)
     {
-        STATUS hndstat = current_link->handler(context);
+        STATUS hndstat = current_link->if_sv86(context);
         if (hndstat == CAPT_HND)
             return;
         else {
@@ -116,7 +123,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     }
 
     // FALLBACK TO REAL MODE USING IVT
-    // In this case, we change the stack itself using the reg buffer
+    // In this case, we change the stack itself using the reg buffer???
 
     // We must lock real mode when accessing this structure
     AtomicFencedInc(&preempt_count);
@@ -137,6 +144,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     // Write back results
 }
 
+// Works for UV86 and SV86 because we do not read the arguments.
 STATUS V86CaptStub()
 {
     return CAPT_NOHND;
@@ -147,10 +155,7 @@ VOID InitV86(VOID)
     // Add the V86 stub.
     for (U16 i = 0; i<256; i++)
     {
-        V86_CHAIN_LINK new = {
-            .next = NULL,
-            .handler = V86CaptStub
-        };
+        V86_CHAIN_LINK new = { NULL, V86CaptStub, V86CaptStub};
         v86_capture_chain[i] = new;
     }
 }

@@ -37,12 +37,23 @@ In Protected Mode:
 static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
 
 //
+// OS/90 cannot handle nested exceptions, or really any other asynchronous event
+// happening within a non-preemptible context.
+//
+static U8 in_exception = 0;
+
+//
 // When the INT instruction is called in SV86, this number is incremented.
 // IRET decrements it. After each dec/inc, the kernel checks if zero
 // and if so, the original caller of virtual 8086 mode is entered.
 //
 
 static U8 rm_isr_entrance_counter = 0;
+
+// >> A system entry must be preemptible or non-preemptible the entire time?
+// Think about it. An exception will never enable preemption.
+// The context must always be assumed and never manipulated within an exception
+// handler. Some procedures are meant to be used this way and others are not.
 
 // TODO: Get info about desciptor?
 
@@ -52,6 +63,10 @@ static U8 rm_isr_entrance_counter = 0;
 //      SV86 is used with IOPL=0 at all times, which causes INT and others
 //      to be trapped to the monitor in a non-preemptible context and separately
 //      from userspace.
+//
+//      I considered using IOPL=3 for all operations, but this makes system entry
+//      way more complicated and require to much knowledge of SV86 and UV86 in one
+///     component. Instead, they take different paths.
 //
 //      We still need to know if it was SV86 because some instructions can be
 //      emulated for userspace regardless of IOPL. CLI and STI also
@@ -77,6 +92,7 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
         }
 
         else if (*ins == OP_IRET) {
+            // Check counter?
             // Each value is coppied to the pop location in x86 reverse order
             RmPopMult16(iframe->ss, &iframe->esp, 5, &iframe->ss);
         }
@@ -161,27 +177,26 @@ VOID SystemEntryPoint(
         // and we do not want it to run when we enable interrupts.
         AtomicFencedInc(&preempt_count);
 
-        // Enable interrupts
+        // 0. Enable interrupts
         _STI;
 
-        // Get the requesting process PCB
+        // (1) Get the requesting process PCB
         request_from = GetCurrentPCB();
 
-        // Save iret frame to the user context
+        // (2) Save iret frame to the user context
         CopyIframeToRing3Context(0, iframe, &request_from->user_regs);
 
-        // Save thread state.
+        // (3) Save thread state.
         old_thread_state = request_from->thread_state;
 
-        // Block the process so it is not scheduled when preemption is enabled.
+        // (4) Block the process so it is not scheduled when preemption is enabled.
         request_from->thread_state = THREAD_BLOCKED;
 
         AtomicFencedDec(&preempt_count);
 
-        // Now the process is block and we are free to service it. //
+        // Now the process is blocked and we are free to service it
 
-        // Was it an exception? If so, dispatch to an exception handler.
-
+        // (5) Was it an exception? If so, dispatch to an exception handler.
         // Reserved vectors is 32. I should expand the table in Intr_Trap.asm
         // so that it includes them
 
@@ -191,64 +206,13 @@ VOID SystemEntryPoint(
             // INT family instruction caused the entry. INT more likely.
             // We do not
         }
-
-        // IOPL (?)
-
-    }
-    else {
-        // Wait, how are we supposed to deal with VEC_INT_RMPROC. That is not SV86.
-        // THIS IS WRONG.
-
-        // This was SV86. We will now dispatch the event code.
-        switch (event)
-        {
-            // INT from real mode process. Generic stack emulation using
-            // the PCB
-
-            case VEC_INT_RMPROC:
-            {
-                U32 push_ip, push_cs, push_flags;
-
-                // Direct access to PCB while process is inactive.
-                push_ip    = iframe->eip;   // EIP saved is AFTER the INT code.
-                push_cs    = iframe->cs;
-                push_flags = iframe->eflags;
-
-                RmPushMult16(
-                    request_from->user_regs.ss,
-                    &request_from->user_regs.esp,
-                    3,
-                    push_ip,
-                    push_cs,
-                    push_flags
-                );
-
-                // Two things can happen here:
-                // No local vector was set, so we must enter SV86.
-                // We were not already in it.
-
-                // Switch control flow to a local interrupt vector
-                FAR_PTR_16 vector = request_from->rm_local_ivt[global_orig_vector];
-                iframe->cs  = (U32)vector.seg;
-                iframe->eip = (U32)vector.off;
-            }
-            break;
-
-            // INT from SV86. This will access the TRAP FRAME and not the PCB.
-            // For the first INT, it will actually
-            case VEC_INT_SV86:
-                rm_isr_entrance_counter++;
-            break;
-
-        }
     }
 
-
-    // We will return only if it was an SV86.
-
-    // Now  will hang until reschedule.
+    // Now  will hang until reschedule. This kernel thread will be expunged later.
     if (!g_sv86)
-        while (1);
+        while (1) {
+            __asm__("hlt":::"memory");
+        }
 
     // Otherwise, return.
 }

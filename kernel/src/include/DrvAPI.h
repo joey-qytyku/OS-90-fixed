@@ -10,7 +10,7 @@
 
 #include "Type.h"
 #include "Misc/String.h"
-#include "Debug.h"
+#include "Debug/Debug.h"
 
 #include "Scheduler/Core.h"
 #include "Memory/Core.h"

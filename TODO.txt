@@ -70,3 +70,48 @@ Okay, I will make a unified register dump structure that works regardless of the
 What if the kernel changes the V86 mode in the flags register? I guess I would have to honor it.
 
 Really? If we call a DPMI service to raw switch, the only thing that really happens is that the PCB is changed until the kernel thread terminates.
+
+=== Dec 29, 2023 ===
+
+I should make `include` and `implements` folders.
+
+Additionally, I should make advanced debugging features, or OS/90 will be pure torture.
+
+Ideas:
+- The ability to debug/run a specific application with or without rebuilding the whole OS
+- Support for OS breakpoints
+- Console logging through the COM port
+- Stack tracing
+- Software exception handling with throw/catch? Can I make it a procedure within a procedure using inline ASM?
+- Macros to throw fatal errors in certain situation (e.g. incorrect context type, function cannot be used in an ISR, ...)
+
+```
+    TRYING_FOR(MY_EXCEPTION, Catch, NotThrown)
+        DoWhatever();
+    Catch:
+        return OS_GENERIC_ERROR;
+    NotThrown:
+        return OS_OK;
+```
+This would not exactly be high performance. You could just use setjmp.
+
+Other plans:
+- I need to reduce the reliance on external libraries in OS/90 drivers
+- A real memory allocator like malloc(). I am sure I can come up with something nice.
+  maybe use some sort of reference counting for efficient reshuffling.
+  Maybe double pointers to replace references? IDK.
+
+=== January 10 ===
+
+Final todo list to finish OS/90 within 4 years in order of progression:
+
+Kernel phase:
+- Debugging (assertions, stack trace, logging, maybe breakpoints)
+- Memory manager (virtual memory not a top priority for now)
+- The dreaded scheduler
+- Intensive testing of the aformentioned systems
+- PnP subsystem and event dispatching
+
+General improvements:
+. Better build system for debugging drivers and applications
+

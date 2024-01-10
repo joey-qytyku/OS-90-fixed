@@ -1,3 +1,5 @@
+Note: I need to have the ability to delete unused PCBs from memory. I suppose if there are none inside a block, the block can be deallocated.
+
 # Preface
 
 OS/90 features a fully-preemptible and reentrant kernel. The scheduler is the most complex part of OS/90 because of the high degree of DOS compatibility and modern features built on top of it.
@@ -79,7 +81,7 @@ OS/90 makes use of non-reentrant locks. It is expected that all functions that r
 
 # The Process Control Block
 
-The PCB is 8192 bytes large and naturally aligned. It includes the stack and information about the process, both being 4096 bytes.
+The PCB is 8192 bytes large and naturally aligned. It includes the kernel stack and information about the process, both being 4096 bytes. This allows two PCB's to exist inside a memory block on the default configuration. This is handled by using the flags related to whether or not the PCB is valid.
 
 # Elevated Virtual 8086 Mode (SV86)
 

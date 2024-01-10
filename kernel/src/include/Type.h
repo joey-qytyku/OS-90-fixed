@@ -174,9 +174,6 @@ Solution:
 
 // Abolish this and simply use const char*
 
-typedef char STR[];
-typedef char (*PSTR)[];
-
 #define NULL ((PVOID)0UL)
 
 #define tstruct   typedef struct
@@ -190,7 +187,7 @@ typedef char (*PSTR)[];
 /////////////////////////////////////////////////////////////////////
 
 #define BYTE_PTR(var, off) *(PU8) ((var)+(off))
-#define WORD_PTR(var, off) *(PU32) ((var)+(off))
+#define WORD_PTR(var, off) *(PU16) ((var)+(off))
 #define DWORD_PTR(var,off) *(PU32)((var)+(off))
 
 #define PTR2INT(ptr) ((U32)(ptr))

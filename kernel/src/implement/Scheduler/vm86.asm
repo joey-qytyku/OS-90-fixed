@@ -57,6 +57,10 @@ EnterRealMode:
         section .data
         section .bss
 
+; This procedure should never be called anywhere outside an exception handler
+; which is non-preemptible context. Because it is non-preemptible, it is safe
+ExitRealMode:
+
 ; The order here is expedient to EnterRealMode and does not have anything
 ; to do with the trap frame
 _RealModeRegs:
@@ -64,6 +68,7 @@ _RealModeRegs:
 _RealModeTrapFrame:
         RESD    9
 
+; When we return to the called of EnterRealMode, this buffer is loaded.
 RealModeCalleeSaved:
 .lEsp:  RESD    1
 .lEbp:  RESD    1

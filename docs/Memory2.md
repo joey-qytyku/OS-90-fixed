@@ -17,7 +17,7 @@ PT: Page table
 
 PD: Page directory
 
-KPD: Kernel page directory
+KPD: Kernel page directory. Global to all processes.
 
 UPD: Process-local page directory entries
 
@@ -59,6 +59,8 @@ The single address space means that IPC is very easy and context switching is mu
 
 The userspace VAS must be larger than the maximum physical memory. It is 3GB. Keeping page tables for this much memory is impractical because it would be 4MB of RAM constantly in use. Instead, OS/90 has a growing page table chain.
 
+Memory in the PTC can be deallocated.
+
 ## Emulating MMIO
 
 This is possible. Another section deals with the implementation and API
@@ -66,6 +68,19 @@ This is possible. Another section deals with the implementation and API
 # Core Memory API
 
 The following is a full description of the API implemented by the memory manager.
+
+## Check Memory Manager Lock
+
+```c
+BOOL KERNEL_ASYNC MmReentStat(VOID);
+```
+
+If this returns one, then absolutely no memory manager functions may be called by an interrupt handler.
+
+The memory manager has a single mutex lock that is acquired by every function that reads or writes the block list, PT/PD, and other structures. If it is currently acquired, an interrupt handler cannot safely call anything in the memory manager API. If the lock is not acquired, it is safe to call memory API functions from the atomic context.
+
+> MMS functions are thread safe unless otherwise specified when called in a preemptible context.
+
 
 ## Memory Info
 
@@ -101,18 +116,6 @@ STATUS MapBlock(
 Addresses must be block aligned. Mostly for internal use but can be used for MMIO mapping (a better function exists for that).
 
 This will modify the page tables and will extend the PTC if necessary. The attributes are simply what is provided by the kernel for page table entries (PG_...).
-
-## Check Memory Manager Lock
-
-```c
-BOOL KERNEL_ASYNC MmReentStat(VOID);
-```
-
-If this returns one, then absolutely no memory manager functions may be called by an interrupt handler.
-
-The memory manager has a single mutex lock that is acquired by every function that reads or writes the block list, PT/PD, and other structures. If it is currently acquired, an interrupt handler cannot safely call anything in the memory manager API. If the lock is not acquired, it is safe to call memory API functions from the atomic context.
-
-> MMS functions are thread safe unless otherwise specified when called in a preemptible context.
 
 ## DOS Memory Managment Functions
 
@@ -152,12 +155,11 @@ The only way to deallocate memory is to resize to zero. In such a case, the retu
 
 Example:
 ```c
-P86 dma_buffer = ConvMemAlloc(65536);
+PVOID dma_buffer = ConvMemAlloc(65536);
 
 RequestTransfer(dma_buffer);
 ConvMemRealloc(dma_buffer, 0);
 ```
-
 
 ### Get Available DOS Memory
 
@@ -217,7 +219,15 @@ BOOL GetSetBlockDirtyStatus(
 );
 ```
 
-`do_stain` is ignored if getting.
+FLAGS:
+```
+DBIT_GET
+DBIT_SET
+DBIT_CLEAN
+DBIT_STAIN
+```
+
+`DO_STAIN` is ignored if getting.
 
 This takes a virtual address and operated on the dirty bits of the associated pages. Input must be checked.
 
@@ -301,6 +311,10 @@ Pages are sometimes locked by userspace for performance reasons, but OS/90 would
 
 # Physical Block Table (PBT)
 
+> Declare page as unmapped? Map to zero and not present, no cache?
+
+The phsyical block table is an array that is allocated shortly after the kernel image and keeps the status the entire physical address space. This is a pool allocation system.
+
 A PBT entry:
 ```c
 // 8 bytes long
@@ -329,15 +343,21 @@ An `MB` represents a single block of 16K. This size can be reconfigured. The blo
 
 # Page Tables
 
-OS/90 uses one single set of page tables allocated in a special chain. When more are needed, the chain is extended.
+OS/90 uses one single set of page tables allocated in a special chain. When more are needed, the chain is extended and those page tables are attached to the page directory and mapped.
 
 Nothing fancy is done here. If a high address is requested for mapping, the kernel will simply allocate page tables all the way to that virtual address.
 
-The issue with the mapping functionality is that memory cannot be accessed unless it is mapped, including chains. This requires making a window in the address space. It is a virtual block at the very end of the entire address space. It should NEVER be accessed by drivers.
+## Deallocation
 
-Because mapping memory requires TLB flushes, it is not a huge deal.
+When a mapping is deleted, the blocks containing it are deleted.
 
-On the i486, INVLPG can be used on this window, needing only a few iterations and saving the rest of the TLB.
+## Access Window
+
+The issue with the mapping functionality is that memory cannot be accessed unless it is mapped, including the chain data. This requires making a window in the address space. It is a virtual block at the very end of the entire address space.
+
+On the i486, INVLPG can be used on this window, needing only a few iterations and saving the rest of the TLB. Mapping anything will require flushing the TLB later, so it is not a huge problem.
+
+> The window is internal and should not be accessed by drivers.
 
 # Virtual Memory List
 

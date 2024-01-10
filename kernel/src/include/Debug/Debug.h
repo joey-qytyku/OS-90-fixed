@@ -15,11 +15,12 @@
 
 typedef VOID (*OUTPUT_DRIVER)(U8);
 
-API_DECL(VOID, Logf,        OUTPUT_DRIVER, const char*, ...);
+API_DECL(VOID, Logf,        const char*, ...);
 API_DECL(VOID, FatalError,  U32);
 
-VOID KeWriteAsciiz(OUTPUT_DRIVER, const char*);
-VOID _KernelPutchar(char ch);
+
+API_DECL(VOID, WriteAsciiz, const char*);
+API_DECL(VOID, Putchar, char ch);
 
 #define _str(x) #x
 #define _str2(x) _str(x)
@@ -33,11 +34,5 @@ VOID _KernelPutchar(char ch);
     KeWriteAsciiz(_KernelPutchar,"\x1b[0m");
 
 #define BREAK() __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
-
-#define kassert(x) {\
-    if (!(x)) {\
-        TRACE("ASSERT FAILED");\
-    }\
-}
 
 #endif

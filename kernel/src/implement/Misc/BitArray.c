@@ -61,8 +61,11 @@ VOID KeEnableBitArrayRange(PU32 array, U32 base_inx, U32 count)
 // NOTE:
 //      Ignore references to the LDT in comments. This is for any bit array.
 //
+// WARNINGS:
+//      Insanely good algorithm.
+//
 // TODO:
-//      Maybe rewrite in assembly.
+//      Maybe rewrite in assembly. Make it return -1 on failure.
 //
 STATUS KERNEL KeAllocateBits(
     PU32  array,         // Address of array
