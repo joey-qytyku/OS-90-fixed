@@ -56,10 +56,10 @@ VOID RmPushMult16(
     U32     num_to_push,
     ...
 ){
-    PU32 args = GET_VAR_LIST(num_to_push);
+    // PU32 args = GET_VAR_LIST(num_to_push);
 
-    for (U32 i = 0; i<num_to_push; i++)
-        RmPush16(ss, esp, args[i]);
+    // for (U32 i = 0; i<num_to_push; i++)
+    //     RmPush16(ss, esp, args[i]);
 }
 
 VOID RmPopMult16(

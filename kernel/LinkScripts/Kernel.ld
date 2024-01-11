@@ -1,11 +1,9 @@
 /*
-     This file is part of OS/90.
+                     Copyright (C) 2023, Joey Qytyku
 
-    OS/90 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 2 of the License, or (at your option) any later version.
-
-    OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License along with Foobar. If not, see <https://www.gnu.org/licenses/>.
+ This file is part of OS/90 and is published under the GNU General Public
+ License version 2. A copy of this license should be included with the
+ source code and can be found at <https://www.gnu.org/licenses/>.
 */
 
 
@@ -14,42 +12,45 @@ SECTIONS
 {
 	. = 0xC0000000;
 
+    /* BSS IS NOT MAPPED WTF! Maybe it is. Problem is with RODATA */
+
     .init :
     {
         *(.init)
+        . = ALIGN(4K);
     }
-    . = ALIGN(4K);
     END_INIT = .;
 
 	.text : AT(END_INIT)
 	{
         *(.text)
+        . = ALIGN(4K);
 	}
-    . = ALIGN(4K);
     END_TEXT = .;
 
     .data : AT(END_TEXT)
     {
         *(.data)
-    }
-    . = ALIGN(4K);
+        . = ALIGN(4K);
+    }=0
     END_DATA = .;
 
     .rodata : AT(END_DATA)
     {
         *(.rodata)
         *(.rodata.*)
-    }
-    . = ALIGN(4K);
-    END_RODATA = .;
+        . = ALIGN(4K);
+        END_RODATA = .;
+    }=0
 
 	.bss : AT(END_RODATA)
 	{
 		*(.bss)
-		BSS_END = .;
+        . = ALIGN(4K);
 	}
+	END_BSS = .;
 
-    BSS_SIZE = BSS_END - END_DATA;
+    BSS_SIZE = END_BSS - END_RODATA;
 
 	/DISCARD/ :
 	{

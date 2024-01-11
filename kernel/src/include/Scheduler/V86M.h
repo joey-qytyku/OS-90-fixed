@@ -12,6 +12,8 @@
 #define SCHEDULER_V86M_H
 
 #include <Type.h>
+#include "Sync.h" /* ATOMIC type */
+
 
 // V86 handler return values
 #define CAPT_HND   0 /* Handled captured trap */
@@ -84,7 +86,7 @@ static inline PVOID MK_LP(U16 seg, U16 off)
     return (PVOID) address;
 }
 
-extern U8 g_sv86;
+extern ATOMIC g_sv86;
 
 // Change to a MOV instruction?
 static inline VOID AssertSV86(VOID)

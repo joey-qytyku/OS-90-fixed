@@ -49,6 +49,8 @@
         "optional": "cpp",
         "system_error": "cpp",
         "ostream": "cpp",
-        "ranges": "c"
+        "ranges": "c",
+        "drvapi.h": "c",
+        "chain.h": "c"
     }
 }

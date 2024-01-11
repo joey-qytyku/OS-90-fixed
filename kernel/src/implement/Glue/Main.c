@@ -15,7 +15,7 @@
 #include <Scheduler/Core.h>
 #include <IA32/Core.h>
 
-#include <Debug.h>
+#include <Debug/Debug.h>
 #include <Type.h>
 
 #include <Platform/IO.h>
@@ -23,6 +23,8 @@
 //
 // Why is this not running
 //
-PVOID KernelMain(VOID)
+VOID KernelMain(VOID)
 {
+    Logf("A number: @i", 10);
+    while(1);
 }

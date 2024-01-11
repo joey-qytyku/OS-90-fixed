@@ -8,11 +8,13 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <Memory/Memory.h>
+#include <Memory/MemDefs.h>
 #include <Memory/Chain.h>
+
 #include <Misc/log2.h>
-#include <Scheduler/V86M.h>
 #include <Misc/Linker.h>
+
+#include <Scheduler/V86M.h>
 
 static U32    num_total_blocks;
 static P_MB   block_list;
@@ -291,11 +293,12 @@ PVOID ChainWalk(
     return NULL;
 }
 
+// Stack trace info can be variable size and is independent of the linker?
 VOID ChainInit(VOID)
 {
-    const U32 lkr_end_int = &LKR_END;
-    const U32 mbsize = MEM_BLOCK_SIZE;
-    block_list = (lkr_end_int + mbsize-1) & (~(mbsize-1));
+    // const U32 lkr_end_int = (U32)&; // minus something?
+    // const U32 mbsize = MEM_BLOCK_SIZE;
+    // block_list = (lkr_end_int + mbsize-1) & (~(mbsize-1));
 
     // We must determine how many free blocks there are. This requires V86.
 

@@ -28,7 +28,7 @@ VOID OutputStackTrace(VOID)
 
         WriteAsciiz("  called by ");
         WriteAsciiz(name);
-        WriteAsciiz("\n\t");
+        WriteAsciiz("\n\t"); // Make putchar
 
         // Go to next
         addr = (PU32)*addr;

@@ -31,37 +31,40 @@
 // {
 // }
 
-// NOW IN ASSEMBLY! TODO, BRING BACK C VERSION?
 //
-// VOID KERNEL Uint32ToString(U32 value, PU8 obuffer)
-// {
-//     U32 digit, digit_divisor;
-//     U32 buff_off = MAX_STR_LENGTH_OF_UINT32 - 2;
-//     U32 i;
+// This will zero the entire buffer.
+//
+//
+ARGPTR_WRO(2)
+VOID KERNEL Uint32ToString(U32 value, char *obuffer)
+{
+    U32 digit, digit_divisor;
+    U32 buff_off = MAX_STR_LENGTH_OF_UINT32 - 2;
+    U32 i;
 
-//     // Clear buffer by setting all chars to ascii NUL
-//     // so that they are not printed
-//     C_memset(obuffer, '\0', MAX_STR_LENGTH_OF_UINT32);
+    // Clear buffer by setting all chars to ascii NUL
+    // so that they are not printed
+    C_memset(obuffer, '\0', MAX_STR_LENGTH_OF_UINT32);
 
-//     // The following loops through each  *digit
-//     // an then copies them to the buffer in reverse order
-//     // the integer digit is then converted to a character
+    // The following loops through each  *digit
+    // an then copies them to the buffer in reverse order
+    // the integer digit is then converted to a character
 
-//     // It looks complicated, but dividing by 1, 10, 100, etc.
-//     // is like bitwise shifting but for decimal digits, not binary.
-//     // Modulus is like an AND operation, getting the remainder
-//     // or "offset" in ComSci terms. Together, it is a sort of shift/and loop
+    // It looks complicated, but dividing by 1, 10, 100, etc.
+    // is like bitwise shifting but for decimal digits, not binary.
+    // Modulus is like an AND operation, getting the remainder
+    // or "offset" in ComSci terms. Together, it is a sort of shift/and loop
 
-//     for (i=0, digit_divisor=1; i<MAX_STR_LENGTH_OF_UINT32; i++)
-//     {
-//         digit = (value / digit_divisor) % 10;
-//         obuffer[buff_off] = '0' + digit;
+    for (i=0, digit_divisor=1; i<MAX_STR_LENGTH_OF_UINT32; i++)
+    {
+        digit = (value / digit_divisor) % 10;
+        obuffer[buff_off] = '0' + digit;
 
-//         // ENDING STATEMENTS
-//         digit_divisor *= 10;
-//         buff_off--;
-//     }
-// }
+        // ENDING STATEMENTS
+        digit_divisor *= 10;
+        buff_off--;
+    }
+}
 
 VOID KERNEL Putchar(char ch)
 {
@@ -70,12 +73,11 @@ VOID KERNEL Putchar(char ch)
 
 static OUTPUT_DRIVER od = Putchar;
 
+// strlen is def sus
 
 VOID KERNEL WriteAsciiz(const char *string)
 {
-    U32 max = StrLen(string);
-
-    for (U32 i = 0; i<max; i++)
+    for (U32 i = 0; string[i] != 0; i++)
         od(string[i]);
 }
 
@@ -92,13 +94,16 @@ VOID SetOutputDriver(OUTPUT_DRIVER od)
 // It is the output driver's responsibility to handle ascii sequences
 // Logf sends the character when it is not a format escape
 //
+
+// I THINK WE HAVE A STACK OVERFLOW?
 VOID KERNEL Logf(const char *fmt, ...)
 {
     char printfmt_buffer[MAX_STR_LENGTH_OF_UINT32 + 1];
     BOOL is_signed;
 
-    PU32 args = GET_VAR_LIST(fmt);
-    U32 argindex = 0;
+    va_list args;
+
+    va_start(args, fmt);
 
     for (U32 i=0; fmt[i] != 0; i++)
     {
@@ -113,32 +118,41 @@ VOID KERNEL Logf(const char *fmt, ...)
         {
         // Print hexadecimal, sign is ignored but should be @ for logical reasons
         case 'x':
-            Hex32ToString(args[argindex], printfmt_buffer);
-            argindex++;
+            Hex32ToString(va_arg(args, U32), printfmt_buffer);
         break;
 
         // Print integer, signed or unsigned format
         case 'i':
-            // Well, *is* it negative?
-            const BOOL negative = args[argindex];
+            if (is_signed) {
+                // Well, *is* it negative?
+                const S32 value = va_arg(args, S32);
+                const BOOL negative = value >= 0;
 
-            if (negative) {
-                // In two's complement, a 4-bit number like 1000
-                // would be -1. Whatever exists without the top bit plus one
-                // is the magnitude, exclusive of sign.
-                const S32 mag = (args[argindex] & (~(-1))) + 1;
+                if (negative) {
+                    // In two's complement, a 4-bit number like 1000
+                    // would be -1. Whatever exists without the top bit plus one
+                    // is the magnitude, exclusive of sign.
+                    const S32 mag = (value & (~(-1))) + 1;
+
+                    if (negative) od('-');
+
+                    // Now we can convert the magnitude to a string and print
+                    Uint32ToString(mag, printfmt_buffer);
+                    WriteAsciiz(printfmt_buffer);
+                } else {
+                    Uint32ToString(value, printfmt_buffer);
+                    WriteAsciiz(printfmt_buffer);
+                }
             }
-
-            argindex++;
         break;
 
         case 's':
             // TODO? Just use write asciiz
-
         break;
 
-        case '#':
-        case '@': od(fmt[i-1]);
+        case '#': od('#');
+        break;
+        case '@': od('@');
         break;
 
         default:
@@ -147,8 +161,8 @@ VOID KERNEL Logf(const char *fmt, ...)
     }
 
     FailSilent:
-    // This function must end with va_end
-    va_end(ap);
+
+    va_end(args);
 }
 
 VOID KERNEL FatalError(U32 error_code)

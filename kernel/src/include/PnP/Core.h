@@ -11,8 +11,10 @@
 #ifndef PNP_CORE_H
 #define PNP_CORE_H
 
+#define PDRIVER_HEADER PVOID
+#define PDRIVER_EVENT_PACKET PVOID
+
 #include "Resource.h"
-#include "Drivers.h"
 #include "Bios.h"
 
 #include <Type.h>

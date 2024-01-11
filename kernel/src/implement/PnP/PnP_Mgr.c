@@ -13,7 +13,7 @@
 #include <Platform/IO.h>    /* Accessing interrupt mask register */
 #include <Misc/Linker.h>    /* Accessing the PnP BIOS structure */
 #include <PnP/Core.h>
-#include <Debug.h>
+#include <Debug/Debug.h>
 #include <Type.h>
 
 #define PNP_ROM_STRING BYTESWAP(0x24506e50) /* "$PnP" */
@@ -21,22 +21,6 @@
 
 static char driver_name[] = "KERNL386.EXE";
 static char description[] = "Kernel plug-and-play support";
-
-////////////////////////////////////////////////////////////////////////////////
-// The kernel is a bus and has access to all resources on the system
-// It handles regular PnP functionality with system board devices
-// (obviously not remove/insert events)
-//
-
-// DRIVER_HEADER kernel_bus_hdr =
-// {
-//     .driver_name   = &driver_name,
-//     .description   = &description,
-//     .cmdline       = NULL,
-//     .driver_flags  = DRV_IMPLEMENT_BUS,
-//     .event_handler = NULL,
-//     .next_driver   = NULL
-// };
 
 //
 // Non-standard IRQs are FREE but if they are found
@@ -86,14 +70,14 @@ Get operations:
 //
 STATUS SetInterruptEntry(
     VINT            irq,
-    INTERRUPT_LEVEL iclass,
+    INTERRUPT_CLASS iclass,
     FP_IRQ_HANDLER  handler,
     PDRIVER_HEADER  owner
 ){
 
     interrupts.handlers[irq] = handler;
     interrupts.owners[irq] = owner;
-    interrupts.iclass |= iclass << (irq * 2);
+    interrupts.class_bmp |= iclass << (irq * 2);
 
     return OS_OK;
 }
@@ -102,13 +86,12 @@ STATUS SetInterruptEntry(
 // A driver or the kernel can voluntarily give an interrupt back to DOS
 // Potentially to unload.
 //
-// CHANGE INT LVL TO INT TYPE?
 VOID KERNEL InSurrenderInterrupt()
 {}
 
-INTERRUPT_LEVEL KERNEL InGetInterruptLevel(VINT irq)
+INTERRUPT_CLASS KERNEL InGetInterruptLevel(VINT irq)
 {
-    return interrupts.lvl_bmp >>= irq * 2;
+    return interrupts.class_bmp >>= irq * 2;
 }
 
 //
@@ -142,12 +125,12 @@ STATUS KERNEL InAcquireLegacyIRQ(
     // If it is a 16-bit interrupt, it is reclaimable, so changing
     // it as a legacy interrupt is correct behavior
 
-    SetInterruptEntry(
-        fixed_irq,
-        BUS_INUSE,
-        handler,
-        &kernel_bus_hdr
-    );
+    // SetInterruptEntry(
+    //     fixed_irq,
+    //     BUS_INUSE,
+    //     handler,
+    //     &kernel_bus_hdr
+    // );
 }
 
 //
@@ -179,7 +162,7 @@ VOID KERNEL PnBiosCall()
 STATUS SetupPnP(VOID)
 {
     // ROM space should not be prefetched or written
-    volatile const PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
+    volatile PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
     BOOL supports_pnp;
     U8   compute_checksum;
 
@@ -237,7 +220,7 @@ STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
 //      returns base IO port.
 //
 //
-STATUS KERNEL U32 PnAllocateIOPorts(U16 num, U8 align)
+U32 KERNEL PnAllocateIOPorts(U16 num, U8 align)
 {
 }
 

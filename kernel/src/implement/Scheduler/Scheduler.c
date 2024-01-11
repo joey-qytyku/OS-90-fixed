@@ -32,7 +32,7 @@
 #include <Debug/Debug.h>
 #include <Type.h>
 
-// Organize using structs
+// Organize using structs?
 
 ATOMIC preempt_count = ATOMIC_INIT;
 
@@ -64,10 +64,10 @@ BOOL KERNEL Preemptible(VOID)
 ////////////////////////////VIRTUAL 8086 MODE SECTION///////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-ATOMIC g_sv86 = {0};
+ATOMIC g_sv86 = ATOMIC_INIT;
 
-alignas(4) static V86_CHAIN_LINK v86_capture_chain[256];
-alignas(4) static U32 dos_semaphore_seg_off; // ???
+ALIGN(4) static V86_CHAIN_LINK v86_capture_chain[256];
+ALIGN(4) static U32 dos_semaphore_seg_off; // ???
 
 VOID KERNEL ScOnErrorDetatchLinks(VOID)
 {
@@ -103,6 +103,8 @@ VOID KERNEL HookDosTrap(
 //
 VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
 {
+    _not_null(context);
+
     PV86_CHAIN_LINK current_link;
 
     // A null handler is an invalid entry
@@ -145,8 +147,9 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
 }
 
 // Works for UV86 and SV86 because we do not read the arguments.
-STATUS V86CaptStub()
+STATUS V86CaptStub(PVOID unused)
 {
+    UNUSED_PARM(unused);
     return CAPT_NOHND;
 }
 
@@ -198,7 +201,7 @@ VOID InterruptDispatch(U32 diff_spurious)
     // Is this IRQ#0? If so, handle it directly
     if (BIT_IS_SET(inservice16, 0))
     {
-        HandleIRQ0();
+        // HandleIRQ0();
         return;
     }
 

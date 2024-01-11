@@ -1,7 +1,7 @@
-#include <Memory/Memory.h>
+#include <Memory/Core.h>
 #include <Scheduler/Sync.h>
 
-LOCK mm_lock;
+ATOMIC mm_lock;
 
 // TODO use this for all the API calls.
 VOID AcquireMmLock()

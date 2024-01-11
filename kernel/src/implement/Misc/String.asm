@@ -11,7 +11,7 @@
 ;                               E x p o r t s
 
 
-global StrCpy, StrLen, StrLower, StrUpper, Uint32ToString
+global StrCpy, StrLen, StrLower, StrUpper, Hex32ToString
 
 ;                        E n d   o f   E x p o r t s
 ;-------------------------------------------------------------------------------
@@ -22,84 +22,12 @@ global StrCpy, StrLen, StrLower, StrUpper, Uint32ToString
 MAX_STR_LENGTH_OF_UINT32 equ 10
 
 ;-------------------------------------------------------------------------------
-; PARAM: CDECL (valueToConvert, buffer) -> Start of characters to print pointer
-;
-; Recommend having a null terminator for the buffer so that the resulting
-; pointer can be used to print the string iteratively.
-;
-; CLOBBERS: All
-;
-Uint32ToString:
-        push    ebp
-        mov     ebp,esp
-        cld
-        ; Its 8 and 12
-        ; not 4 and 8
-
-        ; Clear the buffer and fill with NUL character
-        xor     eax,eax
-        mov     edi,[ebp+12]                      ; obuffer
-        mov     ecx,MAX_STR_LENGTH_OF_UINT32
-        rep     stosb
-
-        ; Eliminate memory access by simply subtracting EDI
-
-        sub     edi,MAX_STR_LENGTH_OF_UINT32     ; Get origninal obuffer
-        mov     esi,MAX_STR_LENGTH_OF_UINT32 - 2 ; buff_off
-        mov     ebx,1                            ; digit_divisor
-        xor     ecx,ecx                          ; i
-        mov     ebp,[ebp+8]                      ; value
-.L:
-        cmp     ecx,MAX_STR_LENGTH_OF_UINT32-1
-        jz      .break
-
-        xor     edx,edx
-
-        mov     eax,ebp
-        div     ebx
-
-        xor     edx,edx
-
-        push    ebx
-
-        mov     ebx,10
-        div     ebx
-
-        pop     ebx
-
-        ; write to obuffer[buff_off]
-        add     edx,'0'
-        mov     byte [edi+esi],dl
-
-        inc     ecx
-        dec     esi
-        imul    ebx,10
-
-        jmp     .L
-
-.break:
-        ; Count leading zeroes. Simple string operation.
-        xor     eax,eax
-        mov     al,'0'
-        mov     ecx,10
-
-        ;scasb uses EDI apparently. It is already set.
-
-        repe   scasb           ; Scan until != 0
-
-        ; EDI is now outside the buffer or pointing +1 to where it should be
-        lea     eax,[edi-1]
-
-        pop     ebp
-        ret
-
-;-------------------------------------------------------------------------------
 ; PARAM: CDECL(value, obuffer) -> VOID
 ; TESTED WORKING
 ;
 ; I will not be counting leading zeroes so that hex output is aligned.
 ;
-; The buffer must at least 8 bytes long and can include a null terminator.
+; The buffer must at least 9 bytes long and will auto null terminate.
 ; Takes a number in AL and converts it to a hex nibble character.
 ; BCD instructions may not be fast but there are no memory access or branch
 ; penalties.
@@ -127,6 +55,9 @@ Hex32ToString:
         dec     ecx
         jnz     .L
 
+        mov     al,0
+        stosb
+
         cld
         ret
 
@@ -138,7 +69,7 @@ StrLen:
         cld
         xor     eax,eax
         mov     ecx,65535
-        mov     edi,[esp+4]
+        mov     esi,[esp+4]
         repnz    scasb
 
         not     ecx

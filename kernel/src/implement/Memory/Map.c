@@ -16,14 +16,14 @@
 
 #include <Memory/Chain.h>
 #include <Memory/Map.h>
-#include <Debug.h>
+#include <Debug/Debug.h>
 
 #define KERNEL_VAS_SIZE_BYTES MB(16)
 
 // PD entries for the kernel always point to the page tables.
 // Therefore, it is not necessary to manipulate PD entries
 // for the kernel address space.
-alignas(4096)
+ALIGN(4096)
 static U32 page_directory[1024];
 
 // More than one page long.
@@ -52,7 +52,7 @@ static VOID SetMemoryWindow(PVOID physical)
     U32 kpindex = kernel_page_table_entries[winpgindex];
     U32 where2 = (U32)physical & (~0xFFF);
 
-    kernel_page_table_entries[kpindex] = (where2 << PG_SHIFT) | PG_P | PG_RW;
+    kernel_page_table_entries[kpindex] = (where2 << PTE_SHIFT) | PG_P | PG_RW;
 
     #ifdef CPU_486
     for (U32 i = 0; i<MEM_BLOCK_SIZE/4096; i++)

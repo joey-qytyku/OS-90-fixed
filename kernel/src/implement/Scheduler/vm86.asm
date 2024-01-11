@@ -30,7 +30,7 @@ EnterRealMode:
 
         mov     [RealModeCalleeSaved.lEbp],ebp
         mov     ebx,[esp]
-        mov     [RealModeCalleeSaved.lEip]
+        mov     [RealModeCalleeSaved.lEip],ebx
 
         mov     ebx,_RealModeRegs
         mov     eax,[ebx]
@@ -51,7 +51,6 @@ EnterRealMode:
         push    dword [_RealModeTrapFrame+28]     ; CS
         push    dword [_RealModeTrapFrame+32]     ; EIP
 
-        xchg    bx,bx
         iret
 
         section .data

@@ -29,13 +29,14 @@ AFLAGS := -f elf32 -Ox -i src/include/
 
 LD := $(TOOLCHAIN)/i386-linux-ld
 
-.PHONY: all clean
+.PHONY: all
 all: $(EXEC)
 
 $(EXEC): $(OBJS)
 	@mkdir -p $(BINDIR)
-	$(LD) --oformat binary -T LinkScripts/Kernel.ld $^ -o $@
+	$(LD) --trace --oformat binary -T LinkScripts/Kernel.ld $^ -o $@
 	$(LD) -T LinkScripts/Kernel.ld $^ -o sizetest.o
+	python3 LinkScripts/genksyms.py
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)

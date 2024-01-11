@@ -18,21 +18,24 @@ typedef VOID (*OUTPUT_DRIVER)(U8);
 API_DECL(VOID, Logf,        const char*, ...);
 API_DECL(VOID, FatalError,  U32);
 
-
 API_DECL(VOID, WriteAsciiz, const char*);
 API_DECL(VOID, Putchar, char ch);
 
 #define _str(x) #x
 #define _str2(x) _str(x)
+#define LINE _str2(__LINE__)
 
-#define TRACE(...)\
-    KeWriteAsciiz(_KernelPutchar,"\x1b[31m");\
-    KeLogf(_KernelPutchar,\
-    "[" __FILE__ ":" _str2(__LINE__) "] " \
-    __VA_ARGS__\
-    );\
-    KeWriteAsciiz(_KernelPutchar,"\x1b[0m");
+#ifdef NDEBUG
+    #define _assert(exp)
+#else
+    #define _assert(exp)\
+        if (!(exp)) {\
+            WriteAsciiz("Assert " #exp " failed in module " __FILE__  " at line "  LINE "\n\r");\
+            FatalError(1);\
+        }
 
-#define BREAK() __asm__ volatile ("xchgw %%bx,%%bx":::"memory")
+#endif /* NDBUG */
 
-#endif
+#define _not_null(exp) _assert((exp) != NULL)
+
+#endif /* DEBUG_H */

@@ -455,6 +455,7 @@ Begin:
 
         jmp     8h:Cont
 Cont:
+        xchg    bx,bx
         mov     esp,InitStack   ; Set up a stack
         call    KernelMain      ; GCC does not far return
         jmp $

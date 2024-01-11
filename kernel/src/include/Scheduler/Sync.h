@@ -73,7 +73,7 @@ static inline U32 SaveFlags(VOID)
 static inline VOID SetFlags(U32 flags)
 {
     __asm__ volatile (
-        "push %0"
+        "pushl %0"
         "popf"
         :
         :"rm"(flags)
@@ -107,13 +107,13 @@ static inline U32 AtomicFencedLoad(P_ATOMIC address)
 __attribute__((always_inline))
 static inline VOID AtomicFencedDec(P_ATOMIC address)
 {
-    __asm__ volatile ( "dec %0" :"=m"(*address) :"m"(*address) :"memory");
+    __asm__ volatile ( "decl %0" :"=m"(*address) :"m"(*address) :"memory");
 }
 
 __attribute__((always_inline))
 static inline VOID AtomicFencedInc(P_ATOMIC address)
 {
-    __asm__ volatile ( "inc %0" :"=m"(*address) :"m"(*address) :"memory");
+    __asm__ volatile ( "incl %0" :"=m"(*address) :"m"(*address) :"memory");
 }
 
 __attribute__((always_inline))
@@ -121,7 +121,7 @@ static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
 {
     _Bool ret;
     __asm__ volatile (
-        "cmp %1, %2"
+        "cmpl %1, %2"
         : "=@ccz"(ret)
         : "i"(imm), "m"(*address)
         : "cc", "memory"
@@ -135,5 +135,5 @@ static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
 API_DECL(VOID, PreemptDec, VOID);
 API_DECL(VOID, PreemptInc, VOID);
 
-extern U32 preempt_count;
+extern ATOMIC preempt_count;
 #endif /* SCHEDULER_SYNC_H */

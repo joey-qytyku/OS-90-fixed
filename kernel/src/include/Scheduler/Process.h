@@ -9,7 +9,7 @@
 //
 //
 enum {
-    THREAD_DEAD,
+    THREAD_DEAD = 0,
     THREAD_IN_KERNEL,
     THREAD_BLOCKED,
     THREAD_RUN_V86,
@@ -118,6 +118,7 @@ tstruct
     U8   current_working_dir[80];
     // The command line remembers the current disk path
     // Default behavior is to CD to the root. (I think)
+    // Regardless, there is no global CWD because OS/90 multitasks.
     // This includes the drive letter as "[LETTER]:C"
 }PCB, *P_PCB;
 
@@ -137,11 +138,11 @@ static inline P_PCB GetCurrentPCB(VOID)
 // IGNORE THESE FOR DRIVERS!
 
 #define MK_GETTER(rettype, funcname, member)\
-    rettype PcbGet_##funcname(P_PCB pcb)\
+    static inline rettype PcbGet_##funcname(P_PCB pcb)\
     { return pcb->member; }\
 
 #define MK_SETTER(type, funcname, member)\
-    VOID PcbSet_##funcname(P_PCB pcb, type value)\
+    static inline VOID PcbSet_##funcname(P_PCB pcb, type value)\
     { pcb->member = value; }
 
 // Get/set next process

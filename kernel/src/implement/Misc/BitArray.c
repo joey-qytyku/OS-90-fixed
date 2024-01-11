@@ -44,7 +44,7 @@ BOOL KERNEL KeGetBitArrayEntry(PU32 array, U32 inx)
 }
 
 //
-// Not for driver use
+// Not for driver use. Why not?
 //
 VOID KeEnableBitArrayRange(PU32 array, U32 base_inx, U32 count)
 {
@@ -60,6 +60,8 @@ VOID KeEnableBitArrayRange(PU32 array, U32 base_inx, U32 count)
 //
 // NOTE:
 //      Ignore references to the LDT in comments. This is for any bit array.
+//
+//      I need to do some testing.
 //
 // WARNINGS:
 //      Insanely good algorithm.

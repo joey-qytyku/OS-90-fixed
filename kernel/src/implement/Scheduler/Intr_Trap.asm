@@ -101,7 +101,7 @@ LowSwi: DB      66h,0E8h, 0, 0
         ; Did we come from virtual 8086 mode? If so, there is no need to save
         ; the sregs
 
-        test    [ss:esp+8],1<<17
+        test    dword [ss:esp+8],1<<17
         jz      .WasV86
 
         ; push the segment registers because they could be anything right now.
@@ -130,7 +130,7 @@ LowSwi: DB      66h,0E8h, 0, 0
         ; If it was V86, only IRET should pop the segment registers because
         ; they are real mode segments.
 
-        test    [esp+8],1<<17   ; No need for override
+        test    dword [esp+8],1<<17   ; No need for override
 
         push    ds
         push    es

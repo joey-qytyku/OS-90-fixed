@@ -73,7 +73,7 @@ typedef struct __attribute__((packed))
 
     U32             class_bmp;
     FP_IRQ_HANDLER  handlers[16];
-    PDRIVER_HEADER  owners[16];
+    PVOID           owners[16];
 }INTERRUPTS,
 *PINTERRUPTS;
 
@@ -81,7 +81,7 @@ extern STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE);
 
 extern VOID             KERNEL  InSurrenderInterrupt();
 extern VOID             KERNEL  InRegainInterrupt();
-extern INTERRUPT_LEVEL  KERNEL  InGetInterruptLevel(VINT);
+extern INTERRUPT_CLASS  KERNEL  InGetInterruptLevel(VINT);
 extern FP_IRQ_HANDLER   KERNEL  InGetInterruptHandler(VINT);
 extern STATUS           KERNEL  InAcquireLegacyIRQ(VINT, FP_IRQ_HANDLER);
 

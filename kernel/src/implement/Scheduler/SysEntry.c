@@ -171,7 +171,7 @@ VOID SystemEntryPoint(
 
     // We will ONLY save registers to the PCB if it was a real or protected
     // mode process and not SV86.
-    if (!g_sv86)
+    if (!AtomicFencedCompare(&g_sv86,1))
     {
         // Prevent scheduling of tasks because this task is about to be blocked
         // and we do not want it to run when we enable interrupts.
@@ -209,7 +209,7 @@ VOID SystemEntryPoint(
     }
 
     // Now  will hang until reschedule. This kernel thread will be expunged later.
-    if (!g_sv86)
+    if (!AtomicFencedCompare(&g_sv86,1))
         while (1) {
             __asm__("hlt":::"memory");
         }
