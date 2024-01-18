@@ -22,7 +22,7 @@
 //                  to the final value. Can be the memory mirror of the process.
 //
 //
-PVOID KERNEL SegmentToLinearAddress(
+PVOID kernel SegmentToLinearAddress(
     BOOL    use_pmode,
     PVOID   relative_to,
     U16     seg,
@@ -62,8 +62,8 @@ U32 SegmentUtil(
         // We will just get the access U8normally.
 
         case SEG_GET_ACCESS_RIGHTS:
-        return BYTE_PTR(desc_ptr, 5);
-
+            return BYTE_PTR(desc_ptr, 5);
+        break;
         // LSL will unscramble the segment limit, making it really easy
         // to get the value.
         case SEG_GET_LIMIT:
@@ -77,6 +77,7 @@ U32 SegmentUtil(
             );
             return seg_lim;
         }
+        break;
 
         case SEG_SET_LIMIT:
             IaAppendLimitToDescriptor(desc_ptr, operand);

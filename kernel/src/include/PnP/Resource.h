@@ -25,44 +25,39 @@ typedef enum {
 #define MEM 0
 #define AVAIL 0
 
-// Resource flags byte:
-//|AA|DD|C|U|S|P|
-// P=PORT
-// S=STD
-// U=INUSE
-// C=MEM_CACHEABLE
-// DD=
-// Uses bit fields instead of byte
+#define PORT            0b00000001 /* Is a port */
+#define INUSE           0b00000010 /* In use */
+#define MEM_CACHABLE    0b00000100 /* Memory is cachable */
+#define ACCESS_8        0b00000000
+#define ACCESS_16       0b00001000
+#define ACCESS_32       0b00010000
 
-#define PORT 1
-#define STD 2
-#define INUSE 4
-#define MEM_CACHABLE 8
+// Looking at the ISA PnP spec, it seems that the memory regions are naturally aligned.
+// VGA has an address space of 128K (not 256K of mem) and it is naturally aligned
+// at the address 0xA0000.
+// Hardware uses a bit mask to determine if it should react. This defines the size.
+// Both PCI and ISA PnP do this.
 
-#define IOP_DECODE_10 0
-#define IOP_DECODE_16 1
-#define MEM_DECODE_24 2
-#define MEM_DECODE_32 3
+//
+// Memory address aliasing is a major problem with ISA.
+// Computers with more than 16MB of RAM will have a smart enough super IO
+// chip to avoid asserting the address signals to the ISA cards. Internal
+// ISA devices (in the ISA bridge) will have extended decode.
+//
 
-#define ACCESS_8  0
-#define ACCESS_16 1
-#define ACCESS_32 2
+// #define MEM_DECODE_24 2
+// #define MEM_DECODE_32 3
+
 
 typedef VOID (*FP_IRQ_HANDLER)(VOID);
 
-tpkstruct
+// Make into one struct?
+tstruct
 {
-    U32          start;
-    U32          size:24;
-    U32          alignment:24;
-    PVOID          owner;
-    U8
-        is_port:1,
-        is_std:1,
-        inuse:1,
-        mem_cachable:1,
-        io_decode:2,        // IO decode is now forced to 10-bit
-        io_access:2;
+    U32     start;
+    U32     size:24;
+    PVOID   owner;
+    U16     flags;
 }IO_RESOURCE,
 *PIO_RESOURCE;
 
@@ -77,12 +72,12 @@ typedef struct __attribute__((packed))
 }INTERRUPTS,
 *PINTERRUPTS;
 
-extern STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE);
+extern STATUS kernel PnAddIOMemRsc(PIO_RESOURCE);
 
-extern VOID             KERNEL  InSurrenderInterrupt();
-extern VOID             KERNEL  InRegainInterrupt();
-extern INTERRUPT_CLASS  KERNEL  InGetInterruptLevel(VINT);
-extern FP_IRQ_HANDLER   KERNEL  InGetInterruptHandler(VINT);
-extern STATUS           KERNEL  InAcquireLegacyIRQ(VINT, FP_IRQ_HANDLER);
+extern VOID             kernel  InSurrenderInterrupt();
+extern VOID             kernel  InRegainInterrupt();
+extern INTERRUPT_CLASS  kernel  InGetInterruptLevel(U32);
+extern FP_IRQ_HANDLER   kernel  InGetInterruptHandler(U32);
+extern STATUS           kernel  InAcquireLegacyIRQ(U32, FP_IRQ_HANDLER);
 
 #endif /* PNP_RESOURCE_H */

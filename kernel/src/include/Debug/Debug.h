@@ -13,7 +13,9 @@
 
 #include <Type.h>
 
-typedef VOID (*OUTPUT_DRIVER)(U8);
+#include "printf.h"
+
+typedef kernel VOID (*OUTPUT_DRIVER)(char);
 
 API_DECL(VOID, Logf,        const char*, ...);
 API_DECL(VOID, FatalError,  U32);
@@ -25,17 +27,23 @@ API_DECL(VOID, Putchar, char ch);
 #define _str2(x) _str(x)
 #define LINE _str2(__LINE__)
 
+
+#define BREAKPOINT() __asm__ volatile("xchgw %%bx,%%bx":::"memory");\
+
 #ifdef NDEBUG
     #define _assert(exp)
+    #define KLogf(fmt, ...)
 #else
-    #define _assert(exp)\
+    #define assert(exp)\
         if (!(exp)) {\
-            WriteAsciiz("Assert " #exp " failed in module " __FILE__  " at line "  LINE "\n\r");\
-            FatalError(1);\
+            FENCE;\
+            printf("ASSERT " #exp " FAILED AT %s" __FILE__ ":"  LINE "\n\r");\
+            while(1);\
         }
 
+    #define KLogf(fmt, ...) printf("%s:%i>> " fmt, __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__)
 #endif /* NDBUG */
 
-#define _not_null(exp) _assert((exp) != NULL)
+#define _not_null(exp) assert((exp) != NULL)
 
 #endif /* DEBUG_H */

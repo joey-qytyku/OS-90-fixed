@@ -16,7 +16,7 @@ irqown: Display owner of IRQs
 
 Sample output:
 ```
- ____ _____________ ________________
+ ___________________________________
 |IRQ#| Type        | Owner Name
 |----|-------------|----------------
 | 0  | STANDARD_32 | KERNL386

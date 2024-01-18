@@ -27,7 +27,7 @@ VOID KeEnableBitArrayEntry(PU32 array, U32 inx)
     array[U32_index] |= 1 << bit_offset;
 }
 
-VOID KERNEL KeDisableBitArrayEntry(PU32 array, U32 inx)
+VOID kernel KeDisableBitArrayEntry(PU32 array, U32 inx)
 {
     U32 bit_offset  = inx & 31;
     U32 U32_index = inx >> 5;
@@ -35,7 +35,7 @@ VOID KERNEL KeDisableBitArrayEntry(PU32 array, U32 inx)
     array[U32_index] &= ~(1 << bit_offset);
 }
 
-BOOL KERNEL KeGetBitArrayEntry(PU32 array, U32 inx)
+BOOL kernel KeGetBitArrayEntry(PU32 array, U32 inx)
 {
     U32 bit_offset  = inx & 31;
     U32 U32_index = inx / 32;
@@ -69,7 +69,7 @@ VOID KeEnableBitArrayRange(PU32 array, U32 base_inx, U32 count)
 // TODO:
 //      Maybe rewrite in assembly. Make it return -1 on failure.
 //
-STATUS KERNEL KeAllocateBits(
+STATUS kernel KeAllocateBits(
     PU32  array,         // Address of array
     U32   array_bounds,  // Number of bits, multiple of 4, THE LIMIT, NOT NUMBER
     U32   to_alloc,      // Number to allocate
@@ -128,7 +128,7 @@ STATUS KERNEL KeAllocateBits(
 //      This procedure scans the array as it is most likely to find a free
 //      entry at the end for most situations.
 //
-STATUS KERNEL AllocateOneBit(
+STATUS kernel AllocateOneBit(
     PU32 array,
     U32  array_bounds,
     PU32 out_index

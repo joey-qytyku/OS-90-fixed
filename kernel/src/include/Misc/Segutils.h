@@ -29,7 +29,7 @@ static inline PVOID MK_LP(U32 seg, U32 off)
     return (PVOID)(seg * 16 + off);
 }
 
-PVOID KERNEL SegmentToLinearAddress(
+PVOID kernel SegmentToLinearAddress(
     BOOL    use_pmode,
     PVOID   relative_to,
     U16     seg,

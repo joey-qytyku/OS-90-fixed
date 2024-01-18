@@ -54,7 +54,7 @@ VOID RmPushMult16(
     U16     ss,
     PU32    esp,
     U32     num_to_push,
-    ...
+    PU16    push_array
 ){
     // PU32 args = GET_VAR_LIST(num_to_push);
 

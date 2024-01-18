@@ -47,8 +47,8 @@ enum {
 // F u n c t i o n   R e l a t e d   M a c r o s  //
 ////////////////////////////////////////////////////
 
-#define KERNEL  __attribute__(( regparm(0), cdecl ))
-#define KERNEL_ASYNC KERNEL
+#define kernel  __attribute__(( regparm(0), cdecl ))
+#define kernel_async kernel
 #define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) |\
 ((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
 
@@ -78,8 +78,8 @@ enum {
 // so that it can be added to the procedure table
 
 #define API_DECL(rtype, name, ...)\
-    typedef rtype KERNEL (*_API_##name)(__VA_ARGS__);\
-    rtype KERNEL name(__VA_ARGS__)
+    typedef rtype kernel (*_API_##name)(__VA_ARGS__);\
+    rtype kernel name(__VA_ARGS__)
 
 ///////////////////////////////////////////
 // M i s c e l a n e o u s   M a c r o s //
@@ -103,7 +103,6 @@ enum {
 #define HANDLE I32
 
 #define PID U16
-#define VINT U32
 
 typedef __UINT32_TYPE__ U32,*PU32;
 typedef __UINT16_TYPE__ U16,*PU16;

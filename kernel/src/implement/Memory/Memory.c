@@ -7,7 +7,7 @@ ATOMIC mm_lock;
 VOID AcquireMmLock()
 {}
 
-BOOL KERNEL_ASYNC MmReentStat(VOID)
+kernel_async BOOL MmReentStat(VOID)
 {
     return MutexWasLocked(&mm_lock);
 }

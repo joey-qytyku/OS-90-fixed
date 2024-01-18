@@ -46,6 +46,6 @@
 // Chains are operated on by all parts of MM, so it is defined here.
 typedef U32 CHID;
 
-BOOL KERNEL_ASYNC MmReentStat(VOID);
+API_DECL(BOOL, MmReentStat, VOID);
 
 #endif /* MMDEFS_H */

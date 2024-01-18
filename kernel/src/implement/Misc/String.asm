@@ -11,55 +11,13 @@
 ;                               E x p o r t s
 
 
-global StrCpy, StrLen, StrLower, StrUpper, Hex32ToString
+global StrCpy, StrLen, StrLower, StrUpper
 
 ;                        E n d   o f   E x p o r t s
 ;-------------------------------------------------------------------------------
 
 
         section .text
-
-MAX_STR_LENGTH_OF_UINT32 equ 10
-
-;-------------------------------------------------------------------------------
-; PARAM: CDECL(value, obuffer) -> VOID
-; TESTED WORKING
-;
-; I will not be counting leading zeroes so that hex output is aligned.
-;
-; The buffer must at least 9 bytes long and will auto null terminate.
-; Takes a number in AL and converts it to a hex nibble character.
-; BCD instructions may not be fast but there are no memory access or branch
-; penalties.
-;
-; I found the trick here:
-; quora.com/What-are-the-most-obscure-useless-x86-assembly-instructions?
-;
-Hex32ToString:
-        mov     edi,[esp+8]
-        mov     ebx,[esp+4]
-        add     edi,7
-        mov     ecx,8
-        std
-.L:
-        mov     eax,ebx
-        and     eax,0Fh
-
-        cmp     al,10
-        sbb     al,69h
-        das
-        stosb
-
-        shr     ebx,4
-
-        dec     ecx
-        jnz     .L
-
-        mov     al,0
-        stosb
-
-        cld
-        ret
 
 ;-------------------------------------------------------------------------------
 ; PARAM:        CDECL(str) -> Length of string excluding NUL terminator

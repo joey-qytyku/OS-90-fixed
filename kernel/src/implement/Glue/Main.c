@@ -12,19 +12,16 @@
 #warning OS/90 requires C99 compiler support.
 #endif
 
+#include <Type.h>
+
 #include <Scheduler/Core.h>
 #include <IA32/Core.h>
 
 #include <Debug/Debug.h>
-#include <Type.h>
 
 #include <Platform/IO.h>
 
-//
-// Why is this not running
-//
-VOID KernelMain(VOID)
+kernel VOID KernelMain(VOID)
 {
-    Logf("A number: @i", 10);
-    while(1);
+    KLogf("Hello, world\n");
 }

@@ -41,6 +41,9 @@ EnterRealMode:
         mov     ebp,[ebx+24]
         mov     ebx,[ebx+28]
 
+        ; Something wrong with IDT?
+
+        ; May not be the best instructions
         push    dword [_RealModeTrapFrame]        ; GS
         push    dword [_RealModeTrapFrame+4]      ; FS
         push    dword [_RealModeTrapFrame+8]      ; DS

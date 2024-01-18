@@ -1,12 +1,13 @@
 ///////////////////////////////////////////////////////////////////////////////
-//                                                                           //
-//                     Copyright (C) 2023, Joey Qytyku                       //
-//                                                                           //
-// This file is part of OS/90 and is published under the GNU General Public  //
-// License version 2. A copy of this license should be included with the     //
-// source code and can be found at <https://www.gnu.org/licenses/>.          //
-//                                                                           //
+///                                                                         ///
+///                     Copyright (C) 2023, Joey Qytyku                     ///
+///                                                                         ///
+/// This file is part of OS/90 and is published under the GNU General Public///
+/// License version 2. A copy of this license should be included with the   ///
+/// source code and can be found at <https://www.gnu.org/licenses/>.        ///
+///                                                                         ///
 ///////////////////////////////////////////////////////////////////////////////
+
 
 // Note: Variables shared by ISRs and kernel must be volatile because
 // they can change unpredictably
@@ -42,12 +43,12 @@ P_PCB current_pcb;
 P_PCB first_pcb; // The first process
 U32   number_of_processes;
 
-VOID KERNEL PreemptInc(VOID)
+kernel VOID PreemptInc(VOID)
 {
     AtomicFencedInc(&preempt_count);
 }
 
-VOID KERNEL PreemptDec(VOID)
+kernel VOID PreemptDec(VOID)
 {
     AtomicFencedDec(&preempt_count);
 }
@@ -55,7 +56,7 @@ VOID KERNEL PreemptDec(VOID)
 // BRIEF:
 //      Are we in a preemptible context?
 //
-BOOL KERNEL Preemptible(VOID)
+kernel BOOL Preemptible(VOID)
 {
     return AtomicFencedCompare(&preempt_count, 0);
 }
@@ -69,12 +70,12 @@ ATOMIC g_sv86 = ATOMIC_INIT;
 ALIGN(4) static V86_CHAIN_LINK v86_capture_chain[256];
 ALIGN(4) static U32 dos_semaphore_seg_off; // ???
 
-VOID KERNEL ScOnErrorDetatchLinks(VOID)
+VOID kernel ScOnErrorDetatchLinks(VOID)
 {
     C_memset(&v86_capture_chain, '\0', sizeof(v86_capture_chain));
 }
 
-VOID KERNEL HookDosTrap(
+kernel VOID HookDosTrap(
     U8                    vector,
     PV86_CHAIN_LINK       ptrnew
 ){
@@ -89,7 +90,6 @@ VOID KERNEL HookDosTrap(
 
 }
 
-////////////////////////////////////////////////////////////////////////////////
 // BRIEF:
 //      A general purpose function for calling virtual 8086 mode INT calls.
 //
@@ -101,7 +101,7 @@ VOID KERNEL HookDosTrap(
 // WARNINGS:
 //      This function does not provide a stack.
 //
-VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
+kernel VOID Svint86(P_SV86_REGS context, U8 vector)
 {
     _not_null(context);
 
@@ -113,8 +113,7 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
     current_link = &v86_capture_chain[vector];
 
     // As long as there is another link
-    while (current_link->next != NULL)
-    {
+    while (current_link->next != NULL) {
         STATUS hndstat = current_link->if_sv86(context);
         if (hndstat == CAPT_HND)
             return;
@@ -147,7 +146,8 @@ VOID KERNEL Svint86(P_SV86_REGS context, U8 vector)
 }
 
 // Works for UV86 and SV86 because we do not read the arguments.
-STATUS V86CaptStub(PVOID unused)
+kernel static STATUS V86CaptStub(PVOID unused)
+
 {
     UNUSED_PARM(unused);
     return CAPT_NOHND;
@@ -164,7 +164,7 @@ VOID InitV86(VOID)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-///////////////////////////END VIRTUAL 8086 MODE SECTION////////////////////////
+////////////////////////// END VIRTUAL 8086 MODE SECTION ///////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +181,7 @@ static inline void SendEOI(U8 vector)
 //
 // BRIEF:
 //      Scheduler interrupt handler. This handles task switching.
+//      todo: Consider doing this in assembly.
 //
 static VOID HandleIRQ0(P_IRET_FRAME iframe)
 {
@@ -199,8 +200,7 @@ VOID InterruptDispatch(U32 diff_spurious)
     // EOI is sent to the master only
 
     // Is this IRQ#0? If so, handle it directly
-    if (BIT_IS_SET(inservice16, 0))
-    {
+    if (BIT_IS_SET(inservice16, 0)) {
         // HandleIRQ0();
         return;
     }
@@ -211,15 +211,14 @@ VOID InterruptDispatch(U32 diff_spurious)
     else if (diff_spurious == 15 && (inservice16 >> 8) == 0)
         return;
 
-    if (InGetInterruptLevel(irq) == BUS_INUSE)
-    {
+    if (InGetInterruptLevel(irq) == BUS_INUSE) {
 //        InGetInterruptHandler(irq)();
         SendEOI(irq);
     }
-    else if (RECL_16)
-    {
+    else if (RECL_16) {
         // TODO
-    } else {
+    }
+    else {
         // Critical error
     }
 }

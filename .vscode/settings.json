@@ -51,6 +51,16 @@
         "ostream": "cpp",
         "ranges": "c",
         "drvapi.h": "c",
-        "chain.h": "c"
-    }
+        "chain.h": "c",
+        "stdarg.h": "c",
+        "io.h": "c",
+        "printf_config.h": "c",
+        "printf.h": "c"
+    },
+    "folder-color.pathColors": [
+        {
+            "folderPath": "os90/kernel/src/implement/",
+            "color": "foldercolorizer.DarkViolet"
+        }
+    ]
 }

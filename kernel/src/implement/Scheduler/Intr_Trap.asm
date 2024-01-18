@@ -75,6 +75,8 @@ Low7:
 ; This is a series of call instuctions with 16-bit operands.
 ; The EIP saved onto the stack is copied.
 ;
+
+; Note there will be an empty space in the stack upon entry
         align   16
 LowE0:  DB      66h,0E8h, 72, 0
 LowE1:  DB      66h,0E8h, 68, 0
@@ -94,12 +96,16 @@ LowE14: DB      66h,0E8h, 16, 0
 LowE15: DB      66h,0E8h, 12, 0
 LowE16: DB      66h,0E8h, 8, 0
 LowE17: DB      66h,0E8h, 4, 0
-LowSwi: DB      66h,0E8h, 0, 0
+LowSwi: DB      66h,0E8h, 0, 0  ; Switch to NOP?
 
         pop     dword [ss: dwEIP]
 
         ; Did we come from virtual 8086 mode? If so, there is no need to save
         ; the sregs
+
+        ; Contradiction here?
+        ; We should ALWAYS save the segment registers
+        ; Also, the error code needs to be pushed off
 
         test    dword [ss:esp+8],1<<17
         jz      .WasV86

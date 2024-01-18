@@ -25,14 +25,14 @@ tpkstruct
 
 //static int x = sizeof (MB);
 
-CHID KERNEL ChainAlloc(
+CHID kernel ChainAlloc(
     U32 bytes,
     PID owner_pid
 );
 
 U32 ChainSize(CHID chain);
 
-STATUS KERNEL ChainExtend(
+STATUS kernel ChainExtend(
     CHID    id,
     U32     bytes_uncommit,
     U32     bytes_commit

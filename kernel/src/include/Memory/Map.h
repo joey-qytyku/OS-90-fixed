@@ -20,7 +20,7 @@ STATUS MapChainToVirtualAddress(
     PVOID   address
 );
 
-STATUS KERNEL MapBlock(
+STATUS kernel MapBlock(
     U32     attr,
     PVOID   virt,
     PVOID   phys

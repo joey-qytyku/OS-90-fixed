@@ -48,7 +48,7 @@ U32 RoundBytesToBlocks(U32 bytes)
 // RETURN:
 //      Allocated chain or INVALID_CHAIN
 //
-CHID KERNEL ChainAlloc(
+kernel CHID ChainAlloc(
     U32 bytes,
     PID owner_pid
 ){
@@ -83,7 +83,7 @@ CHID KERNEL ChainAlloc(
 
         // The last in the list will have zero as the default
         // next link. This will not be changed for last entry
-        // and remains zero, which is not vlaid for the next
+        // and remains zero, which is not valid for the next
         // entry.
         curr_blk->next = 0;
 
@@ -101,7 +101,8 @@ CHID KERNEL ChainAlloc(
         // Update previous index for next iteration
         prev_index = i;
     }
-
+    // THIS WILL FALL THROUGH!
+    // oom is not used.
 oom:
     // Add OOPM handler?
     // No. We will demand page with separate code that will check INVALID_CHAIN
@@ -144,8 +145,8 @@ End:
 }
 
 // BRIEF:
-//      Allocate a contiguous range of blocks. This is done toward the end of extended memory
-//      for simplicity.
+//      Allocate a contiguous range of blocks. This is done toward the end of
+//      extended memory for simplicity.
 //
 CHID ChainAllocPhysicalContig()
 {}
@@ -207,7 +208,7 @@ static U32 GetIndexOfLastEntry(CHID id)
 // If committed is 0, then we have to commit blocks anyway.
 //
 
-STATUS KERNEL ChainExtend(
+STATUS kernel ChainExtend(
     CHID    id,
     U32     bytes_uncommit,
     U32     bytes_commit
@@ -263,9 +264,12 @@ STATUS KERNEL ChainExtend(
 //      Returns the physical address of a block in a chain.
 //      Works by following the linked list.
 //
+// RETURN:
+//      Address of the block in the chain
+//      NULL if does not exist.
+//
 // Best if I unroll this.
 //
-
 PVOID ChainWalk(
     CHID    id,
     U32     req_index

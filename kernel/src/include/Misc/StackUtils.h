@@ -22,7 +22,7 @@ VOID RmPushMult16(
     U16     ss,
     PU32    esp,
     U32     num_to_push,
-    ...
+    PU16    push_array
 );
 
 VOID RmPopMult16(

@@ -69,7 +69,7 @@ Get operations:
 // U32 to avoid unnecessary sign extention
 //
 STATUS SetInterruptEntry(
-    VINT            irq,
+    U32             irq,
     INTERRUPT_CLASS iclass,
     FP_IRQ_HANDLER  handler,
     PDRIVER_HEADER  owner
@@ -86,10 +86,10 @@ STATUS SetInterruptEntry(
 // A driver or the kernel can voluntarily give an interrupt back to DOS
 // Potentially to unload.
 //
-VOID KERNEL InSurrenderInterrupt()
+VOID kernel InSurrenderInterrupt()
 {}
 
-INTERRUPT_CLASS KERNEL InGetInterruptLevel(VINT irq)
+INTERRUPT_CLASS kernel InGetInterruptLevel(U32 irq)
 {
     return interrupts.class_bmp >>= irq * 2;
 }
@@ -97,7 +97,7 @@ INTERRUPT_CLASS KERNEL InGetInterruptLevel(VINT irq)
 //
 // Get the address of the handler
 //
-FP_IRQ_HANDLER KERNEL InGetInterruptHandler(VINT irq)
+FP_IRQ_HANDLER kernel InGetInterruptHandler(U32 irq)
 {
     return interrupts.handlers[irq];
 }
@@ -113,9 +113,9 @@ FP_IRQ_HANDLER KERNEL InGetInterruptHandler(VINT irq)
 // The owner will be the kernel. This does not matter much because the device
 // is legacy.
 //
-STATUS KERNEL InAcquireLegacyIRQ(
-    VINT fixed_irq,
-    FP_IRQ_HANDLER handler
+STATUS kernel InAcquireLegacyIRQ(
+    U32             fixed_irq,
+    FP_IRQ_HANDLER  handler
 ){
     if (InGetInterruptLevel(fixed_irq) == BUS_INUSE)
     {
@@ -142,11 +142,11 @@ STATUS KERNEL InAcquireLegacyIRQ(
 // This is not the same as requesting control of a device. This will
 // simply segment a bus.
 //
-STATUS KERNEL InRequestBusIRQ(
+STATUS kernel InRequestBusIRQ(
     PDRIVER_HEADER  bus,
     PDRIVER_HEADER  client,
-    VINT            vi,
-    FP_IRQ_HANDLER   handler
+    U32             vi,
+    FP_IRQ_HANDLER  handler
 ){
 }
 
@@ -154,7 +154,7 @@ STATUS KERNEL InRequestBusIRQ(
 // Note to self: How will I implement requesting the IRQ based on device ID?
 //
 
-VOID KERNEL PnBiosCall()
+VOID kernel PnBiosCall()
 {
 }
 
@@ -206,7 +206,10 @@ STATUS KernelEventHandler(PDRIVER_EVENT_PACKET)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Add a new port/memory mapped resource entry
-STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
+//
+// This may add additional entries if ISA decode is specified.
+//
+kernel STATUS PnAddIOMemRsc(PIO_RESOURCE new_rsc)
 {
     if (cur_iorsc >= MAX_IO_RSC)
         return -1;
@@ -215,12 +218,26 @@ STATUS KERNEL PnAddIOMemRsc(PIO_RESOURCE new_rsc)
     return 0;
 }
 
+// Constructor for IO_RESOURCE
+kernel VOID NewIOMemRsc(
+    PIO_RESOURCE i,
+    U32     start,
+    U32     size,
+    PVOID   owner,
+    U16     flags
+){
+    i->flags = flags;
+    i->owner = owner;
+    i->start = start;
+    i->size  = size;
+}
+
 // BRIEF:
 //      Allocate IO port space. Returns all ones (-1) if failed. Otherwise
 //      returns base IO port.
 //
 //
-U32 KERNEL PnAllocateIOPorts(U16 num, U8 align)
+kernel U32 PnAllocateIOPorts(U16 num, U8 align)
 {
 }
 

@@ -90,7 +90,7 @@ static BOOL SetMemoryWindowToChainLocalBlock(
 // BRIEF:
 //      Map a single block to a virtual address.
 //
-STATUS KERNEL MapBlock(
+STATUS kernel MapBlock(
     U32     attr,
     PVOID   virt,
     PVOID   phys

@@ -26,15 +26,17 @@ In Protected Mode:
 
 */
 
-#include <Scheduler/SysEntry.h>
-#include <Scheduler/Process.h>
 #include <Platform/BitOps.h>
-#include <Misc/StackUtils.h>
-#include <Scheduler/V86M.h>
+
+#include <Scheduler/Process.h>
 #include <Scheduler/IoDecode.h>
+#include <Scheduler/V86M.h>
 #include <Scheduler/Sync.h>
 
-static EXCEPTION_HANDLER hl_exception_handlers[RESERVED_IDT_VECTORS];
+#include <Misc/StackUtils.h>
+#include <Misc/Segutils.h>
+
+#include <Debug/Debug.h>
 
 //
 // OS/90 cannot handle nested exceptions, or really any other asynchronous event
@@ -76,40 +78,43 @@ static U8 rm_isr_entrance_counter = 0;
 //
 static VOID ScMonitorV86(P_IRET_FRAME iframe)
 {
-    const PU8  ins  = MK_LP(iframe->cs, iframe->eip);
-    const BOOL sv86 = WasSV86();
-
-    if (sv86) {
-        if (*ins == OP_INT) {
-            RmPushMult16(
-                iframe->ss,
-                &iframe->esp,
-                3,
-                iframe->eip+2,
-                iframe->cs,
-                iframe->eflags
-            );
-        }
-
-        else if (*ins == OP_IRET) {
-            // Check counter?
-            // Each value is coppied to the pop location in x86 reverse order
-            RmPopMult16(iframe->ss, &iframe->esp, 5, &iframe->ss);
-        }
-        else if (IS_IO_OPCODE(*ins) || IS_IO_OPCODE(ins[1])) {
-            IoEmuSV86(ins);
-        }
-    }
-    else {
-        //
-    }
 }
 
-// Reduces cross-referencing in code at a small cost of density
-// Not available to drivers.
-VOID SetHighLevelExceptionHandler(U8 e, EXCEPTION_HANDLER handler)
+// SEP DO Procedures //
+
+// Perform INT instruction for a real mode process.
+// Procedure is:
+// * Push flags
+// * Push CS
+// * Push EIP
+//
+// The stack is accurately emulated.
+//
+U32 IntSepDo_Realmode_16(P_IRET_FRAME ifr)
 {
-    hl_exception_handlers[e] = handler;
+    assert(ifr->eflags & (1<<17));
+
+    U16 ss  = ifr->ss;
+    U32 esp = ifr->esp;
+
+    // Maybe just optimize to a simple backward copy
+    const U16 topush[3] = {ifr->eflags, ifr->cs, ifr->eip};
+
+    RmPushMult16(ss, esp, 3, topush);
+    return 0;
+}
+
+U32 IntSepDo_ProtMode(P_IRET_FRAME ifr)
+{
+    assert(ifr->eflags & (1<<17) == 0); // Not V86
+    assert(ifr->cs & 0b11 != 0);        // Not kernel
+
+    // Get bitness of the code segment
+    const BOOL pm32 = (SegmentUtil(SEG_GET_ACCESS_RIGHTS, ifr->ss, 0) >> 5) & 3;
+
+    // Popping a 16-bit value to eflags will only change the bottom half
+    // Keep this in mind.
+
 }
 
 VOID CopyIframeToRing3Context(
@@ -133,23 +138,6 @@ VOID CopyIframeToRing3Context(
     *source = *dest;
 }
 
-// BRIEF:
-//
-//      Exceptions and INT calls are handled by this function,
-//      which includes userspace V86 and protected mode (32-bit and 64-bit).
-//
-// PARAMS:
-//
-//  iframe: Trap frame
-//  event:  A code representing the exception index OR a special index called
-//          SWI. Getting the interrupt vector that was invoked is local to
-//          handling INT specifically.
-//
-// ENTRY STATE:
-//      Interrupts are off
-//      Preemption is off by proxy, but the preempt counter can be anything
-//      Registers have not been saved anywhere, they are just on the stack
-//
 __attribute__((regparm(2), aligned(16)))
 VOID SystemEntryPoint(
     U8           event,
@@ -157,62 +145,7 @@ VOID SystemEntryPoint(
 ){
     U32     old_thread_state;
     P_PCB   request_from;
-    BOOL    thread_was_v86 = request_from->procflags;///////
-
     request_from = GetCurrentPCB();
 
-    // First, we need to copy the registers on the stack into
-    // a context into the PCB corresponding with the thread that just entered
-    // this function instance.
 
-    // Normally, it is not okay to modify the PCB without acquiring the lock
-    // but a system entry cannot be caused more than once by the same process
-    // and interrupts are completely off right now, so access is exclusive.
-
-    // We will ONLY save registers to the PCB if it was a real or protected
-    // mode process and not SV86.
-    if (!AtomicFencedCompare(&g_sv86,1))
-    {
-        // Prevent scheduling of tasks because this task is about to be blocked
-        // and we do not want it to run when we enable interrupts.
-        AtomicFencedInc(&preempt_count);
-
-        // 0. Enable interrupts
-        _STI;
-
-        // (1) Get the requesting process PCB
-        request_from = GetCurrentPCB();
-
-        // (2) Save iret frame to the user context
-        CopyIframeToRing3Context(0, iframe, &request_from->user_regs);
-
-        // (3) Save thread state.
-        old_thread_state = request_from->thread_state;
-
-        // (4) Block the process so it is not scheduled when preemption is enabled.
-        request_from->thread_state = THREAD_BLOCKED;
-
-        AtomicFencedDec(&preempt_count);
-
-        // Now the process is blocked and we are free to service it
-
-        // (5) Was it an exception? If so, dispatch to an exception handler.
-        // Reserved vectors is 32. I should expand the table in Intr_Trap.asm
-        // so that it includes them
-
-        if (event < RESERVED_IDT_VECTORS)
-            hl_exception_handlers[event](0); // TODO ERROR CODE?
-        else {
-            // INT family instruction caused the entry. INT more likely.
-            // We do not
-        }
-    }
-
-    // Now  will hang until reschedule. This kernel thread will be expunged later.
-    if (!AtomicFencedCompare(&g_sv86,1))
-        while (1) {
-            __asm__("hlt":::"memory");
-        }
-
-    // Otherwise, return.
 }
