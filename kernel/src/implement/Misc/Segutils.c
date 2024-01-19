@@ -22,7 +22,7 @@
 //                  to the final value. Can be the memory mirror of the process.
 //
 //
-PVOID kernel SegmentToLinearAddress(
+PVOID kernel Segment_To_Linear_Address(
     BOOL    use_pmode,
     PVOID   relative_to,
     U16     seg,

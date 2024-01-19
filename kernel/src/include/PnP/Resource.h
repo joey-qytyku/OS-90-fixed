@@ -74,10 +74,10 @@ typedef struct __attribute__((packed))
 
 extern STATUS kernel PnAddIOMemRsc(PIO_RESOURCE);
 
-extern VOID             kernel  InSurrenderInterrupt();
-extern VOID             kernel  InRegainInterrupt();
-extern INTERRUPT_CLASS  kernel  InGetInterruptLevel(U32);
-extern FP_IRQ_HANDLER   kernel  InGetInterruptHandler(U32);
-extern STATUS           kernel  InAcquireLegacyIRQ(U32, FP_IRQ_HANDLER);
+extern VOID             kernel  Surrender_Interrupt();
+extern VOID             kernel  Regain_IRQ();
+extern INTERRUPT_CLASS  kernel  Get_IRQ_Class(U32);
+extern FP_IRQ_HANDLER   kernel  Get_Interrupt_Handler(U32);
+extern STATUS           kernel  Acquire_Legacy_IRQ(U32, FP_IRQ_HANDLER);
 
 #endif /* PNP_RESOURCE_H */

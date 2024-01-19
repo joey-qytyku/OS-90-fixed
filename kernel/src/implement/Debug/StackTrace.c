@@ -7,7 +7,7 @@
 static const char* LookupFunction(PVOID addr_of_function)
 {}
 
-VOID OutputStackTrace(VOID)
+VOID Output_Stack_Trace(VOID)
 {
     KLogf("%s %s", __FUNCTION__, " caused a fatal error.");
 
@@ -31,6 +31,6 @@ VOID OutputStackTrace(VOID)
     }
 }
 
-VOID EnableStackTraces()
+VOID Enable_Stack_Traces()
 {
 }

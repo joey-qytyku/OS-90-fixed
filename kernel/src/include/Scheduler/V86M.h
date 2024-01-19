@@ -66,42 +66,36 @@ typedef struct
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
 
-API_DECL(VOID, HookDosTrap,
+API_DECL(VOID, Hook_Dos_Trap,
     U8,
     PV86_CHAIN_LINK
 );
 
-API_DECL(VOID, ScOnErrorDetatchLinks, VOID);
+API_DECL(VOID, On_Error_Detatch_Links, VOID);
 API_DECL(VOID, Svint86, P_SV86_REGS, U8);
 
-extern VOID EnterRealMode(VOID);
+extern VOID Enter_Real_Mode(VOID);
 extern SV86_REGS _RealModeRegs;
 
 // We will not expose this.
 //extern U32 _RealModeTrapFrame[9];
 
-static inline PVOID MK_LP(U16 seg, U16 off)
-{
-    U32 address = seg*16 + off;
-    return (PVOID) address;
-}
-
 extern ATOMIC g_sv86;
 
 // Change to a MOV instruction?
-static inline VOID AssertSV86(VOID)
+static inline VOID Assert_SV86(VOID)
 {
-    AtomicFencedStore(&g_sv86, 1);
+    Atomic_Fenced_Store(&g_sv86, 1);
 }
 
-static inline VOID DeassertSV86(VOID)
+static inline VOID Deassert_SV86(VOID)
 {
     AtomicFencedStore(&g_sv86, 0);
 }
 
-static inline BOOL WasSV86(VOID)
+static inline BOOL Was_SV86(VOID)
 {
-    return AtomicFencedCompare(&g_sv86, 1);
+    return Atomic_Fenced_Compare(&g_sv86, 1);
 }
 
 #endif /* SCHEDULER_V86M_H */

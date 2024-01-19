@@ -21,7 +21,7 @@
 
 #include <Platform/IO.h>
 
-kernel VOID KernelMain(VOID)
+kernel VOID Kernel_Main(VOID)
 {
     KLogf("Hello, world\n");
 }

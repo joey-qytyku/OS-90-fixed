@@ -19,28 +19,28 @@
 // control block register dump or for the interrupt stack frame.
 //
 
-VOID RmPush16(U16 ss, PU32 esp, U16 value)
+VOID RM_Push16(U16 ss, PU32 esp, U16 value)
 {
     PU16 stack = MK_LP(ss, *esp);
     *esp -= 2;
     stack[-1] = value;
 }
 
-U16 RmPop16(U16 ss, PU32 esp)
+U16 RM_Pop_16(U16 ss, PU32 esp)
 {
     PU16 stack = MK_LP(ss, *esp);
     *esp += 2;
     return *stack;
 }
 
-VOID PmPush16(U16 ss, PU32 esp, U16 value)
+VOID PM_Push_16(U16 ss, PU32 esp, U16 value)
 {
     PU16 stack = (PU16)GetLdescBaseAddress(ss) + *esp;
     *esp -= 2;
     stack[-1] = value;
 }
 
-U16 PmPop16(U16 ss, PU32 esp)
+U16 PM_Pop_16(U16 ss, PU32 esp)
 {
     PU16 stack = (PU16)GetLdescBaseAddress(ss) + *esp;
     *esp += 2;
@@ -50,11 +50,11 @@ U16 PmPop16(U16 ss, PU32 esp)
 // BRIEF:
 //      Pushes values on the stack provided. Can take 1 or more 16-bit values
 //
-VOID RmPushMult16(
-    U16     ss,
-    PU32    esp,
-    U32     num_to_push,
-    PU16    push_array
+VOID RM_Push_Mult(
+    U16         ss,
+    PU32        esp,
+    U32         num_to_push,
+    const PU16  push_array
 ){
     // PU32 args = GET_VAR_LIST(num_to_push);
 
@@ -62,7 +62,7 @@ VOID RmPushMult16(
     //     RmPush16(ss, esp, args[i]);
 }
 
-VOID RmPopMult16(
+VOID RM_Pop_Mult(
     U16     ss,
     PU32    esp,
     U32     num_to_pop,
@@ -72,3 +72,6 @@ VOID RmPopMult16(
         buff[i] = RmPop16(ss, esp);
     }
 }
+
+VOID PM_Push_32()
+{}

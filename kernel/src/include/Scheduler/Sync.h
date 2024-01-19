@@ -20,14 +20,14 @@ typedef struct { U32 :32; } ATOMIC,*P_ATOMIC;
 // This causes GCC to think that we are trying to access the pointer argument
 // itself and uses the stack pointer as an address.
 
-static inline VOID ReleaseMutex(P_ATOMIC m)
+static inline VOID Release_Mutex(P_ATOMIC m)
 {
     __asm__ volatile (
        "btrl $0,%0":"=m"(*m)::"memory"
     );
 }
 
-static inline VOID AcquireMutex(P_ATOMIC m)
+static inline VOID Acquire_Mutex(P_ATOMIC m)
 {
     __asm__ volatile (
         "spin%=:\n\t"
@@ -45,7 +45,7 @@ static inline VOID AcquireMutex(P_ATOMIC m)
 //
 // REMOVE THIS, WE DONT NEED IT NOW
 //
-static inline BOOL MutexWasLocked(P_ATOMIC m)
+static inline BOOL Mutex_Was_Locked(P_ATOMIC m)
 {
     BOOL ret;
     __asm__ volatile(
@@ -58,7 +58,7 @@ static inline BOOL MutexWasLocked(P_ATOMIC m)
 }
 
 
-static inline U32 SaveFlags(VOID)
+static inline U32 Save_Flags(VOID)
 {
     U32 ret;
     __asm__ volatile (
@@ -70,7 +70,7 @@ static inline U32 SaveFlags(VOID)
     );
 }
 
-static inline VOID SetFlags(U32 flags)
+static inline VOID Set_Flags(U32 flags)
 {
     __asm__ volatile (
         "pushl %0"
@@ -82,7 +82,7 @@ static inline VOID SetFlags(U32 flags)
 }
 
 __attribute__((always_inline))
-static inline void AtomicFencedStore(P_ATOMIC address, U32 value)
+static inline void Atomic_Fenced_Store(P_ATOMIC address, U32 value)
 {
     __asm__ volatile(
         "movl %1,%0"
@@ -93,7 +93,7 @@ static inline void AtomicFencedStore(P_ATOMIC address, U32 value)
 }
 
 __attribute__((always_inline))
-static inline U32 AtomicFencedLoad(P_ATOMIC address)
+static inline U32 Atomic_Fenced_Load(P_ATOMIC address)
 {
     U32 ret;
     __asm__ volatile(
@@ -105,19 +105,19 @@ static inline U32 AtomicFencedLoad(P_ATOMIC address)
 }
 
 __attribute__((always_inline))
-static inline VOID AtomicFencedDec(P_ATOMIC address)
+static inline VOID Atomic_Fenced_Dec(P_ATOMIC address)
 {
     __asm__ volatile ( "decl %0" :"=m"(*address) :"m"(*address) :"memory");
 }
 
 __attribute__((always_inline))
-static inline VOID AtomicFencedInc(P_ATOMIC address)
+static inline VOID Atomic_Fenced_Inc(P_ATOMIC address)
 {
     __asm__ volatile ( "incl %0" :"=m"(*address) :"m"(*address) :"memory");
 }
 
 __attribute__((always_inline))
-static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
+static inline _Bool Atomic_Fenced_Compare(P_ATOMIC address, U32 imm)
 {
     _Bool ret;
     __asm__ volatile (
@@ -129,11 +129,12 @@ static inline _Bool AtomicFencedCompare(P_ATOMIC address, U32 imm)
     return ret;
 }
 
-#define K_PreemptDec() AtomicFencedDec(&preempt_count)
-#define K_PreemptInc() AtomicFencedInc(&preempt_count)
+#define K_PreemptDec() Atomic_Fenced_Dec(&preempt_count)
+#define K_PreemptInc() Atomic_Fenced_Inc(&preempt_count)
 
-API_DECL(VOID, PreemptDec, VOID);
-API_DECL(VOID, PreemptInc, VOID);
+API_DECL(VOID, Preempt_Dec, VOID);
+API_DECL(VOID, Preempt_Inc, VOID);
 
 extern ATOMIC preempt_count;
+
 #endif /* SCHEDULER_SYNC_H */

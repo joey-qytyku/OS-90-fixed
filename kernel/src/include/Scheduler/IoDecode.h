@@ -39,13 +39,13 @@ tstruct
 // TODO
 // typedef struct { }VDEV_IOP_REQUEST_PACKET;
 
-BOOL ScDecodePortOp(
+BOOL Decode_Port_Op(
     PU8,
     BOOL,
     P_DECODED_PORT_OP
 );
 
-VOID IoEmuSV86(PVOID ins);
+VOID IO_Emu_SV86(PVOID ins);
 
 extern VOID IaUseDirectRing3IO(VOID);
 extern VOID IaUseVirtualRing3IO(VOID);

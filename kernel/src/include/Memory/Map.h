@@ -14,13 +14,13 @@
 #include <Type.h>
 #include "MemDefs.h"
 
-STATUS MapChainToVirtualAddress(
+STATUS Map_Chain_To_Virtual_Address(
     U32     attr,
     CHID    id,
     PVOID   address
 );
 
-STATUS kernel MapBlock(
+STATUS kernel Map_Block(
     U32     attr,
     PVOID   virt,
     PVOID   phys

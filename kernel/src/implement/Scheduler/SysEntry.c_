@@ -8,24 +8,6 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-/*
-
-This module handles entry and exit of kernel mode as well as emulation
-of certain instructions involved in this process for V86 mode.
-
-Classes of function used here:
-* Stack frame simulation for opcodes
-* Interrupt and exception behavior for SV86, user V86, and protected mode.
-
-In SV86:
-    IRET will return to caller if isr counter reaches zero.
-    INT will accurately emulate the stack but the original
-    emulation of INT will not push anything to it.
-
-In Protected Mode:
-
-*/
-
 #include <Platform/BitOps.h>
 
 #include <Scheduler/Process.h>
@@ -76,7 +58,7 @@ static U8 rm_isr_entrance_counter = 0;
 //
 //      Emulated instructions: All IO, CLI/STI, INT, IRET
 //
-static VOID ScMonitorV86(P_IRET_FRAME iframe)
+static VOID Monitor_V86(P_IRET_FRAME iframe)
 {
 }
 
@@ -90,7 +72,7 @@ static VOID ScMonitorV86(P_IRET_FRAME iframe)
 //
 // The stack is accurately emulated.
 //
-U32 IntSepDo_Realmode_16(P_IRET_FRAME ifr)
+U32 Int_Sep_Do_Realmode_16(P_IRET_FRAME ifr)
 {
     assert(ifr->eflags & (1<<17));
 
@@ -98,13 +80,13 @@ U32 IntSepDo_Realmode_16(P_IRET_FRAME ifr)
     U32 esp = ifr->esp;
 
     // Maybe just optimize to a simple backward copy
-    const U16 topush[3] = {ifr->eflags, ifr->cs, ifr->eip};
+    U16 topush[3] = {ifr->eflags, ifr->cs, ifr->eip};
 
     RmPushMult16(ss, esp, 3, topush);
     return 0;
 }
 
-U32 IntSepDo_ProtMode(P_IRET_FRAME ifr)
+U32 Int_Sep_Do_ProtMode(P_IRET_FRAME ifr)
 {
     assert(ifr->eflags & (1<<17) == 0); // Not V86
     assert(ifr->cs & 0b11 != 0);        // Not kernel
@@ -112,9 +94,20 @@ U32 IntSepDo_ProtMode(P_IRET_FRAME ifr)
     // Get bitness of the code segment
     const BOOL pm32 = (SegmentUtil(SEG_GET_ACCESS_RIGHTS, ifr->ss, 0) >> 5) & 3;
 
+    // SS:ESP
+    PVOID stack = (PVOID)0+SegmentUtil(SEG_GET_BASE_ADDR, ifr->ss, 0)+ifr->esp;
+
     // Popping a 16-bit value to eflags will only change the bottom half
     // Keep this in mind.
+    U32 tocopy[] = {ifr->eip, ifr->cs, ifr->eflags};
 
+    if (pm32) {
+        C_memcpy(stack-4*3, tocopy, 4*3);
+        ifr->esp += 4*3;
+    } else {
+        for (int i = 0; i < 3; i++)
+            WORD_PTR(stack-2*3, i*2) = tocopy[i] & 0xFFFF;
+    }
 }
 
 VOID CopyIframeToRing3Context(
@@ -139,13 +132,11 @@ VOID CopyIframeToRing3Context(
 }
 
 __attribute__((regparm(2), aligned(16)))
-VOID SystemEntryPoint(
+VOID System_Entry_Point(
     U8           event,
     P_IRET_FRAME iframe
 ){
     U32     old_thread_state;
     P_PCB   request_from;
-    request_from = GetCurrentPCB();
-
-
+//    request_from = GetCurrentPCB();
 }

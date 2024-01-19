@@ -44,7 +44,7 @@ static CHID page_table_chain;
 //
 //      Not exposed to drivers. NEVER OPERATE ON THIS REGION.
 //
-static VOID SetMemoryWindow(PVOID physical)
+static VOID Set_Memory_Window(PVOID physical)
 {
     // Uh... u sure?
     const U32 winpgindex = sizeof(kernel_page_table_entries)-1;
@@ -78,7 +78,7 @@ static inline BOOL Aligned(PVOID addr, U32 align)
 //      1 if okay
 //      0 if index does not exist (block not mapped)
 //
-static BOOL SetMemoryWindowToChainLocalBlock(
+static BOOL Set_Memory_Window_To_Chain_Local_Block(
     CHID    id,
     U32     local_index
 ){
@@ -90,7 +90,7 @@ static BOOL SetMemoryWindowToChainLocalBlock(
 // BRIEF:
 //      Map a single block to a virtual address.
 //
-STATUS kernel MapBlock(
+STATUS kernel Map_Block(
     U32     attr,
     PVOID   virt,
     PVOID   phys
@@ -131,7 +131,7 @@ STATUS kernel MapBlock(
     return OS_OK;
 }
 
-STATUS MapChainToVirtualAddress(
+STATUS Map_Chain_To_Virtual_Address(
     U32     attr,
     CHID    id,
     PVOID   address
@@ -144,6 +144,6 @@ STATUS MapChainToVirtualAddress(
 //
 //
 //
-VOID InitMap(VOID)
+VOID Init_Map(VOID)
 {
 }

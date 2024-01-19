@@ -4,16 +4,16 @@
 ATOMIC mm_lock;
 
 // TODO use this for all the API calls.
-VOID AcquireMmLock()
+VOID Acquire_MM_Lock()
 {}
 
-kernel_async BOOL MmReentStat(VOID)
+kernel_async BOOL MM_Reent_Stat(VOID)
 {
     return MutexWasLocked(&mm_lock);
 }
 
 // Get size of block?
-U32 MemInfo(U8 op)
+U32 Mem_Info(U8 op)
 {}
 
 // Order of initialization:
@@ -23,7 +23,7 @@ U32 MemInfo(U8 op)
 //
 // end_of_kernel_physical: Beginning of free extended memory.
 //
-VOID InitMM(PVOID end_of_kernel_physical)
+VOID Init_MM(PVOID end_of_kernel_physical)
 {
     ChainInit();
 }

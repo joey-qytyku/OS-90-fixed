@@ -10,7 +10,7 @@
 
         %include "Asm/Kernel.inc"
 
-        global EnterRealMode
+        global Enter_Real_Mode
         section .text
 
         extern  SetESP0, GetESP0    ; Argument goes in EAX
@@ -24,7 +24,7 @@
 ; register buffer.
 ;
 
-EnterRealMode:
+Enter_Real_Mode:
         lea     eax,[esp+4]
         call    SetESP0
 
@@ -61,7 +61,7 @@ EnterRealMode:
 
 ; This procedure should never be called anywhere outside an exception handler
 ; which is non-preemptible context. Because it is non-preemptible, it is safe
-ExitRealMode:
+Exit_Real_Mode:
 
 ; The order here is expedient to EnterRealMode and does not have anything
 ; to do with the trap frame

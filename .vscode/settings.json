@@ -55,7 +55,8 @@
         "stdarg.h": "c",
         "io.h": "c",
         "printf_config.h": "c",
-        "printf.h": "c"
+        "printf.h": "c",
+        "*.c_": "c"
     },
     "folder-color.pathColors": [
         {

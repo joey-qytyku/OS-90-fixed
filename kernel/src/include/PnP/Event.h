@@ -47,23 +47,23 @@ tstruct {
     U8      payload[];
 }EVENT_PACKET,*P_EVENT_PACKET;
 
-VOID RaiseEvent(
+VOID Raise_Event(
     MBHND           mailbox,
     P_EVENT_PACKET  to_send
 );
 
-VOID RaiseUrgent(
+VOID Raise_Urgent(
     MBHND           mailbox,
     P_EVENT_PACKET  to_send
 );
 
-VOID InterruptEvent(
+VOID Interrupt_Event(
     P_EVENT_PACKET  to_intr,
     U16             intr_code
 );
 
 
-VOID ForwardRequest(
+VOID Forward_Request(
     P_EVENT_PACKET  packet,
     MBHND           to
 );

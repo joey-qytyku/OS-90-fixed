@@ -25,20 +25,20 @@ tpkstruct
 
 //static int x = sizeof (MB);
 
-CHID kernel ChainAlloc(
+CHID kernel Chain_Alloc(
     U32 bytes,
     PID owner_pid
 );
 
-U32 ChainSize(CHID chain);
+U32 Chain_Size(CHID chain);
 
-STATUS kernel ChainExtend(
+STATUS kernel Chain_Extend(
     CHID    id,
     U32     bytes_uncommit,
     U32     bytes_commit
 );
 
-PVOID ChainWalk(CHID id, U32 req_index);
-VOID ChainInit(VOID);
+PVOID Chain_Walk(CHID id, U32 req_index);
+VOID Chain_Init(VOID);
 
 #endif /* MM_CHAIN_H */

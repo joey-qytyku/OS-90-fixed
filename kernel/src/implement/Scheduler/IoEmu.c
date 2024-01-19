@@ -44,7 +44,7 @@
 // D: Output
 // W: Word
 //
-BOOL ScDecodePortOp(
+BOOL Decode_Port_Op(
     PU8                 opcode,
     BOOL                bits32,
     P_DECODED_PORT_OP   dec
@@ -145,7 +145,7 @@ BOOL ScDecodePortOp(
 //      The branch path is anticipated as likely if REP INSW or
 //      REP OUTSW are detected.
 //
-VOID IoEmuSV86(PVOID ins)
+VOID Io_Emu_SV86(PVOID ins)
 {
     PU16 as_words = ins;
     PU8  as_bytes = ins;

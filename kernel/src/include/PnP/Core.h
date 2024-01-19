@@ -21,6 +21,6 @@
 
 // Non-PnP drivers must be loaded first
 
-extern VOID InitPnP(VOID);
+extern VOID Init_PnP(VOID);
 
 #endif /* PNP_CORE_H */

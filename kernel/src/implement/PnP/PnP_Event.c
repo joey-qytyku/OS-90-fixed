@@ -3,7 +3,7 @@
 
 static P_MBOX first_mbox;
 
-static VOID PushEvent(
+static VOID Push_Event(
     P_MBOX mb,
     P_EVENT_PACKET ev)
 {
@@ -27,11 +27,11 @@ static VOID PushEvent(
 //      It is possible to raise events within a dispatcher and there are plenty
 //      of cases where this is necessary.
 //
-VOID RaiseEvent(
+VOID Raise_Event(
     MBHND           mb,
     P_EVENT_PACKET  ev
 ){
-    PushEvent(mb, ev);
+    Push_Event(mb, ev);
 }
 
 // BRIEF:
@@ -39,7 +39,7 @@ VOID RaiseEvent(
 //      kernel thread. It also runs HLT so that a context switch wakes up the
 //      CPU.
 //
-_Noreturn VOID EventDispatchThreadLoop(VOID)
+_Noreturn VOID Event_Dispatch_Thread_Loop(VOID)
 {
     P_MBOX mb = first_mbox;
     while (1)

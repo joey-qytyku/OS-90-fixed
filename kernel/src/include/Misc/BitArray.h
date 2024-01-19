@@ -13,13 +13,13 @@
 
 #include <Type.h>
 
-API_DECL(BOOL,   KeGetBitArrayEntry, PU32, U32);
-API_DECL(STATUS, KeAllocateBits, PU32, U32, U32, PU32);
-API_DECL(STATUS, AllocateOneBit, PU32, U32, PU32);
-API_DECL(VOID,   KeDisableBitArrayEntry, PU32, PU32);
+API_DECL(BOOL,   Get_Bit_Array_Entry, PU32, U32);
+API_DECL(STATUS, Allocate_Bits, PU32, U32, U32, PU32);
+API_DECL(STATUS, Allocate_One_Bit, PU32, U32, PU32);
+API_DECL(VOID,   Disable_Bit_Array_Entry, PU32, PU32);
 
 // These are NOT kernel exports.
-VOID KeEnableBitArrayEntry(PU32,U32);
-VOID KeEnableBitArrayRange(PU32,U32,U32);
+VOID Enable_Bit_Array_Entry(PU32,U32);
+VOID Enable_Bit_Array_Range(PU32,U32,U32);
 
 #endif

@@ -13,19 +13,19 @@
 
 #include <Type.h>
 
-VOID RmPush16(U16 ss, PU32 esp, U16 value);
-U16  RmPop16( U16 ss, PU32 esp);
-VOID PmPush16(U16 ss, PU32 esp, U16 value);
+VOID RM_Push(U16 ss, PU32 esp, U16 value);
+U16  RM_Pop( U16 ss, PU32 esp);
+VOID Pm_Push(U16 ss, PU32 esp, U16 value);
 U16  PmPop16( U16 ss, PU32 esp);
 
-VOID RmPushMult16(
-    U16     ss,
-    PU32    esp,
-    U32     num_to_push,
-    PU16    push_array
+VOID RM_Push_Mult(
+    U16         ss,
+    PU32        esp,
+    U32         num_to_push,
+    const PU16  push_array
 );
 
-VOID RmPopMult16(
+VOID RM_Pop_Mult(
     U16     ss,
     PU32    esp,
     U32     num_to_pop,

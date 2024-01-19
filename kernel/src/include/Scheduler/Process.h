@@ -4,6 +4,8 @@
 #include <Type.h>
 #include <Misc/log2.h>
 
+// Can I make the system entry in ASM. Make the PCB a bit more ASM friendly?
+
 // Relates to the thread state variable.
 //
 //
@@ -120,8 +122,12 @@ typedef U32 IRET_GPHND_DO(P_IRET_FRAME);
 
 // Very performance sensitive. Beware of structure ordering.
 // This structure is NOT packed by default.
+// Must be compatible with assembly definition.
 
 // Create "methods" for this?
+
+// It might be better to just use bytes for some of the process flags.
+// That requires less instructions to manipulate and allows for using ASM.
 tstruct
 {
     UREGS   user_regs;
@@ -131,8 +137,8 @@ tstruct
     PVOID   last;
     U32     psp_segment;
 
-    THREAD_STATE    thread_state;
-    DPMI_BITNESS    bitness;
+    THREAD_STATE    thread_state:8;
+    DPMI_BITNESS    bitness     :8;
 
     LOCAL_PM_IDT_ENTRY  local_idt[256];
 
@@ -161,53 +167,8 @@ tstruct
 
 // static int x = sizeof(PCB);
 
-static inline P_PCB GetCurrentPCB(VOID)
-{
-    register U32 sp __asm__("sp");
-    return (P_PCB)(sp & (~0x1FFFL));
-}
-
-// "Methods" for the PCB because it has so many members without a clear
-// indication as to how they are meant to be accessed.
-// These are all static inlines and the compiler will optimize most of the
-// calls away with direct access. If necessary, it could also generate static
-// procedures.
-// IGNORE THESE FOR DRIVERS!
-
-#define MK_GETTER(rettype, funcname, member)\
-    static inline rettype PcbGet_##funcname(P_PCB pcb)\
-    { return pcb->member; }\
-
-#define MK_SETTER(type, funcname, member)\
-    static inline VOID PcbSet_##funcname(P_PCB pcb, type value)\
-    { pcb->member = value; }
-
-// Get/set next process
-MK_GETTER(P_PCB, Next, next);
-MK_SETTER(P_PCB, Next, next);
-
-// Get/set last process
-MK_GETTER(P_PCB, Last, last);
-MK_SETTER(P_PCB, Last, last);
-
-// Get/set PM IDT entries
-
-static inline VOID PcbSetLocalIdtEntry(P_PCB p, U8 i, LOCAL_PM_IDT_ENTRY e)
-{ p->local_idt[i] = e; }
-
-static inline LOCAL_PM_IDT_ENTRY PcbGetLocalIdtEntry(P_PCB p, U8 i)
-{ return p->local_idt[i]; }
-
-// Get/set real mode IVT vectors
-
-static inline VOID PcbSetLocalRmVector(P_PCB p, U8 i, FAR_PTR_16 v)
-{ p->rm_local_ivt[i] = v; }
-
-// Remove this?
-PVOID kernel ProcSegmentToLinearAddress(
-    P_PCB,
-    U16,
-    U32
-);
+// TODO TODO TODO TODO
+#define Get_Current_PCB()
+//(P_PCB)(__asm__("sp") & (~0x1FFFL))
 
 #endif /* SCHEDULER_PROC_H */

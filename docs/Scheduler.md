@@ -6,6 +6,7 @@ Note: I need to have the ability to delete unused PCBs from memory. I suppose if
 - Because of your direct IDT decision, do you need to reintroduce the IOPB?
     - IOPB will be all zero to deny all. This is by placing the IOPB pointer outside of the TSS bounds.
 - Consider soft IRQ
+- Maybe do system entry in assembly! It would be so cool!
 
 # Preface
 

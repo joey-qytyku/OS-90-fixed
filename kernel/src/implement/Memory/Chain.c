@@ -21,7 +21,8 @@ static P_MB   block_list;
 
 // Size of PBT is dynamic and determined by checking size of physical RAM.
 
-U32 RoundBytesToBlocks(U32 bytes)
+// Is this a good idea?
+U32 Round_Bytes_To_Blocks(U32 bytes)
 {
     return bytes >> BITS_NEEDED(MEM_BLOCK_SIZE) + (bytes & MEM_BLOCK_SIZE - 1);
 }
@@ -48,7 +49,7 @@ U32 RoundBytesToBlocks(U32 bytes)
 // RETURN:
 //      Allocated chain or INVALID_CHAIN
 //
-kernel CHID ChainAlloc(
+kernel CHID Chain_Alloc(
     U32 bytes,
     PID owner_pid
 ){
@@ -112,7 +113,7 @@ good:
     return base;
 }
 
-BOOL ChainIsValid(CHID chain)
+BOOL Chain_Is_Valid(CHID chain)
 {
     if (block_list[chain].f_free == 1 && block_list[chain].rel_index == 0)
         return 1;
@@ -126,7 +127,7 @@ BOOL ChainIsValid(CHID chain)
 //      A chain cannot be zero bytes long, so a return value of zero is invalid.
 //      Valid return value will *always* be block granular.
 //
-U32 ChainSize(CHID chain)
+U32 Chain_Size(CHID chain)
 {
     U32 curr_inx   = chain;
     U32 byte_count = 0;
@@ -148,7 +149,7 @@ End:
 //      Allocate a contiguous range of blocks. This is done toward the end of
 //      extended memory for simplicity.
 //
-CHID ChainAllocPhysicalContig()
+CHID Chain_Alloc_Physical_Contig()
 {}
 
 typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
@@ -159,7 +160,7 @@ typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
 // RETURN:
 //      A pointer to the last block entry checked.
 //
-static P_MB ForEachBlockInChain(
+static P_MB For_Each_Block_In_Chain(
     ITERATE_CHAIN_FUNC _do,
     CHID               id,
     U32                extra
@@ -175,21 +176,21 @@ static P_MB ForEachBlockInChain(
     return block;
 }
 
-static BOOL SlantIndicesByAddend(P_MB block, U32 addend)
+static BOOL Slant_Indices_By_Addend(P_MB block, U32 addend)
 {
     block->rel_index += (U16)addend;
 }
 
-static BOOL CheckLast(P_MB block, U32 dummy)
+static BOOL Check_Last(P_MB block, U32 dummy)
 {
     UNUSED_PARM(dummy);
     return (BOOL)block->next;
 }
 
 // Way to speed up this calculation?
-static U32 GetIndexOfLastEntry(CHID id)
+static U32 Get_Index_Of_Last_Entry(CHID id)
 {
-    const U32 last_block_2int = (U32)ForEachBlockInChain(CheckLast, id, 0);
+    const U32 last_block_2int = (U32)For_Each_Block_In_Chain(Check_Last, id, 0);
     const U32 block_list_2int = (U32)block_list;
 
     return (last_block_2int - block_list_2int) / sizeof(MB);
@@ -208,7 +209,7 @@ static U32 GetIndexOfLastEntry(CHID id)
 // If committed is 0, then we have to commit blocks anyway.
 //
 
-STATUS kernel ChainExtend(
+STATUS kernel Chain_Extend(
     CHID    id,
     U32     bytes_uncommit,
     U32     bytes_commit
@@ -247,8 +248,8 @@ STATUS kernel ChainExtend(
 
     // Slant the indices forward by the number of uncommitted
 
-    ForEachBlockInChain(
-        SlantIndicesByAddend,
+    For_Each_Block_In_Chain(
+        Slant_Indices_By_Addend,
         ext_chain,
         blocks_uncommit
     );
@@ -270,7 +271,7 @@ STATUS kernel ChainExtend(
 //
 // Best if I unroll this.
 //
-PVOID ChainWalk(
+PVOID Chain_Walk(
     CHID    id,
     U32     req_index
 ){
@@ -298,7 +299,7 @@ PVOID ChainWalk(
 }
 
 // Stack trace info can be variable size and is independent of the linker?
-VOID ChainInit(VOID)
+VOID Chain_Init(VOID)
 {
     // const U32 lkr_end_int = (U32)&; // minus something?
     // const U32 mbsize = MEM_BLOCK_SIZE;

@@ -68,7 +68,7 @@ Get operations:
 //  IRQ number
 // U32 to avoid unnecessary sign extention
 //
-STATUS SetInterruptEntry(
+STATUS Set_Interrupt_Entry(
     U32             irq,
     INTERRUPT_CLASS iclass,
     FP_IRQ_HANDLER  handler,
@@ -86,10 +86,10 @@ STATUS SetInterruptEntry(
 // A driver or the kernel can voluntarily give an interrupt back to DOS
 // Potentially to unload.
 //
-VOID kernel InSurrenderInterrupt()
+VOID kernel Surrender_Interrupt()
 {}
 
-INTERRUPT_CLASS kernel InGetInterruptLevel(U32 irq)
+INTERRUPT_CLASS kernel Get_Irq_Class(U32 irq)
 {
     return interrupts.class_bmp >>= irq * 2;
 }
@@ -97,7 +97,7 @@ INTERRUPT_CLASS kernel InGetInterruptLevel(U32 irq)
 //
 // Get the address of the handler
 //
-FP_IRQ_HANDLER kernel InGetInterruptHandler(U32 irq)
+FP_IRQ_HANDLER kernel Get_Irq_Handler(U32 irq)
 {
     return interrupts.handlers[irq];
 }
@@ -113,7 +113,7 @@ FP_IRQ_HANDLER kernel InGetInterruptHandler(U32 irq)
 // The owner will be the kernel. This does not matter much because the device
 // is legacy.
 //
-STATUS kernel InAcquireLegacyIRQ(
+STATUS kernel Acquire_Legacy_IRQ(
     U32             fixed_irq,
     FP_IRQ_HANDLER  handler
 ){
@@ -142,7 +142,7 @@ STATUS kernel InAcquireLegacyIRQ(
 // This is not the same as requesting control of a device. This will
 // simply segment a bus.
 //
-STATUS kernel InRequestBusIRQ(
+STATUS kernel Request_Bus_IRQ(
     PDRIVER_HEADER  bus,
     PDRIVER_HEADER  client,
     U32             vi,
@@ -154,12 +154,12 @@ STATUS kernel InRequestBusIRQ(
 // Note to self: How will I implement requesting the IRQ based on device ID?
 //
 
-VOID kernel PnBiosCall()
-{
-}
+// VOID kernel PnBiosCall()
+// {
+// }
 
 // Scan the ROM space for "$PnP" at a 2K boundary
-STATUS SetupPnP(VOID)
+STATUS Setup_PnP(VOID)
 {
     // ROM space should not be prefetched or written
     volatile PPNP_INSTALL_CHECK checkstruct = (PPNP_INSTALL_CHECK)0xF0000;
@@ -186,22 +186,6 @@ STATUS SetupPnP(VOID)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Plug and Play kernel event handling and sending
-////////////////////////////////////////////////////////////////////////////////
-
-VOID PnSendDriverEvent()
-{
-    // Should this require sender != to reciever?
-}
-
-//Kernel does not handle events !!!!!!!!!!!!!!! Where to put this?
-//
-STATUS KernelEventHandler(PDRIVER_EVENT_PACKET)
-{
-    return OS_FEATURE_NOT_SUPPORTED;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // IO and Memory Resource Managment Reoutines
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,7 +193,7 @@ STATUS KernelEventHandler(PDRIVER_EVENT_PACKET)
 //
 // This may add additional entries if ISA decode is specified.
 //
-kernel STATUS PnAddIOMemRsc(PIO_RESOURCE new_rsc)
+kernel STATUS Add_IOMem_Rsc(PIO_RESOURCE new_rsc)
 {
     if (cur_iorsc >= MAX_IO_RSC)
         return -1;
@@ -219,7 +203,7 @@ kernel STATUS PnAddIOMemRsc(PIO_RESOURCE new_rsc)
 }
 
 // Constructor for IO_RESOURCE
-kernel VOID NewIOMemRsc(
+kernel VOID New_IOMem_Rsc(
     PIO_RESOURCE i,
     U32     start,
     U32     size,
@@ -271,7 +255,7 @@ kernel U32 PnAllocateIOPorts(U16 num, U8 align)
 // IRQ and be redirected to the IRQ#2 real mode handler. Yuck.
 // Try to not use stupid programs plz.
 //
-static VOID Init_DetectFreeInt(VOID)
+static VOID Init_Detect_Free_Int(VOID)
 {
     U8 imr0 = delay_inb(0x21);
 
@@ -295,31 +279,11 @@ static VOID Init_DetectFreeInt(VOID)
 //  COM2 and COM4 => IRQ#3
 //  COM1 and COM3 => IRQ#4
 //
-static VOID DetectCOM(VOID)
+static VOID Detect_COM(VOID)
 {
-    U8 i, com_ports;
-    const PU16 bda = (PU16)0x400;
-
-    // Check BIOS data area for number of serial ports
-    // The beginning words are the COM port IO addresses
-    // Zero indictates not present
-    //
-    for (i = 0; i < 4; i++) // Up to four COM ports on an IBM PC
-    {
-        if (bda[i] != 0) // then COM[i] exists
-            com_ports++;
-    }
-    // RECL_16 is used because a 32-bit driver for COM is not loaded yet
-//    interrupts[4].lvl = RECL_16;
-
-
-    if (com_ports > 1)
-    {
-    }
-//        interrupts[3].lvl = RECL_16;
 }
 
-VOID InitPnP(VOID)
+VOID Init_PnP(VOID)
 {
     // Clear all interrupt and resource entries. Zeroing them ensures they
     // are recognized as not in use.
@@ -327,5 +291,5 @@ VOID InitPnP(VOID)
     C_memset(&resources,  0, sizeof(IO_RESOURCE) * MAX_IO_RSC);
 
     Init_DetectFreeInt();
-    DetectCOM();
+    Detect_COM(); // ?
 }

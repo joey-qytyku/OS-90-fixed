@@ -11,6 +11,15 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
 #include <Type.h>
 
 #include "printf.h"
@@ -27,7 +36,6 @@ API_DECL(VOID, Putchar, char ch);
 #define _str2(x) _str(x)
 #define LINE _str2(__LINE__)
 
-
 #define BREAKPOINT() __asm__ volatile("xchgw %%bx,%%bx":::"memory");\
 
 #ifdef NDEBUG
@@ -41,7 +49,7 @@ API_DECL(VOID, Putchar, char ch);
             while(1);\
         }
 
-    #define KLogf(fmt, ...) printf("%s:%i>> " fmt, __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__)
+    #define KLogf(fmt, ...) printf(ANSI_COLOR_YELLOW "%s:%i>> " fmt ANSI_COLOR_RESET, __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__)
 #endif /* NDBUG */
 
 #define _not_null(exp) assert((exp) != NULL)

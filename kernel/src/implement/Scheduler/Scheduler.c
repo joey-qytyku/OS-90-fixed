@@ -43,14 +43,14 @@ P_PCB current_pcb;
 P_PCB first_pcb; // The first process
 U32   number_of_processes;
 
-kernel VOID PreemptInc(VOID)
+kernel VOID Preempt_Inc(VOID)
 {
-    AtomicFencedInc(&preempt_count);
+    Atomic_Fenced_Inc(&preempt_count);
 }
 
-kernel VOID PreemptDec(VOID)
+kernel VOID Preempt_Dec(VOID)
 {
-    AtomicFencedDec(&preempt_count);
+    Atomic_Fenced_Dec(&preempt_count);
 }
 
 // BRIEF:
@@ -58,7 +58,7 @@ kernel VOID PreemptDec(VOID)
 //
 kernel BOOL Preemptible(VOID)
 {
-    return AtomicFencedCompare(&preempt_count, 0);
+    return Atomic_Fenced_Compare(&preempt_count, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,12 +70,12 @@ ATOMIC g_sv86 = ATOMIC_INIT;
 ALIGN(4) static V86_CHAIN_LINK v86_capture_chain[256];
 ALIGN(4) static U32 dos_semaphore_seg_off; // ???
 
-VOID kernel ScOnErrorDetatchLinks(VOID)
+VOID kernel On_Error_Detatch_Links(VOID)
 {
     C_memset(&v86_capture_chain, '\0', sizeof(v86_capture_chain));
 }
 
-kernel VOID HookDosTrap(
+kernel VOID Hook_Dos_Trap(
     U8                    vector,
     PV86_CHAIN_LINK       ptrnew
 ){
@@ -86,7 +86,7 @@ kernel VOID HookDosTrap(
     prev_link->next = ptrnew;
     ptrnew->next = NULL;
 
-    AtomicFencedDec(&preempt_count);
+    Atomic_Fenced_Dec(&preempt_count);
 
 }
 
@@ -127,7 +127,7 @@ kernel VOID Svint86(P_SV86_REGS context, U8 vector)
     // In this case, we change the stack itself using the reg buffer???
 
     // We must lock real mode when accessing this structure
-    AtomicFencedInc(&preempt_count);
+    Atomic_Fenced_Inc(&preempt_count);
 
     AssertSV86();
 
@@ -146,19 +146,19 @@ kernel VOID Svint86(P_SV86_REGS context, U8 vector)
 }
 
 // Works for UV86 and SV86 because we do not read the arguments.
-kernel static STATUS V86CaptStub(PVOID unused)
+kernel static STATUS V86_Capt_Stub(PVOID unused)
 
 {
     UNUSED_PARM(unused);
     return CAPT_NOHND;
 }
 
-VOID InitV86(VOID)
+VOID Init_V86(VOID)
 {
     // Add the V86 stub.
     for (U16 i = 0; i<256; i++)
     {
-        V86_CHAIN_LINK new = { NULL, V86CaptStub, V86CaptStub};
+        V86_CHAIN_LINK new = { NULL, V86_Capt_Stub, V86_Capt_Stub};
         v86_capture_chain[i] = new;
     }
 }
@@ -171,7 +171,7 @@ VOID InitV86(VOID)
 //////////////////////// INTERRUPT HANDLING SECTION ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline void SendEOI(U8 vector)
+static inline void Send_EOI(U8 vector)
 {
     delay_outb(0x20, 0x20);
     if (vector > 7)
@@ -183,13 +183,13 @@ static inline void SendEOI(U8 vector)
 //      Scheduler interrupt handler. This handles task switching.
 //      todo: Consider doing this in assembly.
 //
-static VOID HandleIRQ0(P_IRET_FRAME iframe)
+static VOID Handle_IRQ0(P_IRET_FRAME iframe)
 {
 }
 
 
 __attribute__((regparm(1)))
-VOID InterruptDispatch(U32 diff_spurious)
+VOID Interrupt_Dispatch(U32 diff_spurious)
 {
     const U16 inservice16 = InGetInService16();
     const U16 irq         = BitScanFwd(inservice16);
@@ -211,7 +211,7 @@ VOID InterruptDispatch(U32 diff_spurious)
     else if (diff_spurious == 15 && (inservice16 >> 8) == 0)
         return;
 
-    if (InGetInterruptLevel(irq) == BUS_INUSE) {
+    if (Get_IRQ_Class(irq) == BUS_INUSE) {
 //        InGetInterruptHandler(irq)();
         SendEOI(irq);
     }
@@ -223,7 +223,7 @@ VOID InterruptDispatch(U32 diff_spurious)
     }
 }
 
-VOID SchedulerPhase1(VOID)
+VOID Scheduler_Phase1(VOID)
 {
-    ConfigurePIT();
+    Configure_PIT();
 }

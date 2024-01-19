@@ -9,7 +9,7 @@
 #include "DPMI.h"
 #include <Platform/IO.h>
 
-static inline VOID ConfigurePIT(VOID)
+static inline VOID Configure_PIT(VOID)
 {
     delay_outb(0x43, 0x36);
     delay_outb(0x40, 0x80);
