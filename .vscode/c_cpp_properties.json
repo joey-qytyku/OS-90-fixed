@@ -35,7 +35,8 @@
                 "-ffreestanding",
                 "-std=c99",
                 "-Wextra",
-                "-m32"
+                "-m32",
+                "-include kernel/src/include/Type.h"
             ]
         }
     ],

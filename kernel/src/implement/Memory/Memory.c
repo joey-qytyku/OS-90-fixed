@@ -9,7 +9,7 @@ VOID Acquire_MM_Lock()
 
 kernel_async BOOL MM_Reent_Stat(VOID)
 {
-    return MutexWasLocked(&mm_lock);
+    return Mutex_Was_Locked(&mm_lock);
 }
 
 // Get size of block?
@@ -25,5 +25,5 @@ U32 Mem_Info(U8 op)
 //
 VOID Init_MM(PVOID end_of_kernel_physical)
 {
-    ChainInit();
+    Chain_Init();
 }

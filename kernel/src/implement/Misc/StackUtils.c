@@ -19,7 +19,7 @@
 // control block register dump or for the interrupt stack frame.
 //
 
-VOID RM_Push16(U16 ss, PU32 esp, U16 value)
+VOID RM_Push_16(U16 ss, PU32 esp, U16 value)
 {
     PU16 stack = MK_LP(ss, *esp);
     *esp -= 2;
@@ -69,7 +69,7 @@ VOID RM_Pop_Mult(
     PU32    buff
 ){
     for (U32 i = 0; i < num_to_pop; i++) {
-        buff[i] = RmPop16(ss, esp);
+        buff[i] = RM_Pop_16(ss, esp);
     }
 }
 

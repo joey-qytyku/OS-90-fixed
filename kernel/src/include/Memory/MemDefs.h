@@ -1,18 +1,19 @@
-/*
-     This file is part of OS/90.
-
-    OS/90 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 2 of the License, or (at your option) any later version.
-
-    OS/90 is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License along with OS/90. If not, see <ttps://www.gnu.org/licenses/>.
-*/
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                     Copyright (C) 2023, Joey Qytyku                        //
+//                                                                            //
+// This file is part of OS/90 and is published under the GNU General Public   //
+// License version 2. A copy of this license should be included with the      //
+// source code and can be found at <https://www.gnu.org/licenses/>.           //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
 
 #ifndef MMDEFS_H
 #define MMDEFS_H
 
 #include <Type.h>
 
+// Maybe rename
 #define MB(x) (x * 1048576)
 #define KB(x) (x * 1024)
 
@@ -46,6 +47,6 @@
 // Chains are operated on by all parts of MM, so it is defined here.
 typedef U32 CHID;
 
-API_DECL(BOOL, MmReentStat, VOID);
+API_DECL(BOOL, MM_Reent_Stat, VOID);
 
 #endif /* MMDEFS_H */

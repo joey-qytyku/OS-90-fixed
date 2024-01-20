@@ -12,8 +12,8 @@
 #define SCHEDULER_V86M_H
 
 #include <Type.h>
-#include "Sync.h" /* ATOMIC type */
-
+#include "Sync.h"       /* ATOMIC type */
+#include "Process.h"    /* UREGS type */
 
 // V86 handler return values
 #define CAPT_HND   0 /* Handled captured trap */
@@ -66,11 +66,7 @@ typedef struct
 }V86_CHAIN_LINK,
 *PV86_CHAIN_LINK;
 
-API_DECL(VOID, Hook_Dos_Trap,
-    U8,
-    PV86_CHAIN_LINK
-);
-
+API_DECL(VOID, Hook_Dos_Trap, U8, PV86_CHAIN_LINK);
 API_DECL(VOID, On_Error_Detatch_Links, VOID);
 API_DECL(VOID, Svint86, P_SV86_REGS, U8);
 
@@ -90,7 +86,7 @@ static inline VOID Assert_SV86(VOID)
 
 static inline VOID Deassert_SV86(VOID)
 {
-    AtomicFencedStore(&g_sv86, 0);
+    Atomic_Fenced_Store(&g_sv86, 0);
 }
 
 static inline BOOL Was_SV86(VOID)

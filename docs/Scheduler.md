@@ -276,7 +276,7 @@ if SEP event was exception:
 ```
 > Rest in peace branch target buffer 💀.
 
-> Uvint86 will work like Svint86, but it will merely return the address of the handler
+> The procedure for finding out if it was an INT or exception is not included here. More on it later.
 
 ## The Solution
 
@@ -327,6 +327,16 @@ Going back to the process requires changing the process state to KERNEL.
 This allows for low-latency system calls that do not stall when completed.
 
 > Changing the links of the PCB requires interrupts to be fully disabled
+
+## Compliance with DPMI
+
+DPMI requires that all interrupt vectors are modifyable by the client. By default, every vector except for `INT 21h` in the special case of `AH=4Ch` will reflect to 16-bit DOS. The only exception would be the DOS error handlers, which can cause an error if not caught on most DPMI servers.
+
+Exceptions use a separate table and function for configuring them because of the inherent collision with real mode INT calls.
+
+This makes things difficult for the system entry point. We will end up having to check the imm8 field of the INT call because simply getting the IDT index with preincluded thunks will not be enough to tell apart an exception.
+
+The only way to know if it was an exception is to confirm it was not an INT or any variant of it.
 
 # Handling IRET
 

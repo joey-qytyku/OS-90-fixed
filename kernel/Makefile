@@ -22,8 +22,12 @@ OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.o))
 EXEC := $(BINDIR)/KERNL386.EXE
 
 OPTS:= -Os -mtune=i386
+DEBUG_OPTIONS := -DPRINTF_INCLUDE_CONFIG_H -Wextra
+ABI := -fcall-used-esi -fcall-used-edi -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2
+ARCH := -march=i386
+CENV := -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99
 
-CFLAGS := -I ./src/include/ $(OPTS) -DPRINTF_INCLUDE_CONFIG_H -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2 -march=i386 -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -fcall-used-esi -fcall-used-edi
+CFLAGS := -I ./src/include/ -include ./src/include/Type.h $(OPTS) $(ABI) $(ARCH) $(DEBUG_OPTIONS) $(CENV)
 
 AFLAGS := -f elf32 -Ox -i src/include/
 

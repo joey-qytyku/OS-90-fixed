@@ -49,7 +49,7 @@ BOOL kernel Get_Bit_Array_Entry(PU32 array, U32 inx)
 VOID Enable_Bit_Array_Range(PU32 array, U32 base_inx, U32 count)
 {
     for (U32 i = 0; i < count; i++)
-        KeEnableBitArrayEntry(array, base_inx+i);
+        Enable_Bit_Array_Entry(array, base_inx+i);
 }
 
 // BRIEF:

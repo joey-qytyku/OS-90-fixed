@@ -1,7 +1,6 @@
 #ifndef PNP_EVENT_H
 #define PNP_EVENT_H
 
-#include <Type.h>
 #include <Scheduler/Sync.h>
 
 #define EV_CC_NOT_DONE 0xFFFFFFFF
@@ -32,8 +31,8 @@ tstruct {
     PU32    ptr_to_stack;
     MB_STKOVF_CALLBACK on_overflow;
     MB_DISPATCH_CALLBACK disp;
-    PVOID *next;
-}MBOX,*P_MBOX,*MBHND; // MBHND is just a pointer to a mailbox
+    PVOID next;
+}_MBOX,*_P_MBOX,*MBHND; // MBHND is just a pointer to a mailbox
 
 tstruct {
     U16     func;

@@ -1,14 +1,12 @@
 #ifndef SCHEDULER_SYNC_H
 #define SCHEDULER_SYNC_H
 
-#include <Type.h>
-
 #define _STI { __asm__ volatile ("sti":::"memory"); }
 #define _CLI { __asm__ volatile ("cli":::"memory"); }
 
 // Opaque type. 32-bit.
 ALIGN(4)
-typedef struct { U32 :32; } ATOMIC,*P_ATOMIC;
+typedef struct { U32 _; } ATOMIC,*P_ATOMIC;
 
 #define ATOMIC_INIT {0}
 

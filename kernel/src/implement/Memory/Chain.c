@@ -18,7 +18,7 @@
 
 static U32    num_total_blocks;
 static P_MB   block_list;
-
+`dsfsdf;dsf;dsf;ew2132321;3;
 // Size of PBT is dynamic and determined by checking size of physical RAM.
 
 // Is this a good idea?
@@ -62,7 +62,7 @@ kernel CHID Chain_Alloc(
     MB   nonsense_mb = { 0 };
     P_MB prev_blk = &nonsense_mb;
 
-    U32 num_blocks_to_alloc = RoundBytesToBlocks(bytes);
+    U32 num_blocks_to_alloc = Round_Bytes_To_Blocks(bytes);
     U32 base; // Index of first block
 
 
@@ -132,7 +132,7 @@ U32 Chain_Size(CHID chain)
     U32 curr_inx   = chain;
     U32 byte_count = 0;
 
-    if (!ChainIsValid(chain))
+    if (!Chain_Is_Valid(chain))
         goto End;
 
     // do while?
@@ -214,13 +214,13 @@ STATUS kernel Chain_Extend(
     U32     bytes_uncommit,
     U32     bytes_commit
 ){
-    U32 blocks_commit   = RoundBytesToBlocks(bytes_commit);
-    U32 blocks_uncommit = RoundBytesToBlocks(bytes_uncommit);
+    U32 blocks_commit   = Round_Bytes_To_Blocks(bytes_commit);
+    U32 blocks_uncommit = Round_Bytes_To_Blocks(bytes_uncommit);
 
     // If the chain is invalid or no memory is being allocated
     // return error.
 
-    if (!ChainIsValid(id) || (bytes_commit + bytes_uncommit) == 0)
+    if (!Chain_Is_Valid(id) || (bytes_commit + bytes_uncommit) == 0)
         return OS_ERROR_GENERIC;
 
     if (blocks_commit == 0)
@@ -231,17 +231,17 @@ STATUS kernel Chain_Extend(
         blocks_commit = 1; //++?
     }
 
-    const U32 blocks_in_chain = ChainSize(id) / MEM_BLOCK_SIZE;
+    const U32 blocks_in_chain = Chain_Size(id) / MEM_BLOCK_SIZE;
 
     // The last block allocated before extention. To find it, we have to
     // iterate blocks_in_chain times
-    const U32 final_block_before_ext = GetIndexOfLastEntry(id);
+    const U32 final_block_before_ext = Get_Index_Of_Last_Entry(id);
 
     // BOOL is_user = (block_list[id].owner_pid != 0);
 
     // We will use the chain alloc function to get a new chain. This will
     // be linked to the previous one later.
-    const CHID ext_chain = ChainAlloc(blocks_commit * MEM_BLOCK_SIZE, 0);
+    const CHID ext_chain = Chain_Alloc(blocks_commit * MEM_BLOCK_SIZE, 0);
 
     if (ext_chain == INVALID_CHAIN)
         return OS_ERROR_GENERIC;

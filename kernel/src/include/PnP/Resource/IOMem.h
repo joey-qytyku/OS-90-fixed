@@ -11,14 +11,7 @@
 #ifndef PNP_RESOURCE_H
 #define PNP_RESOURCE_H
 
-#include <Type.h>
-
-typedef enum {
-    UNDEFINED = 0,
-    BUS_FREE  = 1,  // Available interrupt
-    BUS_INUSE = 2,  // 32-bit interrupt controlled by a BUS
-    RECL_16   = 3   // Legacy DOS driver interrupt, can be reclaimed
-}INTERRUPT_CLASS;
+#include "../DriverHeader.h"
 
 #define MAX_IO_RSC 64
 
@@ -41,15 +34,13 @@ typedef enum {
 //
 // Memory address aliasing is a major problem with ISA.
 // Computers with more than 16MB of RAM will have a smart enough super IO
-// chip to avoid asserting the address signals to the ISA cards. Internal
-// ISA devices (in the ISA bridge) will have extended decode.
+// chip to avoid asserting the address signals to the ISA cards if it is
+// out of the 24-bit range. Internal ISA devices (in the ISA bridge) will
+// have extended decode.
 //
 
 // #define MEM_DECODE_24 2
 // #define MEM_DECODE_32 3
-
-
-typedef VOID (*FP_IRQ_HANDLER)(VOID);
 
 // Make into one struct?
 tstruct
@@ -60,24 +51,5 @@ tstruct
     U16     flags;
 }IO_RESOURCE,
 *PIO_RESOURCE;
-
-typedef struct __attribute__((packed))
-{
-    // Each level is two bits, which means that all interrupt levels fit in
-    // a single 32-bit U32
-
-    U32             class_bmp;
-    FP_IRQ_HANDLER  handlers[16];
-    PVOID           owners[16];
-}INTERRUPTS,
-*PINTERRUPTS;
-
-extern STATUS kernel PnAddIOMemRsc(PIO_RESOURCE);
-
-extern VOID             kernel  Surrender_Interrupt();
-extern VOID             kernel  Regain_IRQ();
-extern INTERRUPT_CLASS  kernel  Get_IRQ_Class(U32);
-extern FP_IRQ_HANDLER   kernel  Get_Interrupt_Handler(U32);
-extern STATUS           kernel  Acquire_Legacy_IRQ(U32, FP_IRQ_HANDLER);
 
 #endif /* PNP_RESOURCE_H */

@@ -8,25 +8,43 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <IA32/PnpSeg.h>
+#include <PnP/Resource/IOMem.h>
 
-#include <Platform/IO.h>    /* Accessing interrupt mask register */
+static U32          cur_iorsc = 0;
+static IO_RESOURCE  resources[MAX_IO_RSC];
 
-#include <Misc/Linker.h>    /* Accessing the PnP BIOS structure */
-
-#include <PnP/Core.h>
-
-#include <Debug/Debug.h>
-
-DRVHDR g_kernel_driver_header = {
-    .author      = "Joey Qytyku",
-    .license     = "GPLv2",
-    .description = "The OS/90 kernel."
-};
-
-
-VOID Init_PnP(VOID)
+kernel STATUS Add_IOMem_Rsc(PIO_RESOURCE new_rsc)
 {
-    // Clear all interrupt and resource entries. Zeroing them ensures they
-    // are recognized as not in use.
+    if (cur_iorsc >= MAX_IO_RSC)
+        return -1;
+    resources[cur_iorsc] = *new_rsc;
+    cur_iorsc++;
+    return 0;
+}
+
+// Constructor for IO_RESOURCE
+kernel VOID New_IOMem_Rsc(
+    PIO_RESOURCE i,
+    U32     start,
+    U32     size,
+    PVOID   owner,
+    U16     flags
+){
+    i->flags = flags;
+    i->owner = owner;
+    i->start = start;
+    i->size  = size;
+}
+
+// BRIEF:
+//      Allocate IO port space. Returns all ones (-1) if failed. Otherwise
+//      returns base IO port.
+//
+//
+kernel U32 Allocate_IO_Ports(U16 num, U8 align)
+{
+}
+
+VOID Init_PnP_IOMem()
+{
 }

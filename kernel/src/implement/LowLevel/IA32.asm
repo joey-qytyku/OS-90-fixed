@@ -49,7 +49,7 @@ TYPE_CODE       EQU     0x1B
 TYPE_LDT        EQU     0x2
 TYPE_TSS        EQU     0x9
 
-IRQ_BASE        EQU     0A0h
+IRQ_BASE        EQU     0A0h            ; Wait, is it?
 ICW1            EQU     1<<4
 LEVEL_TRIGGER   EQU     1<<3
 ICW1_ICW4       EQU     1
@@ -81,12 +81,6 @@ ICW4_SLAVE      EQU     1<<3
         global  IaAppendLimitToDescriptor
 
         global  _SetIntVector
-
-        ; Functions for local descriptor table management
-        ; global  GetLdescBaseAddress
-        ; global  GetLdescExtAttr
-        ; global  GetLdescAttr
-
 
         global  aqwGlobalDescriptorTable
         global  aqwLocalDescriptorTable
@@ -128,7 +122,7 @@ _KernelReserved4K:
 ;===============================================================================
 
 aqwGlobalDescriptorTable:
-        align 8
+        align 16
 .null_segment:
         DD      0,0
 .kcode:
@@ -447,7 +441,7 @@ Begin:
         lidt    [IdtInfo]
 
         mov     ax,2<<3
-        mov     ds,ax  ; Here
+        mov     ds,ax
         mov     es,ax
         mov     ss,ax
         mov     fs,ax
@@ -455,8 +449,8 @@ Begin:
 
         jmp     8h:Cont
 Cont:
-        mov     esp,InitStack   ; Set up a stack
-        call    KernelMain      ; GCC does not far return
+        mov     esp,InitStack
+        call    KernelMain
         jmp $
 
 ;===============================================================================

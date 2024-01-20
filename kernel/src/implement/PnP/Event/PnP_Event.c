@@ -1,13 +1,13 @@
 #include <PnP/Event.h>
 #include <Scheduler/Sync.h>
 
-static P_MBOX first_mbox;
+static _P_MBOX first_mbox;
 
 static VOID Push_Event(
-    P_MBOX mb,
+    _P_MBOX mb,
     P_EVENT_PACKET ev)
 {
-    PreemptInc();
+    Preempt_Inc();
     if (mb->stack_top + 1 >= mb->stack_len)
     {
         mb->on_overflow(ev);
@@ -16,7 +16,7 @@ static VOID Push_Event(
 
     mb->stack_top++;
     mb->ptr_to_stack[mb->stack_top];
-    PreemptDec();
+    Preempt_Dec();
 }
 
 // BRIEF:
@@ -41,7 +41,7 @@ VOID Raise_Event(
 //
 _Noreturn VOID Event_Dispatch_Thread_Loop(VOID)
 {
-    P_MBOX mb = first_mbox;
+    _P_MBOX mb = first_mbox;
     while (1)
     {
         mb->disp();

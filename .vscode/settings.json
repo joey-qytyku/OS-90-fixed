@@ -56,7 +56,9 @@
         "io.h": "c",
         "printf_config.h": "c",
         "printf.h": "c",
-        "*.c_": "c"
+        "*.c_": "c",
+        "bios.h": "c",
+        "driverheader.h": "c"
     },
     "folder-color.pathColors": [
         {

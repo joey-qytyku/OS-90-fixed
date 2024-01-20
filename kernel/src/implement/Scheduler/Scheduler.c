@@ -79,7 +79,7 @@ kernel VOID Hook_Dos_Trap(
     U8                    vector,
     PV86_CHAIN_LINK       ptrnew
 ){
-    AtomicFencedInc(&preempt_count);
+    Atomic_Fenced_Inc(&preempt_count);
 
     const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
 
@@ -129,7 +129,7 @@ kernel VOID Svint86(P_SV86_REGS context, U8 vector)
     // We must lock real mode when accessing this structure
     Atomic_Fenced_Inc(&preempt_count);
 
-    AssertSV86();
+    Assert_SV86();
 
     // Copy parameters to the context.
     C_memcpy(&_RealModeRegs, context, sizeof(SV86_REGS));
@@ -139,9 +139,9 @@ kernel VOID Svint86(P_SV86_REGS context, U8 vector)
     _RealModeRegs.cs  = WORD_PTR(0, vector * 4 + 2);
 
     // Fall back to real mode.
-    EnterRealMode();
+    Enter_Real_Mode();
 
-    DeassertSV86();
+    Deassert_SV86();
     // Write back results
 }
 
@@ -158,7 +158,7 @@ VOID Init_V86(VOID)
     // Add the V86 stub.
     for (U16 i = 0; i<256; i++)
     {
-        V86_CHAIN_LINK new = { NULL, V86_Capt_Stub, V86_Capt_Stub};
+        V86_CHAIN_LINK new = { NULL, V86_Capt_Stub, V86_Capt_Stub };
         v86_capture_chain[i] = new;
     }
 }
@@ -211,11 +211,12 @@ VOID Interrupt_Dispatch(U32 diff_spurious)
     else if (diff_spurious == 15 && (inservice16 >> 8) == 0)
         return;
 
-    if (Get_IRQ_Class(irq) == BUS_INUSE) {
-//        InGetInterruptHandler(irq)();
-        SendEOI(irq);
+    if (Get_IRQ_Class(irq) == IRQ_INUSE_32) {
+        ;
+
+        Send_EOI(irq);
     }
-    else if (RECL_16) {
+    else if (IRQ_RECL_16) {
         // TODO
     }
     else {

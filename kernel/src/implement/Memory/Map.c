@@ -8,7 +8,6 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-//
 // This file implements routines for page table manipulation:
 // * Mapping chains to arbitrary addresses
 // * Page permissions
@@ -20,9 +19,6 @@
 
 #define KERNEL_VAS_SIZE_BYTES MB(16)
 
-// PD entries for the kernel always point to the page tables.
-// Therefore, it is not necessary to manipulate PD entries
-// for the kernel address space.
 ALIGN(4096)
 static U32 page_directory[1024];
 
@@ -82,9 +78,9 @@ static BOOL Set_Memory_Window_To_Chain_Local_Block(
     CHID    id,
     U32     local_index
 ){
-    PVOID block_addr = ChainWalk(id, local_index);
+    PVOID block_addr = Chain_Walk(id, local_index);
 
-    SetMemoryWindow(block_addr);
+    Set_Memory_Window(block_addr);
 }
 
 // BRIEF:
@@ -101,7 +97,7 @@ STATUS kernel Map_Block(
     const U32 virt_as_int = (U32)virt,
               phys_as_int = (U32)phys;
 
-    const U32 num_ptabs = ChainSize(page_table_chain) / PAGE_SIZE;
+    const U32 num_ptabs = Chain_Size(page_table_chain) / PAGE_SIZE;
     const U32 page_index;
 
     // Is the address in the user range
