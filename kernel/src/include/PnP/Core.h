@@ -11,9 +11,12 @@
 #ifndef PNP_CORE_H
 #define PNP_CORE_H
 
+#include "Resource/IOMem.h"
+#include "Resource/IRQ.h"
+
 #include "DriverHeader.h"
-#include "Resource.h"
-#include "Bios.h"
+
+#include "BIOS/BIOS.h"
 
 extern VOID Init_PnP(VOID);
 

@@ -9,6 +9,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include <PnP/Resource/IRQ.h>
+#include <Platform/IO.h>
 
 static U16          mask_bitmap = 0xFFFF; // Update this!
 static INTERRUPTS   interrupts;

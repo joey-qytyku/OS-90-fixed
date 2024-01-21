@@ -17,7 +17,7 @@ extern  System_Exit_Point,\
 ; Idea, maybe create the IDT in unscrambled format and have code that
 ; converts it to the proper format. That way you do not need to copy anything.
 
-EV_INT
+EV_INT equ 0
 
 ;                        E n d   o f   E q u a t e s
 ;-------------------------------------------------------------------------------
@@ -48,4 +48,4 @@ System_Entry_Point:
 handle_INT:
         ; call    [edi+PCB.intsepdo]
 
-        jmp     SystemExitPoint
+        jmp     System_Exit_Point

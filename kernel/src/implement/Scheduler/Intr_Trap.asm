@@ -44,7 +44,8 @@
 ;                               I m p o r t s
 ;===============================================================================
 
-EXTERN  System_Entry_Point
+extern System_Entry_Point
+
 ;===============================================================================
 ;                           E n d   I m p o r t s
 ;===============================================================================
@@ -53,9 +54,14 @@ EXTERN  System_Entry_Point
 ;                               E x p o r t s
 ;===============================================================================
 
-GLOBAL  Low15, Low7, LowRest
-GLOBAL  _dwErrorCode
-GLOBAL  LowSwi
+; Remove the repeated globals
+
+global  Low15, Low7, LowRest
+global  _dwErrorCode
+global  LowSwi
+global _ErrorCode, _ExceptIndex
+
+global Interrupt_Descriptor_Table,System_Exit_Point
 
 ;===============================================================================
 ;                          E n d   o f   E x p o r t s
@@ -68,8 +74,12 @@ GLOBAL  LowSwi
         align   32
 LowRest:
 Low15:
-        pop     [ss:lActualIRQ]
+        pop     dword [ss:lActualIRQ]
 Low7:
+
+Low_System_Entry:
+
+System_Exit_Point:
 
 ;===============================================================================
                                  section .data
@@ -88,13 +98,15 @@ Low7:
 ; +0 [OFF 15..0] [OFF 31..16]
 ; +4 [Whatever ] [ SELECTOR ]
 ;
-aqwInterruptDescriptorTable:
+; Operation: xhcg +0 with +6
+;
+Interrupt_Descriptor_Table:
 
 %assign i 0
 %rep 256
 
-Low_Handler_ %i i :
-        DD      Low_System_entry
+Low_Handler_ %+ i :
+        DD      Low_System_Entry
         DB      0, 0EFh
         DW      8
 %assign i i+1
@@ -115,8 +127,8 @@ Low_Handler_ %i i :
 %assign i 0
 ;        %if i == 0 || i ==
 
-        %else
-        %endif
+        ; %else
+        ; %endif
 %rep 256
 
 
@@ -128,8 +140,6 @@ Low_Handler_ %i i :
 ;===============================================================================
                                  section .bss
 ;===============================================================================
-
-        global _ErrorCode, _ExceptIndex
 
 _dwErrorCode    RESD    1
 

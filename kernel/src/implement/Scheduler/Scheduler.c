@@ -28,7 +28,7 @@
 #include <IA32/TSS.h>
 #include <IA32/Segment.h>    /* Reading LDT segment descriptors */
 #include <Misc/BitArray.h>   /* Bit array procedures for LDT managment */
-#include <PnP/Resource.h>    /* Getting interrupt information */
+#include <PnP/Resource/IRQ.h>
 
 #include <Debug/Debug.h>
 #include <Type.h>

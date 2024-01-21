@@ -18,7 +18,7 @@
 
 static U32    num_total_blocks;
 static P_MB   block_list;
-`dsfsdf;dsf;dsf;ew2132321;3;
+
 // Size of PBT is dynamic and determined by checking size of physical RAM.
 
 // Is this a good idea?

@@ -22,7 +22,7 @@ OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.o))
 EXEC := $(BINDIR)/KERNL386.EXE
 
 OPTS:= -Os -mtune=i386
-DEBUG_OPTIONS := -DPRINTF_INCLUDE_CONFIG_H -Wextra
+DEBUG_OPTIONS := -DPRINTF_INCLUDE_CONFIG_H -Wextra -Werror=implicit-function-declaration
 ABI := -fcall-used-esi -fcall-used-edi -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -mpreferred-stack-boundary=2
 ARCH := -march=i386
 CENV := -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99

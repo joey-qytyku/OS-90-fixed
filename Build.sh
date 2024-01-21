@@ -15,12 +15,6 @@ make clean
 make all
 cd ..
 
-dosbox
+dosbox -conf runconf/dosbox.conf
 
-#qemu-system-i386 -hda msdos.img\
-#    -m 4\
-#    -no-reboot\
-#    -no-shutdown\
-#    -monitor stdio
-
-bochs
+bochs -f runconf/bochsrc.txt

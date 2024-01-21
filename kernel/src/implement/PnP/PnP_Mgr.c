@@ -24,7 +24,6 @@ DRVHDR g_kernel_driver_header = {
     .description = "The OS/90 kernel."
 };
 
-
 VOID Init_PnP(VOID)
 {
     // Clear all interrupt and resource entries. Zeroing them ensures they

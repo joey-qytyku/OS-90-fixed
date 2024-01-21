@@ -61,14 +61,8 @@ ICW4_SLAVE      EQU     1<<3
 
 ;===============================================================================
 ;                               I M P O R T S
-%assign i 0
-%rep 17
-        extern  LowE %+ i
-        %assign i i+1
-%endrep
 
-        extern  LowSwi
-        extern  Low7, Low15, LowRest
+extern Interrupt_Descriptor_Table
 
 ;                           E N D   I M P O R T S
 ;===============================================================================
@@ -76,22 +70,17 @@ ICW4_SLAVE      EQU     1<<3
 ;===============================================================================
 ;                               E X P O R T S
 
-        global  IaAppendAddressToDescriptor
-        global  IaGetBaseAddress
-        global  IaAppendLimitToDescriptor
-
-        global  _SetIntVector
-
-        global  aqwGlobalDescriptorTable
-        global  aqwLocalDescriptorTable
-
-        global  GetESP0, SetESP0
-        global  IaUseDirectRing3IO
-        global  IaUseVirtualRing3IO
-        global  InitIA32
-
-        global  abIoPermissionBitmap
-        global  _KernelReserved4K
+global  IaAppendAddressToDescriptor,\
+        IaGetBaseAddress,\
+        IaAppendLimitToDescriptor,\
+        aqwGlobalDescriptorTable,\
+        aqwLocalDescriptorTable,\
+        GetESP0, SetESP0,\
+        IaUseDirectRing3IO,\
+        IaUseVirtualRing3IO,\
+        InitIA32,\
+        abIoPermissionBitmap,\
+        _KernelReserved4K
 
 ;                           E N D   E X P O R T S
 ;===============================================================================
@@ -101,9 +90,6 @@ ICW4_SLAVE      EQU     1<<3
         alignb  16
         RESB    512
 InitStack:
-
-aqwInterruptDescriptorTable:
-        RESQ    256
 
 aqwLocalDescriptorTable:
         RESQ    LDT_SIZE
@@ -161,19 +147,12 @@ aqwGlobalDescriptorTable:
         DB      0,0,0
         DB      ACCESS_RIGHTS(1,0,TYPE_LDT)
 
-Exceptions:
-        %assign i 0
-%rep 17
-        DD      LowE %+ i
-        %assign i i+1
-%endrep
-
 GdtInfo:
         DW      (GDT_ENTRIES*8)-1
         DD      aqwGlobalDescriptorTable
 IdtInfo:
         DW      (256*8)-1
-        DD      aqwInterruptDescriptorTable
+        DD      Interrupt_Descriptor_Table
 
 ;===============================================================================
         section .text
@@ -251,6 +230,7 @@ IaGetBaseAddress:
         ;EAX now contains the address, we are done.
         ret
 
+; Don't remember too well but ChatGPT did help me a bit with this one
 IaAppendAddressToDescriptor:
         ;(PVOID gdt_entry, DWORD address)
 
@@ -271,15 +251,15 @@ IaAppendAddressToDescriptor:
         ret
 
 IaAppendLimitToDescriptor:
-        mov     esi, [esp + 4]
-        mov     dx, [esp + 8]
+        mov     esi, [esp+4]
+        mov     dx, [esp+8]
 
         mov     word [esi], dx
-        mov     word [esi + 6], dx
+        mov     word [esi+6], dx
 
-        mov     ah, byte [esi + 6]
+        mov     ah, byte [esi +6]
         shl     ax, 8
-        mov     byte [esi + 2], ah
+        mov     byte [esi+2], ah
         ret
 
 _SetIntVector:
@@ -287,7 +267,7 @@ _SetIntVector:
         movzx   eax,byte[esp+8]
         mov     ecx,[esp+4]
 
-        lea     ebx,[aqwInterruptDescriptorTable + ecx*8]
+        ; lea     ebx,[aqwInterruptDescriptorTable + ecx*8]
         mov     byte[ebx+5],al
         mov     byte[ebx+4],0
         mov     [ebx+2],cs
@@ -296,84 +276,29 @@ _SetIntVector:
         mov     [ebx+6],ax
         ret
 
-        ; This procedure is not cdecl compliant, but it is called by
-        ; InitIA32, so it has to save some registers
 FillIDT:
-        push    edi
+        ; See Intr_trap.asm for more info.
+        ; To make the IDT valid, we have to exchange +0 with +6
 
-        mov     ecx,17
-.ExceptLoop:
-        push    dword [Exceptions + ecx*4]
-        push    byte 1_11_01110b
-        push    ecx
-        call    _SetIntVector
-        add     esp,12
+        mov     ecx,256
+        mov     ebx,Interrupt_Descriptor_Table
+
+Loop:
+        movzx   eax,word[ebx+6]
+        movzx   edx,word[ebx+2]
+        mov     [ebx+2],ax
+        mov     [ebx+6],dx
+
+        add     ebx,8
         dec     ecx
-        jnz     .ExceptLoop
+        jnz     Loop
 
+        xchg bx,bx
 
-        ; Offset 15..0 -----------------------------
-        mov     ebx,qIdtValue
-        mov     eax,LowSwi
-        mov     [ebx],ax
-
-        ; Selector ---------------------------------
-        mov     word [ebx+2],(GDT_KCODE<<3)
-
-        ; Attributes, changed to word?
-        mov     word [ebx+4],1_11_01110_000_00000b
-
-        ; Offset 31..16 ----------------------------
-        mov     eax,LowSwi
-        shr     eax,16
-        mov     [ebx+6],ax
-
-        mov     ecx,256-17
-        mov     edi,aqwInterruptDescriptorTable+(17*8)
-        cld
-.SwiLoop:
-        ;For the reflection handler, we will write the exact same value every
-        ;time to each entry after the exceptions. We do not need _SetIntVector
-        ;in order to do this. We will generate two double words and just write
-        ;write them directly
-
-        mov     eax,[ebx]
-        stosd
-        mov     eax,[ebx+4]
-        stosd
-
-        dec     ecx
-        jnz     .SwiLoop
-
-.IrqLoop:
-        mov     eax,IRQ_BASE
-        add     eax,ecx
-
-        push    LowRest
-        push    byte 0Eh
-        push    eax
-        call    _SetIntVector
-        add     esp,12
-        dec     ecx
-        jnz     .IrqLoop
-
-        ;Set the potentially spurious ones
-        push    Low7
-        push    byte 0Eh
-        push    IRQ_BASE+7
-        call    _SetIntVector
-
-        push    Low15
-        push    byte 0Eh
-        push    IRQ_BASE+15
-        call    _SetIntVector
-
-        pop     edi
         ret
-
-qIdtValue: DD 0,0
-
+extern printf
 InitIA32:
+        xchg bx,bx
         call    FillIDT
         call    RemapPIC
 
@@ -381,6 +306,8 @@ InitIA32:
         ;This will make all ring-3 IO port access a security violation,
         ;allowing for emulation. Direct access is never permitted.
         ;This gives a warning for some reason. Ignore.
+
+        ; WAIT REALLY?
         mov     word[adwTaskStateSegment+100], 0FFFFh
 
         ;Insert address to LDT descriptor
@@ -407,7 +334,8 @@ InitIA32:
         out     20h,al
         out     0A0h,al
 
-        pop     edi
+        ; After return, starts executing at address zero in IVT.
+        ; Suspected stack corruption.
         ret
 
 ;===============================================================================
@@ -416,7 +344,7 @@ InitIA32:
 
         extern END_RODATA
         extern BSS_SIZE
-        extern KernelMain
+        extern Kernel_Main
 
         ;If DOS does not find the MZ signature in an EXE file
         ;it may load it as a COM file, which are terminated with
@@ -438,7 +366,6 @@ Begin:
         shr     edx,4
         mov     [_KernelReserved4K],edx
         lgdt    [GdtInfo]
-        lidt    [IdtInfo]
 
         mov     ax,2<<3
         mov     ds,ax
@@ -447,10 +374,14 @@ Begin:
         mov     fs,ax
         mov     gs,ax
 
+        xchg bx,bx
+
+        lidt    [IdtInfo]
+
         jmp     8h:Cont
 Cont:
         mov     esp,InitStack
-        call    KernelMain
+        call    Kernel_Main
         jmp $
 
 ;===============================================================================

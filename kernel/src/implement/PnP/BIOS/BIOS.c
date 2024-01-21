@@ -8,7 +8,8 @@
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include <PnP/Bios.h>
+#include <PnP/BIOS/BIOS.h>
+#include <IA32/PnpSeg.h>
 
 // Scan the ROM space for "$PnP" at a 2K boundary
 STATUS Setup_PnP_BIOS(VOID) // sussy
