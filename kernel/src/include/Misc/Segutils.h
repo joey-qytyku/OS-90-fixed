@@ -14,14 +14,14 @@
 #include <IA32/Segment.h>
 
 enum {
-    SEG_GET_ACCESS_RIGHTS,
-    SEG_GET_EXT_ACCESS_RIGHTS,
-    SEG_GET_BASE_ADDR,
-    SEG_GET_LIMIT,
+SEG_GET_ACCESS_RIGHTS = 0,
+SEG_GET_EXT_ACCESS_RIGHTS = 4,
+SEG_GET_BASE_ADDR = 8,
+SEG_GET_LIMIT = 12,
 
-    SEG_SET_ACCESS_RIGHTS,
-    SEG_SET_BASE_ADDR,
-    SEG_SET_LIMIT
+SEG_SET_ACCESS_RIGHTS = 16,
+SEG_SET_BASE_ADDR = 20,
+SEG_SET_LIMIT = 24
 };
 
 static inline PVOID MK_LP(U32 seg, U32 off)
@@ -29,14 +29,7 @@ static inline PVOID MK_LP(U32 seg, U32 off)
     return (PVOID)(seg * 16 + off);
 }
 
-PVOID kernel SegmentToLinearAddress(
-    BOOL    use_pmode,
-    PVOID   relative_to,
-    U16     seg,
-    U32     off
-);
-
-U32 SegmentUtil(
+U32 Segment_Util(
     U8  func,
     U16 seg,
     U32 operand

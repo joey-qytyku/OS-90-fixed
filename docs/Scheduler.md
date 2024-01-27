@@ -19,6 +19,8 @@ The scheduler subsystem does not involve tasks/processes in particular. Instead,
 * Sending user-trapped events like IRQs and exceptions
 * Virtual 8086 mode
 
+> Any references to the "IRET frame" mean the same thing as "trap frame" or "register dump." The structure is standardized.
+
 # Interrupts and Exceptions
 
 ## Exceptions
@@ -85,9 +87,12 @@ SV86 is a non-preemptible context that is entered by the kernel to perform a tas
 
 Interrupt captures must support both SV86 calls and UV86 (user) calls.
 
-# Bimodal Threads
+> Note, it is possible to trap memory allocation calls and directly manipulate MCBs, or even parse them in the memory manager and do it all 32-bit. That way you can preempt while allocating.
+> Other things that can be 32-ified: standard IO, ...
 
-A single process has one register dump for both kernel and user. It can be in kernel or in userspace (V86 or PM).
+# Process can be in User or Kernel
+
+There is one state that is saved in a register dump inside the PCB that stores the registers of the last context. The structure is identical to the IRET frame.???
 
 When the kernel thread is done its work, it can go back to the original process. It does not need to unblock it, switch to its previous execution state and wait for reschedule. just as the user thread can enter the kernel thread with only one single non-preemptible context between them, the same can happen in reverse. This is done by entering a NPC, setting up the PCB as necessary, and copying the ring-3 regdump to the IRET frame before returning (which will reset IF).
 
@@ -103,20 +108,24 @@ Interrupts are completely turned off within this ISR as with all other IRQs. The
 
 > Remember that a T0 is allowed to change the IRET frame and return.
 
-## Process Hook Procedures
+## Process Hook Procedures (TODO)
 
-A process hook is a procedure called in an atomic context with the folowing signature:
+Drivers and the kernel can pre-hook and post-hook the scheduling of any process. Handlers can be chained.
+
+### API Overview
+
+```c
+PROC_HOOK Pre_Hook_Process(U32 pid, PROC_HOOK hook);
+PROC_HOOK Exit_Hook_Process(U32 pid, PROC_HOOK hook);
+
 ```
-PH_RET ProcessHook(PID pid)
-```
+These return the previous hook so that it can be called by the new one and installs a new hook. Pre-hook works the same way. If this is the first time, a no-op procedure pointer is returned.
 
-PH_RET is a type which can be `PH_SKIP` or `PH_CONT`.
+- Exit hooks run when the process terminates.
+- Pre-hooks run before the process is scheduled, allowing for address space isolation with the bait-and-switch trick
+    - This runs in a T0
 
-A function called InsertProcessHook(PID pid) inserts the hook procedure into the specified process. The reason the procedure takes the PID even though it is known when assigning the proc hook is because we may want to reuse the same code for several processes requesting the same service.
-
-Process hooks should never block the process or change anything relating to its execution state. If it is blocked, how can you expect to unblock it? Instead, return PH_SKIP so that the scheduler does not run the process.
-
-Process hooks are a hack meant to allow for simulating multiple addressing spaces in an OS that does not allow for them. It is primarily designed for emulating memory mapped IO for individual processes.
+### Chaining Handlers
 
 # Controlling Interrupts, Syncrhonization, and Preemption
 
@@ -200,13 +209,7 @@ __The following are the general rules regarding contexts:__
 
 ## Debugging Contexts
 
-`SchedulerDBG.h` defines macros for asserting context types.
-
-```c
-assert_T0();
-assert_T1();
-assert_T2();
-```
+...
 
 # INT Capture
 
@@ -353,3 +356,31 @@ Because exception handlers are non-preemptible, they can perform the IRET servic
 For a process to fully terminate and leave the memory permanently, several steps need to be taken that require the cooperation of several subsystems.
 
 All memory must be deallocated. Locked pages are forcefully unlocked and removed from the swap file.
+
+# Scheduler API
+
+## Create_Process
+
+```c
+U32 Execute_Process(
+    const char *cmdline,    // Command line passed through PSP
+);
+```
+This does not execute a real program. It will simply create a process that can have an executable injected into it. The loader has information on how to do this.
+
+Command line should include executable name.
+
+## Nuke_Process
+```c
+STATUS Nuke_Process(U32 proc)
+{}
+```
+This will do exactly as it says. May or may not close files, but will purge memory.
+
+## Set_Uncaught_Exception_Behavior
+```c
+Set_Uncaught_Exception_Behavior()
+```
+This is for debugging purposes.
+
+## Set_Process_Enabled(bool yes)

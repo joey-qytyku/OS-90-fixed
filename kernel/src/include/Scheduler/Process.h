@@ -11,8 +11,11 @@
 //
 //
 
+#define MAX_SUBPROCS 8
+
 typedef enum {
-    TH_DEAD = 0
+    TH_KERNEL = 0,
+    TH_USER   = 1
 }THREAD_STATE;
 
 typedef enum {
@@ -50,122 +53,124 @@ tstruct {
     U32 esp;
     U32 eflags;
     U32 eip;
-}UREGS,*P_UREGS;
-
-//
-// Context of a kernel thread. Segment registers are omitted because the kernel
-// is garaunteed to use the flat model
-//
-tstruct {
-    U32 eax;
-    U32 ebx;
-    U32 ecx;
-    U32 edx;
-    U32 esi;
-    U32 edi;
-    U32 ebp;
-    U32 esp;
-    U32 eflags;
-    U32 eip;
-}KREGS;
+}TREGS,*P_TREGS;
 
 #define OP_INT3 0xCC
 #define OP_INT  0xCD
 #define OP_INTO 0xCE
 #define OP_IRET 0xCF
 
-tpkstruct {
-    U32   eax;
-    U32   ebx;
-    U32   ecx;
-    U32   edx;
-    U32   esi;
-    U32   edi;
-    U32   ebp;
+// Is this right?
+// Should be. Maybe add some convenience union fields for registers?
 
-    U32   eip;
-    U32   cs;
-    U32   eflags;
-    U32   esp;
-    U32   ss;
+// Capitalize names?
 
-    U32   pm_es;
-    U32   pm_ds;
-    U32   pm_fs;
-    U32   pm_gs;
+/* ADD PADDING FOR HIGH, another struct? */
+#define _DWB_R(n)\
+    union {\
+        U32 E##n##X;\
+        union {\
+            U8 n##L;\
+            struct { U8 :8; U8 n##H; };\
+        };\
+        U16 n##X;\
+    };
 
-    U32   v86_es;
-    U32   v86_ds;
-    U32   v86_fs;
-    U32   v86_gs;
-}IRET_FRAME,*P_IRET_FRAME;
+#define _DW_R(n)\
+    union {\
+        U32 E##n;\
+        U16 n;\
+    }
+
+// Standard register dump structure. User registers,
+tstruct {
+    _DWB_R(A);
+    _DWB_R(B);
+    _DWB_R(C);
+    _DWB_R(D);
+
+    _DW_R(SI);
+    _DW_R(DI);
+    _DW_R(BP);
+
+    _DW_R(IP);
+
+    U32   CS;
+    _DW_R(FLAGS);
+    _DW_R(SP);
+    U32   SS;
+
+    U32   pm_ES;
+    U32   pm_DS;
+    U32   pm_FS;
+    U32   pm_GS;
+
+    U32   v86_ES;
+    U32   v86_DS;
+    U32   v86_FS;
+    U32   v86_GS;
+}RD,*P_RD;
 
 typedef struct {
     U16 off;
     U16 seg;
 }FAR_PTR_16;
 
-typedef struct PACKED {
+tpkstruct {
     U32     handler_eip;
     U8      type            :3;
     U16     handler_cseg    :13;
 }LOCAL_PM_IDT_ENTRY;
 
-typedef U32 INT_SEPDO(P_IRET_FRAME);
-typedef U32 EXC_SEPDO(P_IRET_FRAME);
-
-typedef U32 IRET_GPHND_DO(P_IRET_FRAME);
+// This will be 100% assembly soon
+typedef U32 IRET_GPHND_DO(P_RD);
 
 ///////////////////////////////////////////////////////////////////
 ///P r o c e s s   C o n t r o l   B l o c k   S t r u c t u r e///
 ///////////////////////////////////////////////////////////////////
 
-// Very performance sensitive. Beware of structure ordering.
-// This structure is NOT packed by default.
-// Must be compatible with assembly definition.
+struct PCB_COMMON { // 28 bytes
+    RD    restore_context;          // +0
+    PVOID next;                     // +4
+    PVOID last;                     // +8
+    U32 psp_segment;                // +12
+    THREAD_STATE thread_state:8;    // +13
+    DPMI_BITNESS bitness     :8;    // +14
+    U16 _;                          // +15
+    U32 _sepint_actions[3];         // +27
+};
+// TODO, IRET actions
 
-// Create "methods" for this?
-
-// It might be better to just use bytes for some of the process flags.
-// That requires less instructions to manipulate and allows for using ASM.
-tstruct
-{
-    UREGS   user_regs;
-    KREGS   kern_regs;
-
-    PVOID   next;
-    PVOID   last;
-    U32     psp_segment;
-
-    THREAD_STATE    thread_state:8;
-    DPMI_BITNESS    bitness     :8;
-
-    LOCAL_PM_IDT_ENTRY  local_idt[256];
-
-    // Real mode control section
+struct PCB_INT_VECTORS {
+    LOCAL_PM_IDT_ENTRY local_idt[256];
     FAR_PTR_16 rm_local_ivt[256];
+};
 
-    // This is the SS:SP to be used when performing DPMI translation services.
-    // Because they are not SV86, it is local to each process.
-    U32 rm_dpmi_xlat_ss_sp;
+struct PCB_DOS_INFO {
+    // When the exec function finishes it returns this somewhere.
+    // Local to each DOS VM.
+    U16 last_subproc_exit_code;
 
-    U16 rm_subproc_exit_code;
-
-    U32 ctrl_c_handler_seg_off;
-    U32 crit_error_seg_off;
-
-    // Add subprocess stack. It contains:
-    // * PSP
-    // * Size of allocation
-
+    U32 subprocess_stack[MAX_SUBPROCS];
+    FAR_PTR_16 ctrl_c_handler_seg_off;
+    FAR_PTR_16 crit_error_seg_off;
     U8   current_working_dir[80];
     // The command line remembers the current disk path
     // Default behavior is to CD to the root. (I think)
     // Regardless, there is no global CWD because OS/90 multitasks.
-    // This includes the drive letter as "[LETTER]:C"
+    // This includes the drive letter as "[LETTER]:"
+};
+
+tstruct {
+    struct PCB_COMMON       std;
+    struct PCB_INT_VECTORS  intv;
+    struct PCB_DOS_INFO     dosinf;
 }PCB, *P_PCB;
 
-// static int x = sizeof(PCB);
+//static int x = sizeof(PCB);
+
+// Add a way to throw a system exit by jumping, that way we dont have to
+// return from procedures and can just kill the kernel context.
 
 // TODO TODO TODO TODO
 #define Get_Current_PCB()

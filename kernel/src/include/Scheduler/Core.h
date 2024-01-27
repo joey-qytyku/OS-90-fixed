@@ -5,7 +5,7 @@
 #include "IoDecode.h"
 #include "Process.h"
 #include "Sync.h"
-#include "V86M.h"
+#include "V86.h"
 #include "DPMI.h"
 #include <Platform/IO.h>
 

@@ -29,7 +29,7 @@ CENV := -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99
 
 CFLAGS := -I ./src/include/ -include ./src/include/Type.h $(OPTS) $(ABI) $(ARCH) $(DEBUG_OPTIONS) $(CENV)
 
-AFLAGS := -f elf32 -Ox -i src/include/
+AFLAGS := -f elf32 -Ox -i src/include/ -i src/include/_NASMX
 
 LD := $(TOOLCHAIN)/i386-linux-ld
 

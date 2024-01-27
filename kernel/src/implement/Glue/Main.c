@@ -21,27 +21,6 @@
 
 #include <Platform/IO.h>
 
-/*
-We can make SV86 preemptible.
-
-It can be a strange submode of a kernel thread. It has one shared context
-and a lock. When a RECL_16 hits, it modifies this context and pushes stuff
-on the stack. Make sure IF=0 on entry.
-
-The SV86 context continues when the thread inside it is scheduled once more.
-RECL_16 essentially just schedules an IRQ to be serviced later inside a
-non-preemptible context.
-
-If SV86 is inactive (marked with flag), RECL_16 can actually enter it
-directly with no problems.
-
-The only change needed is to add segment registers to the kernel context
-and maybe an associated flag.
-
-The DOS semaphore is not really useful because it accomplishes nothing that
-the SV86 lock does not.  You are not going to have any real concurrency here.
-*/
-
 // Does SV86 have to be non-preemptible? Why not just use a lock?
 kernel VOID Kernel_Main(VOID)
 {

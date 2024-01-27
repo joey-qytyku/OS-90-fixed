@@ -16,16 +16,12 @@ These rules decide how the code should be styled and have no affect of functiona
 
 ### Brackets
 
-Always use wide open curly brackets. It is easier to read.
+Always use wide open curly brackets for function scope. It is easier to read.
 
 ```
-if/function/whatever {
-    // BAD
-}
-
-if/function/whatever
+int main()
 {
-    // Correct
+    // This is how
 }
 ```
 
@@ -37,16 +33,12 @@ Code between `case` labels should be tabbed.
 
 ### Capitalization
 
-* Function names are pascal-cased and prefixed with their subsystem
-* Variable names are snake-cased
-* Type names are all-caps aka macro case
-
 
 Name     |Case|
 -|-
-Function | PascalCase
+Function | Hybrid_Case
 Variable | snake_case
-Type     | MACRO_CASE
+Type     | MACRO_CASE,P_MACRO_CASE
 Macro    | MACRO_CASE
 
 ### Spaces and Tabs
@@ -102,24 +94,6 @@ void Bad(int j, PEXAMPLE k);
 ## Comments
 
 Single line comments only except if they do not work (macro comments)
-
-## Function Naming
-
-NT-style subsystem conventions were once used, but this style was deprecated.
-
-A function with external linkage may specify which subsystem it is part of:
-|Prefix|Subsystem|
--|-
-Ke | Nothing specific
-In | Interrupts
-Sc | Scheduler
-Mm | Memory manager
-Pn | Resource manager/Plug-and-play
-Ia | IA32 and IBM PC related functions
-Sy | System call
-Fs | Filesystem
-
-Recently, this method is being avoided for aesthetic and because some functions do not have a specific functional group. Functions with this naming convention are retained.
 
 ## Global Variables
 

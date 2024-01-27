@@ -35,6 +35,8 @@
 
 // Organize using structs?
 
+// Maybe we can generate a list of contructors in the headers?
+
 ATOMIC preempt_count = ATOMIC_INIT;
 
 // Why volatile? You will only access these when you have authority to do so.
@@ -62,112 +64,6 @@ kernel BOOL Preemptible(VOID)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////VIRTUAL 8086 MODE SECTION///////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-ATOMIC g_sv86 = ATOMIC_INIT;
-
-ALIGN(4) static V86_CHAIN_LINK v86_capture_chain[256];
-ALIGN(4) static U32 dos_semaphore_seg_off; // ???
-
-VOID kernel On_Error_Detatch_Links(VOID)
-{
-    C_memset(&v86_capture_chain, '\0', sizeof(v86_capture_chain));
-}
-
-kernel VOID Hook_Dos_Trap(
-    U8                    vector,
-    PV86_CHAIN_LINK       ptrnew
-){
-    Atomic_Fenced_Inc(&preempt_count);
-
-    const PV86_CHAIN_LINK prev_link = &v86_capture_chain[vector];
-
-    prev_link->next = ptrnew;
-    ptrnew->next = NULL;
-
-    Atomic_Fenced_Dec(&preempt_count);
-
-}
-
-// BRIEF:
-//      A general purpose function for calling virtual 8086 mode INT calls.
-//
-//      This is called any time the kernel is trying to emulate INT. SV86 is
-//      used here.
-//      To avoid confusion: there is ZERO relation with the trap frame or the
-//      PCB register dump. A separate buffer is used.
-//
-// WARNINGS:
-//      This function does not provide a stack.
-//
-kernel VOID Svint86(P_SV86_REGS context, U8 vector)
-{
-    _not_null(context);
-
-    PV86_CHAIN_LINK current_link;
-
-    // A null handler is an invalid entry
-    // Iterate through links, call the handler, if response is
-    // CAPT_NOHND, call next handler.
-    current_link = &v86_capture_chain[vector];
-
-    // As long as there is another link
-    while (current_link->next != NULL) {
-        STATUS hndstat = current_link->if_sv86(context);
-        if (hndstat == CAPT_HND)
-            return;
-        else {
-            current_link = current_link->next;
-            continue;
-        }
-    }
-
-    // FALLBACK TO REAL MODE USING IVT
-    // In this case, we change the stack itself using the reg buffer???
-
-    // We must lock real mode when accessing this structure
-    Atomic_Fenced_Inc(&preempt_count);
-
-    Assert_SV86();
-
-    // Copy parameters to the context.
-    C_memcpy(&_RealModeRegs, context, sizeof(SV86_REGS));
-
-    // EIP and CS are not set properly. Get them from the IVT.
-    _RealModeRegs.eip = WORD_PTR(0, vector * 4);
-    _RealModeRegs.cs  = WORD_PTR(0, vector * 4 + 2);
-
-    // Fall back to real mode.
-    Enter_Real_Mode();
-
-    Deassert_SV86();
-    // Write back results
-}
-
-// Works for UV86 and SV86 because we do not read the arguments.
-kernel static STATUS V86_Capt_Stub(PVOID unused)
-
-{
-    UNUSED_PARM(unused);
-    return CAPT_NOHND;
-}
-
-VOID Init_V86(VOID)
-{
-    // Add the V86 stub.
-    for (U16 i = 0; i<256; i++)
-    {
-        V86_CHAIN_LINK new = { NULL, V86_Capt_Stub, V86_Capt_Stub };
-        v86_capture_chain[i] = new;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////// END VIRTUAL 8086 MODE SECTION ///////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
 //////////////////////// INTERRUPT HANDLING SECTION ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -183,10 +79,9 @@ static inline void Send_EOI(U8 vector)
 //      Scheduler interrupt handler. This handles task switching.
 //      todo: Consider doing this in assembly.
 //
-static VOID Handle_IRQ0(P_IRET_FRAME iframe)
+static VOID Handle_IRQ0(P_RD iframe)
 {
 }
-
 
 __attribute__((regparm(1)))
 VOID Interrupt_Dispatch(U32 diff_spurious)

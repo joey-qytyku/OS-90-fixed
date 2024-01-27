@@ -14,7 +14,7 @@
 #include <Misc/log2.h>
 #include <Misc/Linker.h>
 
-#include <Scheduler/V86M.h>
+#include <Scheduler/V86.h>
 
 static U32    num_total_blocks;
 static P_MB   block_list;

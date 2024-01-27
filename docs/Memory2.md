@@ -434,7 +434,7 @@ OS/90 is a SASOS, which is unconventional for 32-bit operating systems. It has s
 2. CR3 is never changed on context switches, no TLB flushing needed
 3. More efficient use of cache lines and the TLB
 4. Reduced code complexity
-5. Simple IPC. Communication between kernel and user is trivial memory copying.
+5. Simple IPC. Communication between kernel and user uses trivial memory copying.
 
 The disadvantages are:
 1. Addressing space is limited to 3GB for all processes. Ought to be enough for anybody tbh :)

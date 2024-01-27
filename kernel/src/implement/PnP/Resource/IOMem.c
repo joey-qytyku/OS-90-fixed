@@ -23,11 +23,11 @@ kernel STATUS Add_IOMem_Rsc(PIO_RESOURCE new_rsc)
 }
 
 // Constructor for IO_RESOURCE
-kernel VOID New_IOMem_Rsc(
+kernel VOID New_IOMem_Rsc( // Change prototype
+    P_DRVHDR owner,
     PIO_RESOURCE i,
     U32     start,
     U32     size,
-    PVOID   owner,
     U16     flags
 ){
     i->flags = flags;

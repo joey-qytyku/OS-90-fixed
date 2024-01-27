@@ -8,7 +8,7 @@
 ;;                                                                           ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-%include "Asm/Kernel.inc"
+%include "Scheduler/Structures.inc"
 
 ;===============================================================================
 ;                       M a c r o   D e f i n i t i o n s
@@ -25,7 +25,7 @@
         push    ecx
         push    ebx
         push    eax
-%endm
+%endmacro
 
 %macro RestTrapRegs 0
         pop     eax
@@ -35,7 +35,8 @@
         pop     esi
         pop     edi
         pop     ebp
-%endm
+%endmacro
+
 ;===============================================================================
 ;                  E n d   M a c r o   D e f i n i t i o n s
 ;===============================================================================
@@ -71,15 +72,36 @@ global Interrupt_Descriptor_Table,System_Exit_Point
                                  section .text
 ;===============================================================================
 
-        align   32
+        align   64
 LowRest:
 Low15:
         pop     dword [ss:lActualIRQ]
 Low7:
 
+        ; IF=0 on entry
+        align   64
 Low_System_Entry:
+        SaveTrapRegs
+        push    gs
+        push    fs
+        push    ds
+        push    es
 
+        mov     eax,ss
+        mov     ds,ax
+
+        jmp     System_Entry_Point
+
+        align   16
 System_Exit_Point:
+        cli
+
+        pop     es
+        pop     ds
+        pop     fs
+        pop     gs
+        RestTrapRegs
+        iret
 
 ;===============================================================================
                                  section .data
@@ -100,6 +122,7 @@ System_Exit_Point:
 ;
 ; Operation: xhcg +0 with +6
 ;
+        align   64
 Interrupt_Descriptor_Table:
 
 %assign i 0

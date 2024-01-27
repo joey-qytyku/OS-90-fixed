@@ -11,7 +11,6 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_YELLOW  "\x1b[33m"
@@ -39,7 +38,7 @@ API_DECL(VOID, Putchar, char ch);
 #define BREAKPOINT() __asm__ volatile("xchgw %%bx,%%bx":::"memory");\
 
 #ifdef NDEBUG
-    #define _assert(exp)
+    #define assert(exp)
     #define KLogf(fmt, ...)
 #else
     #define assert(exp)\

@@ -145,6 +145,7 @@ It looks like I need a mini TODO list for all the little things that need to be 
 
 - Read dosvm.md for any interesting information. Maybe update it.
 
+- Documentation needs to be significantly improved. Most of it is outdated.
 
 - DrvAPI.h needs to be updated or just delete everything and do it when you actually implement drivers
 
@@ -217,3 +218,26 @@ The following services will be provided for IRQs:
 ## IO Ports and Memory
 
 IO/mem ranges are not unlimited, and the limit may vary.
+
+# January 22, 2024
+
+TODO of last entry still holds and will be continually updated.
+
+It would be possible to eliminate the kernel context from the process control block. Because we dont hang for reschedule and simply enter the process at will while it is still the current one. The thing is, this would make non-blocking IO completely impossible. It would also make it impossible to let a kernel thread sleep and give time to the process.
+> Not necessarily.
+
+New provision: Support for non-blocking IO by scheduling the kernel thread context and user thread context separately, with both having a idle/active state. This would allow both to execute in synch. Future proof, but not immediately useful.
+
+We do not need to do it this way. A new process in kernel mode can be executed to do the IO. System entries go in and leave.
+
+But what is the actual purpose of the kernel and user thread context? Why not just one? The last context saved on the PCB will always be that of the user. We are even free to read and alter it, so long as we sysexit with IRQs off. We are just arbitrarily deciding that we will save the context here instead of there.
+
+> Does IRQ#0 have to clean the stack? YES. Or not because it will IRET to next process? And where does context go?
+
+> If you had a dumb kernel without reentrancy, then maybe this could work.
+
+The only reason we need a context is so that it can be copied from the PCB into the IRQ#0 stack so that we can jump to the next process.
+
+# January 25
+
+It will be essential to complete the V86 interface and update it to fit the new RD structure. SV86 must be fully working.
