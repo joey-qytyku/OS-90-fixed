@@ -241,3 +241,129 @@ The only reason we need a context is so that it can be copied from the PCB into 
 # January 25
 
 It will be essential to complete the V86 interface and update it to fit the new RD structure. SV86 must be fully working.
+
+# January 27
+
+OS/90 is officially being assemblified. I added the NASMX library into the includes and I am currently converting the scheduler to full ASM.
+
+ASSEMBLIFICATION TODO:
+- Segment Util (DONE)
+- Program loader
+
+What I will not do in assembly is the memory manager and the bit array features, since that would be too hard to do.
+
+Assembly in some ways is easier to debug, especially with an emulator. I can single-step through instructions with no additional debugging support.
+
+# January 28
+
+I have an idea: WIN16 emulation.
+
+We create our own 32-bit KRNL286.EXE that thunks all the 16-bit calls and performs all the windows-related tasks expected of it.
+
+KRNL286.EXE will implement the entire 16-bit winbase API.
+
+DPMI support could potentially be cut out of the OS/90 kernel and implemented as a stub application that handles all requests in userspace, thus freeing some of my time to work on other things. OS/90 then would implement a native API through INT 41h that allows for more advanced features which DPMI can be built on top of. This would get around the inflexibility of the DPMI interface.
+
+Any occurance of the INT instruction, exceptions, or other events are processed by an event handler.
+
+Fake IRQs are a topic I have not addressed a whole lot. They must work in real mode (IRET terminated) and in protected mode (I decide termination method). A real mode only program needs to be able to modify vectors, set local handlers, recieve fake IRQs, and have a virtual IF. This can be fully handled by the DPMI insertion.
+
+## On the Documentation...
+
+The docs are very outdated. My memory and the source code are far better than it. Maybe I can be like a sort of prophet of OS/90 and let eveyone else write down what I say. Eh, its inevitable.
+
+I probably should refrain from premature API documentation until I fully understand what I am doing.
+
+> TURN IN THE SPANISH ASSIGNMENTS AND PRACTICE THE SEGMENTS!
+
+## Back to Scheduler Implementation, etc.
+
+In the immediate future, the following tasks must be completed:
+- Remove all SEPDO functionality and anything DPMI-related
+- Make Svint86, Enter_Real_Mode, and all the other things work
+- Grind the scheduler for a bit
+- Implement insertions
+- Consider how I am going to deal with forking processes and loading DOS executable.
+
+The V86 capture thing remains unchanged. It only applies to when the program calls an INT in real mode by default. In protected mode, it will be an event that can be reflected. If no 32-bit handler exists, we go to SV86 and handle it.
+
+
+# January 29
+
+Note: Remeber to look at previous entries.
+
+We need to have an actual IO subsystem built into the kernel in order to implement the API and for other high-level features.
+
+Lets refine what I am already doing in IO.md.
+
+## Special File Handles
+
+The file handles for standard IO are automatically closed and never to be used. After initializing the filesystem, subsequent IO to stdio handles will have the handle replaced by a process-local one stored in the process control block.
+
+The process local handle is where SFH is involved. The SFH allows drivers to recieve the data perform the necessary operations. This has to be done within the kernel, however. The display server must communicate with a stdio driver to virtualize IO for several DOS programs.
+
+Sounds good. This would have to work at the DOS level in the low-level IO code.
+
+But how do we deal with device files and other things? I guess we give the STDIO handles special treatment. High-level IO code can deal with such abstractions, such as mounting filesystem and whatnot. It will be a mere extension to the existing DOS filesystem that does not break compatibility.
+
+## Memory Manager
+
+I have discovered that there is no reason to use blocks of multiple pages.
+
+If we have 32MB of memory, there are 8192 pages total. A PBT with 8-byte entries would be 64KB. This is 0.1953125 percent of the total memory, or a 1:512 ratio.
+
+# January 30
+
+Working on the memory manager now.
+
+You need some way of setting the memory window to the page table entry.
+
+So how do I do that? This requires the ability to set the window to reference the page table entry in the allocated buffer. This is why there is Set_Memory_Window_To_Chain_Local_Block. This is supposed to take the default page table chain as a parameter.
+
+The page table chain is a simple chain that grows in size as more page tables are needed. We need a way to delete page tables once they are no longer needed. The page directory references all of the page tables.
+
+When a virtual region is deallocated, the associated page tables should somehow be marked for deletion, perhaps by zeroing the first entry or something.
+
+The PD can be used to find any page tables that are ready for reuse. Shrinking is necessary too. We could find some way to compact the page tables and adjust the page directory accordingly.
+
+Do we even have to deallocate page tables? We will only need as many as a 2GB address space can handle. OS/90 virtual memory is very basic and can only swap out parts of chains to save up memory. In practice, we will never use anywhere near 2GB of addressing space on most hardware configurations, and if we do, why bother deallocating page tables?
+
+Okay, suppose we have 2MB of RAM, the lowest end memory setup that OS/90 wont crash on.
+
+1441792 bytes are available which are not conventional memory, or 352 pages. One page table is enough to represent THE ENTIRE MEMORY, with no need for a chain at all! Memory used for page tables is always lower than the memory available.
+
+Suppose we have 32MB, 33554432 bytes or 8192 pages. That requires a whopping TWO page tables to represent.
+
+We do not need more because OS/90 has a stupid virtual memory manager. If uncommitted memory is allocated, maybe __then__ we need more page tables. But if uncommitted memory is committed, it will just extend the chain it happens to be part of to match the linear address accessed by the program. The memory that is on-the-spot allocated can NEVER exceed the total.
+
+In fact, OS/90 should not even allow a user to uncommit more pages than the kernel can allocate. It cannot uncommit individual pages. The whole point of uncommitted memory is to not allocate it all at once, not to avoid using RAM, the point is we WILL use it all, but not now. Swapping takes care of using less physical memory.
+
+Conclusion:
+- Memory manager must remain extensible and support more advanced VM functionality not currently planned
+
+- Uncommitted memory will stay because it is good for avoiding wasted memory for allocations that are larger than needed.
+
+- Swapping will be for when it hits the fan and the computer cant just crash. This can currently only work at the level of chains.
+
+- There will be page tables for all physical memory and page tables for the kernel address space.
+
+- There will currently be no support for memory mapping to arbitrary locations. No DOS application will ever use such a feature and without isolated address spaces it is quite useless.
+
+- Virtual address spaces are allocated and released with dedicated functions. The size must be known when freeing.
+
+Individual pages CAN be swapped out. Chains are not swapped entirely, but a chain local index is required for evicting memory.
+
+
+# Reconsider Single Address Space and Other Thoughts
+
+Maybe make local DOS memory possible? Return to multiple address spaces?
+
+I want OS/90 to be BETTER that VMM32. Getting rid of what made Win386 work well for the time makes OS/90 much less impressive as a project.
+
+Local DOS memory should be done. Perhaps I can copy the system VM idea and have it do the supervisory calls. That way EVERY interrupt call is locally managed for processes with an independent capture chain (which could be shared too). Then we can also make processes capable of entering critical sections. Would the latency be acceptable in such a case?
+
+We can now discard the entire OS/90 native interface.
+
+> Does OS/90 need a near-total rewrite? The documentation needs to go. It is probably what is holding me back. A lot of the code I have written may look nice but I think it is the right time to start fresh.
+
+> I can make the kernel API in the function code style. That way, it is more thought-out with nothing non-essential.

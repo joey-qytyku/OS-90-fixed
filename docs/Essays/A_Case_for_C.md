@@ -1,5 +1,7 @@
 # A Case for C
 
+> Old because OS/90 is switching to assembly for most things.
+
 In this document, I will explain why I picked the C language for OS/90.
 
 # Modern Compilers

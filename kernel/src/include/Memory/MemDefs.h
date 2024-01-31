@@ -17,7 +17,7 @@
 #define MB(x) (x * 1048576)
 #define KB(x) (x * 1024)
 
-#define MEM_BLOCK_SIZE KB(16)
+#define MEM_BLOCK_SIZE KB(4)
 
 #define INVALID_CHAIN 0xFFFFFFFF
 

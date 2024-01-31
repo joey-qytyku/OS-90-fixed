@@ -1,3 +1,5 @@
+> Remember to be careful with check MM lock. A function that can be used in combination with it must not call anything non-reentrant or not part of MM.
+
 # Memory Management Subsystem
 
 OS/90 has an advanced memory manager supporting all modern virtual memory functionality.
@@ -21,9 +23,7 @@ KPD: Kernel page directory. Global to all processes.
 
 UPD: Process-local page directory entries
 
-Block: A group of page frames
-
-Block list: A modified linked list structure for allocating physical blocks. Also helps account for virtual memory by keeping indices.
+PBT: A modified linked list structure for allocating physical blocks. Also helps account for virtual memory by keeping indices.
 
 Chain: A chain of blocks linked together in their virtually contiguous order.
 
@@ -49,21 +49,68 @@ DPMI: DOS Protected Mode Interface. OS/90 implements and reports 0.9 but has som
 
 # OS/90 is a Single Address Space Operating System
 
-First of all, the conventional memory is shared by the whole system. This reduces multitasking abilities for DOS programs, but simplifies MM and scheduler design and makes the single address space possible.
-
-Second of all, extended memory is allocated using APIs like DPMI and XMS. It is never accessed directly. Nearly all programs are written for DPMI 0.9 (which is what OS/90 reports despite having some 1.0 features) and they have to fix-up executable data to run at an arbitrary address space. OS/90 and DPMI 1.0 allow for selecting a fixed address, but no regular DOS program will think to use it.
+- The conventional memory is shared by the whole system. This reduces multitasking abilities for DOS programs, but simplifies MM and scheduler design and makes the single address space possible.
+-  The extended memory, because it is managed through software interfaces and is never accessed directly, can be shared by all programs while maintaining a percieved process isolation.
 
 The single address space means that IPC is very easy and context switching is much faster due to not having to flush TLB entries when switching modes. Page tables do not have to be allocated for each process. Process memory can also be accessed directly.
 
-## Address Space Growth
+OS/90 cannot support isolated address spaces.
 
-The userspace VAS must be larger than the maximum physical memory. It is 3GB. Keeping page tables for this much memory is impractical because it would be 4MB of RAM constantly in use. Instead, OS/90 has a growing page table chain.
+# Implementation Data Structures and Algorithms
 
-Memory in the PTC can be deallocated.
+## Physical Block Table (PBT)
 
-## Emulating MMIO
+> Declare page as unmapped? Map to zero and not present, no cache?
 
-This is possible. Another section deals with the implementation and API
+The phsyical block table is an array that is allocated shortly after the kernel image and keeps the status the entire physical address space. This is a pool allocation system.
+
+A PBT entry:
+```c
+// 8 bytes long
+tpkstruct
+{
+    WORD    rel_index   :14;
+    BYTE    f_free      :1;
+    BYTE    f_phys_cont :1;
+    WORD    next;
+    WORD    prev;
+    WORD    owner_pid;
+}PF,*P_PF;
+```
+
+The chain ID is not stored in the PBT. It is returned as an integer but internally is an index to the PBT.
+
+With this configuration, OS/90 can access 1GB of physical memory minus any memory holes.
+
+If `prev` is zero, this is the first.
+
+A `rel_index` of zero indicates the first entry.
+
+The `owner_pid` is relevant for userspace allocations after a program terminates. In this situation, all of its memory must be freed. A function called `DeleteProcessMemory()` is called by the scheduler. If `owner_pid` is zero, it is the kernel since that is not a valid PID.
+
+The PID is normally just a pointer to the process control block, but here it is compressed. Because PCBs are aligned at 8K boundaries, the first 13 bits are always going to be zero. The top two bits will always be `11`. This leaves us with 32-15=17 bits (TODO)
+
+An `PF` represents a 4K page frame. This is no longer a configurable option.
+
+OS/90 uses one single set of page tables allocated in a special chain. When more are needed, the chain is extended and those page tables are attached to the page directory and mapped.
+
+Nothing fancy is done here. If a high address is requested for mapping, the kernel will simply allocate page tables all the way to that virtual address.
+
+### Deallocation
+
+When a mapping is deleted, the blocks containing it are deleted.
+
+## Access Window
+
+The issue with the mapping functionality is that memory cannot be accessed unless it is mapped, including the chain data. This requires making a window in the address space. It is a virtual block at the very end of the entire address space.
+
+On the i486, INVLPG can be used on this window, needing only a few iterations and saving the rest of the TLB. Mapping anything will require flushing the TLB later, so it is not a huge problem.
+
+> The window is internal and should not be accessed by drivers.
+
+# Virtual Memory List
+
+Memory mapping must occur on a virtual address space no larger than physical memory at the moment.
 
 # Core Memory API
 
@@ -85,7 +132,7 @@ The memory manager has a single mutex lock that is acquired by every function th
 ## Memory Info
 
 ```c
-U32 MemInfo(U8 op);
+U32 Mem_Info(U8 op);
 ```
 
 Operations:
@@ -106,7 +153,7 @@ This function is slow. Store the information in a variable if needed.
 ## Map Physical Block to Virtual Block
 
 ```c
-STATUS MapBlock(
+STATUS Map_Block(
     U32     attr,
     PVOID   virt,
     PVOID   phys
@@ -163,7 +210,11 @@ ConvMemRealloc(dma_buffer, 0);
 
 ### Get Available DOS Memory
 
-## Allocate Chain
+> TODO
+
+## Chain and Block Functions
+
+### Allocate Chain
 
 ```c
 CHID ChainAlloc(
@@ -182,7 +233,7 @@ ALLOC_CONT      Physically contiguous (for DMA)
 
 This should not be used like `malloc`. It is a low-level function call for page frame allocation.
 
-## Get Size Of Chain
+### Get Size Of Chain
 
 ```c
 DWORD ChainSize(CHID id);
@@ -190,7 +241,7 @@ DWORD ChainSize(CHID id);
 
 returns 0 if the id is invalid.
 
-## Resize a Chain
+### Resize a Chain
 
 ```c
 STATUS KERNEL ChainResize(
@@ -207,7 +258,7 @@ Resizing the chain does not remap it. It must be mapped to the desired location 
 
 In order to recognize uncommitted blocks, the implementation will have to automatically commit at least one block at the end if `bytes_commit` is zero. Uncommitted blocks must exist between committed ones or there is no way to recognize their presence. Later implementations may not have this same behavior. The only garauntee is that committed blocks will always be committed and cause no page faults.
 
-## Stain/Clean Blocks
+### Stain/Clean Blocks
 
 This will mark the pages of a block as dirty.
 
@@ -231,7 +282,7 @@ DBIT_STAIN
 
 This takes a virtual address and operated on the dirty bits of the associated pages. Input must be checked.
 
-## Evict Blocks From Memory
+### Evict Blocks From Memory
 
 ```c
 STATUS EvictBlockFromMem(
@@ -247,7 +298,7 @@ If the offset specified is uncommitted or not present, an error will occur.
 
 This will only take into affect after remapping the chain.
 
-## Replace Missing Blocks in Chain (INTERNAL) (TODO)
+### Replace Missing Blocks in Chain (INTERNAL) (TODO)
 
 ```c
 ReplaceMissingBlocks()
@@ -255,7 +306,7 @@ ReplaceMissingBlocks()
 
 Allocates memory for the blocks in the chain that have been evicted. This is used internally for swapping in memory.
 
-## Map Chain to Virtual Address
+### Map Chain to Virtual Address
 
 ```c
 STATUS MapChainToVirtualAddress(
@@ -286,9 +337,9 @@ VOID Example(VOID)
     PBYTE buffer;
     CHID  id;
 
-    id = System.Memory.ChainAlloc(ALLOC_NORMAL, 1000);
-    buffer = System.Memory.ReserveLinearRegion(1000);
-    System.Memory.MapChainToVirtualAddress(ATR_NORMAL, id, buffer);
+    id = System.Memory.Chain_Alloc(ALLOC_NORMAL, 1000);
+    buffer = System.Memory.Reserve_Linear_Region(1000);
+    System.Memory.Map_Chain_To_Virtual_Address(ATR_NORMAL, id, buffer);
 }
 ```
 
@@ -307,63 +358,7 @@ The reason why this does not "know" the size of the allocation is because we may
 
 # Page Locking
 
-Pages are sometimes locked by userspace for performance reasons, but OS/90 would probably not benefit because it does not swap memory unless RAM is very low. For this reason, it is not currently supported for userspace through the page locking DPMI service. Pages actually do not need to be locked since local interrupts for processes can safely cause faults; they are not real interrupts.
-
-# Physical Block Table (PBT)
-
-> Declare page as unmapped? Map to zero and not present, no cache?
-
-The phsyical block table is an array that is allocated shortly after the kernel image and keeps the status the entire physical address space. This is a pool allocation system.
-
-A PBT entry:
-```c
-// 8 bytes long
-tpkstruct
-{
-    WORD    rel_index   :14;
-    BYTE    f_free      :1;
-    BYTE    f_phys_cont :1;
-    WORD    next;
-    WORD    prev;
-    WORD    owner_pid;
-}MB,*P_MB;
-```
-
-The chain ID is not stored in the PBT. It is returned as an integer but internally is an index to the PBT.
-
-With this configuration, OS/90 can access 1GB of physical memory minus any memory holes.
-
-If `prev` is zero, this is the first.
-
-A `rel_index` of zero indicates the first entry.
-
-The `owner_pid` is relevant for userspace allocations after a program terminates. In this situation, all of its memory must be freed. A function called `DeleteProcessMemory()` is called by the scheduler. If `owner_pid` is zero, it is the kernel since that is not a valid PSP.
-
-An `MB` represents a single block of 16K. This size can be reconfigured. The block is the basic unit of virtual memory in OS/90.
-
-# Page Tables
-
-OS/90 uses one single set of page tables allocated in a special chain. When more are needed, the chain is extended and those page tables are attached to the page directory and mapped.
-
-Nothing fancy is done here. If a high address is requested for mapping, the kernel will simply allocate page tables all the way to that virtual address.
-
-## Deallocation
-
-When a mapping is deleted, the blocks containing it are deleted.
-
-## Access Window
-
-The issue with the mapping functionality is that memory cannot be accessed unless it is mapped, including the chain data. This requires making a window in the address space. It is a virtual block at the very end of the entire address space.
-
-On the i486, INVLPG can be used on this window, needing only a few iterations and saving the rest of the TLB. Mapping anything will require flushing the TLB later, so it is not a huge problem.
-
-> The window is internal and should not be accessed by drivers.
-
-# Virtual Memory List
-
-Memory can be allocated by the kernel and then mapped to a fixed region, but this is not very useful since we may want to reuse regions of our limited addressing space. To do this, we need to be able to allocate virtual addresses.
-
-The kernel and user allocate these regions differently, but use the same chain to hold page tables. The first few page tables allocated there are for kernel PTs and it grows as more are needed.
+Pages are sometimes locked by userspace for performance reasons, but OS/90 would probably not benefit because it does not swap memory unless RAM is very low. OS/90 also does not keep a page lock count. Pages actually do not need to be locked since local interrupts for processes can safely cause faults; they are not real interrupts.
 
 ## Relationship With Uncommitted Memory and Swapping
 
@@ -412,19 +407,6 @@ To "solve" the problem, we simply require that the XMS manager has the memory re
 Virtual 8086 mode needs to be ready for detecting memory.
 
 # Rationale
-
-## Fixed Blocks as the Unit of Paging
-
-OS/90 allocates all memory in a fixed block size. Page attributes and virtual memory only work with block quantities. By default, the block size is 16KB. The size of the block does not need to be known by any kernel mode software. A different method of allocating page frames could be used and software would behave the same, since all the functions exposed by the kernel use byte counts and 32-bit addresses.
-
-This design choice has advantages and disadvantages.
-
-Pros:
-* Memory allocation is very fast
-* MM is simple
-Cons:
-* Memory is wasted due to internal fragmentation
-* More disk IO when swapping
 
 ## Single Address Space
 

@@ -102,7 +102,7 @@ enum {
 #define STATUS U32
 #define HANDLE I32
 
-#define PID U16
+#define PID U32
 
 typedef __UINT32_TYPE__ U32,*PU32;
 typedef __UINT16_TYPE__ U16,*PU16;

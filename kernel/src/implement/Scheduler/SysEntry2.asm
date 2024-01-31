@@ -20,12 +20,18 @@
 ;===============================================================================
 
 extern System_Exit_Point, _dwErrorCode
-
-IMPORT Segment_Util, Svint86
+extern Segment_Util
+extern Svint86
 
 ;===============================================================================
 ;                         E n d   o f   I m p o r t s
 ;===============================================================================
+
+;===============================================================================
+;                               E x p o r t s
+;===============================================================================
+
+global System_Entry_Point
 
 ;===============================================================================
 ;                               E q u a t e s
@@ -85,7 +91,9 @@ Int_Sep_Do_PM:
         ; CS:EIP first. There is a convenient function for getting the
         ; segment base address
 
-        INVOKE Segment_Util, 2
+        ; This needs 3 arguments TODO
+        push 2
+        call Segment_Util
 
         ; Add saved EIP to it. For traps, the EIP points after the instruction
         ; so we subtract one to get the imm8 byte
@@ -97,7 +105,7 @@ Int_Sep_Do_PM:
         ; We need to check the virtual IDT and handle each case.
 
         push    eax
-        mov     ecx,[ebp+PCB.local_idt]
+        mov     ecx,[ebp+PCB.arlLocalIDT]
 
         imul    eax,6   ; Each LIDT entry is 6 bytes
         add     ecx,eax
@@ -114,10 +122,12 @@ Int_Sep_Do_PM:
         mov     [.vector],al
 
         ; Could optimize with branch table.
-        test    [ecx+4],LOCAL_PM_INT_TRAP<<13
+        test    U32 [ecx+4], LOCAL_PM_INT_TRAP<<13
         jz      .do_call_local_handler ; sure?
-        test    [ecx+4],LOCAL_PM_INT_REFLECT_GLOBAL<<13
+
+        test    U32 [ecx+4], LOCAL_PM_INT_REFLECT_GLOBAL<<13
         jz      .do_reflect_to_LIVT
+
         jmp     .not_an_INT_opcode     ; TEST is AND op, so zero means not equal
 
 .table: ; Working on this
@@ -147,14 +157,14 @@ Int_Sep_Do_PM:
         ; so that we can just push the values with no mem copy.
 
         lar     dx,ax
-        jc      .bits_16
+        jc      ._bits_16
 
 ._bits_32:
         ; We do not want to have an interrupt frame inside a user context,
         ; so disable IRQs.
         cli
-        mov    di,ss
-        mov    si,esp
+        mov    edi,ss
+        mov    esi,esp
 
         ; This looks pointless, but it avoids a lot more memory transfers
         ; to unscramble descriptor addresses and calculate the absolute.
@@ -197,7 +207,7 @@ Int_Sep_Do_PM:
         ; The register parameters of Svint86 will be changed to RD,
         ; so we can call it with whatever is in EBP.
         push    ebp
-        push    byte [.vector]
+        push    U32 [.vector] ; This needs to push 8-bit value, or sign extend?
         call    Svint86
 
         ; Svint86 saves results to provided buffer, in this case, process
@@ -242,9 +252,8 @@ System_Entry_Point:
         cmp     dl,255
         jnz     .exception
 
-        ; It was an INT
-        ; Maybe do not use a call?
-        jmp     [ebp+PCB.sepdo_int]
+; TODO
+;        jmp     [ebp+PCB.sepdo_int]
 
 .exception:
 

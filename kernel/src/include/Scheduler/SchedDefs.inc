@@ -52,6 +52,7 @@ RES _,            U16
 RES pIntAction,   U32
 RES pExceptAction,U32
 RES pFakeIrqAction,U32
+RES arlLocalIDT,U32
 
         ENDSTRUCT
 

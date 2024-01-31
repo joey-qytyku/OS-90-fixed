@@ -6,6 +6,10 @@
 
 extern aqwLocalDescriptorTable
 
+IMPORT IaGetBaseAddress
+IMPORT IaAppendLimitToDescriptor
+IMPORT IaAppendAddressToDescriptor
+
 ;===============================================================================
 ;                               E x p o r t s
 ;===============================================================================
@@ -20,6 +24,8 @@ SEG_GET_LIMIT equ 12
 SEG_SET_ACCESS_RIGHTS equ 16
 SEG_SET_BASE_ADDR equ 20
 SEG_SET_LIMIT equ 24
+
+PROTO Segment_Util
 
 ;===============================================================================
                                 section .text
@@ -71,11 +77,11 @@ LOCALS NONE
         ret
 
 .SEG_SET_BASE_ADDR:
-        INVOKE  IaAppendAddressToDescriptor, ebx, U32 [operand]
+        INVOKE  IaAppendAddressToDescriptor, ebx, U32 [argv(.operand)]
         ret
 
 .SEG_SET_LIMIT:
-        INVOKE  IaAppendLimitToDescriptor, ebx, U16 [operand]
+        INVOKE  IaAppendLimitToDescriptor, ebx, U16 [argv(.operand)]
         ret
 ENDPROC
 

@@ -106,7 +106,7 @@ tpkstruct
 }VA_ENT;
 ```
 
-We do not use bit arrays for a few reasons. First of all, it does not allow memory to be deallocated on program termination.
+We do not use bit arrays for a few reasons. First of all, it does not allow memory to be deallocated on program termination. Secondly, it does not allow deallocation without knowing the size of the allocated region.
 
 ### Relationship with Swapping and Virtual Memory (OLD)
 
@@ -136,7 +136,7 @@ A solution is to allow the block list to store uncommitted block candidates. Wha
 
 Interrupt service routines may never call anything that modifies the page tables or other memory managment structures. The kernel API for memory managment is not reentrant and runs with IRQs enabled most of the time, so calling MM functions will not work safely in an ISR.
 
-# DPMI
+# DPMI > Will remove
 
 The kernel only supports the features that DPMI 1.0 supports for virtual memory. The userspace memory manager is responsible for implementing heaps and other features. While OS/90 is mostly DPMI 0.9, it supports some 1.0 features.
 

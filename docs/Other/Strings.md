@@ -4,7 +4,7 @@ C has a way of handling strings that is very confusing. This document will discu
 
 # Java Strings
 
-Java has a `String` type that makes string manipulation very easy. A `String` behaves like any other type. It can be reassigned to a different value, but the contents are immutable and modifications require making a new string. Python does something very similar.
+Java has a `String` type that makes string manipulation very easy. A `String` behaves like any other type. It can be reassigned to a different value, but the contents are immutable and modifications require making a new string.
 
 This is because java has a concept of references, and `String` is not a primitive type--it has methods. When you assign a new string value, a new object is being created and the variable has the reference changed. The idea of references will be relevant later.
 

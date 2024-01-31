@@ -1,3 +1,5 @@
+> This document is old.
+
 # Overview
 
 OS/90 has a cooperatively multitasking userspace. All programs run in the same linear address space. The userspace kernel is capable of yielding itself to other processes.

@@ -12,6 +12,8 @@ It seems that it allows for partial reads and writes because the INT 21H functio
 
 DOS will terminate the read command for stdin once it finishes recieving the number of requested characters. A special characters are also be sent, such as newlines.
 
+# API
+
 # Special File Handles
 
 The default file handles will write to the VGA text mode console using INT 21H and will block the system. A multitasking window manager will not do it this way, and will close the default handles and replace them with a special handle by requesting a kernel-mode driver to do so. Special handles are similar to device files, but are only handles.
@@ -105,5 +107,7 @@ The DC must declare itself as a DC so that the memory region for the framebuffer
 ## Fullscreen Video Mode Switching
 
 If a program switches video mode, the BIOS routine for that purpose must be called. The only issue is with this is how we go back to the original one, since DOS programs will assume the 80x25 mode.
+
+This can be in the control of the DC.
 
 Local video mode table?

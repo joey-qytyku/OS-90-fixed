@@ -17,6 +17,11 @@ struct EXE {
     U16 overlay_number;
 };
 
+// The MZ executable will load everything in one contiguous block in memory.
+// It does not have to be directly after the PSP and may in fact be anywhere
+// since the PSP is passed by register upon entry. This requires the loader
+// to set the state of the registers.
+
 // Loader returns base segment of allocation, which goes in PSP
 U16 Load_EXE(const char *file)
 {}

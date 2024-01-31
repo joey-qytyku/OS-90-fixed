@@ -14,28 +14,46 @@
 #include <Type.h>
 #include "MemDefs.h"
 
-tpkstruct
+// Current config:
+// - About 2GB of memory addressing (more than Win98)
+// - 128MB per allocation max
+// Pretty good, ought to be enough for anybody.
+
+tstruct
 {
-    U16     rel_index   :14;
-    U8      f_free      :1;
+    U32     rel_index   :15;
+    U32     owner_pid   :17;
     U16     next;
     U16     prev;
-    U16     owner_pid;
-}MB,*P_MB;
+}PFE,*P_PFE;
 
-//static int x = sizeof (MB);
+// The PID is just a pointer to the process control block in OS/90.
+// But some of the fields do not actually matter.
+// The top of the address will always be 0xC and the bottom 13 bits will
+// always be zero due to 8K alignment. 32-13-2 means 17 significant bits
+// that actually need to be stored.
 
-CHID kernel Chain_Alloc(
+// But do you even need these?
+#define UNPACK_PID(pfepid) ((PID)(((pfepid)<<13) | 0xC0000000))
+#define PACK_PID(realpid) ((PID)(((realpid)>>13)& 0x1FFFF));
+
+#define PFE_FREE(ptr) ((ptr)->prev == 0)
+#define PFE_LAST_IN_CHAIN(ptr) ((ptr)->next == 0)
+
+static int x = sizeof (PFE);
+
+kernel CHID Chain_Alloc(
     U32 bytes,
     PID owner_pid
 );
 
 U32 Chain_Size(CHID chain);
 
-STATUS kernel Chain_Extend(
-    CHID    id,
-    U32     bytes_uncommit,
-    U32     bytes_commit
+STATUS Get_Chain_Physical_Addresses(
+    CHID    chain,
+    U32     base_index,
+    U32     num_pages,
+    PVOID*  out_computed
 );
 
 PVOID Chain_Walk(CHID id, U32 req_index);

@@ -1,12 +1,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                           ;;
-;;                     Copyright (C) 2023, Joey Qytyku                       ;;
+;;                     Copyright (C) 2023-2024, Joey Qytyku                  ;;
 ;;                                                                           ;;
 ;; This file is part of OS/90 and is published under the GNU General Public  ;;
 ;; License version 2. A copy of this license should be included with the     ;;
 ;; source code and can be found at <https://www.gnu.org/licenses/>.          ;;
 ;;                                                                           ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+%include "Macro.inc"
+%include "../Debug/Debug.inc"
 
 ;===============================================================================
 ;                                D E F I N E S
@@ -102,7 +105,7 @@ _KernelReserved4K:
 
 
 ;===============================================================================
-        section .data
+                                section .data
 ;===============================================================================
 
 aqwGlobalDescriptorTable:
@@ -153,7 +156,7 @@ IdtInfo:
         DD      Interrupt_Descriptor_Table
 
 ;===============================================================================
-        section .text
+                                section .text
 ;===============================================================================
 
 GetESP0:
@@ -291,14 +294,14 @@ Loop:
         dec     ecx
         jnz     Loop
 
-        xchg bx,bx
-
         ret
-extern printf
-InitIA32:
-        xchg bx,bx
+
+PROC InitIA32
+LOCALS none
         call    FillIDT
         call    RemapPIC
+
+        xchg bx,bx
 
         ;Set IOPB in the TSS to an out-of-bounds offset.
         ;This will make all ring-3 IO port access a security violation,
@@ -332,12 +335,11 @@ InitIA32:
         out     20h,al
         out     0A0h,al
 
-        ; After return, starts executing at address zero in IVT.
-        ; Suspected stack corruption.
         ret
+ENDPROC
 
 ;===============================================================================
-        section .init
+                                section .init
 ;===============================================================================
 
         extern END_RODATA
@@ -371,8 +373,6 @@ Begin:
         mov     ss,ax
         mov     fs,ax
         mov     gs,ax
-
-        xchg bx,bx
 
         lidt    [IdtInfo]
 

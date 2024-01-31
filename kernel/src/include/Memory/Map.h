@@ -20,9 +20,4 @@ STATUS Map_Chain_To_Virtual_Address(
     PVOID   address
 );
 
-STATUS kernel Map_Block(
-    U32     attr,
-    PVOID   virt,
-    PVOID   phys
-);
 #endif /* MM_MAP */

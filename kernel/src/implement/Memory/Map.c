@@ -86,55 +86,57 @@ static BOOL Set_Memory_Window_To_Chain_Local_Block(
 // BRIEF:
 //      Map a single block to a virtual address.
 //
-STATUS kernel Map_Block(
-    U32     attr,
-    PVOID   virt,
-    PVOID   phys
-){
-    if (!Aligned(virt,MEM_BLOCK_SIZE) || !Aligned(phys,MEM_BLOCK_SIZE))
-        return OS_INVALID_PARAMS;
+// STATUS kernel Map_Block_(
+//     U32     attr,
+//     PVOID   virt,
+//     PVOID   phys
+// ){
+//     if (!Aligned(virt,MEM_BLOCK_SIZE) || !Aligned(phys,MEM_BLOCK_SIZE))
+//         return OS_INVALID_PARAMS;
 
-    const U32 virt_as_int = (U32)virt,
-              phys_as_int = (U32)phys;
+//     const U32 virt_as_int = (U32)virt,
+//               phys_as_int = (U32)phys;
 
-    const U32 num_ptabs = Chain_Size(page_table_chain) / PAGE_SIZE;
-    const U32 page_index;
+//     const U32 num_ptabs = Chain_Size(page_table_chain) / PAGE_SIZE;
+//     const U32 page_index;
 
-    // Is the address in the user range
-    if (virt_as_int < 0xC0000000)
-    {
-        // It is in the user range. This means we have to use the
-        // user page tables.
+//     // Is the address in the user range
+//     if (virt_as_int < 0xC0000000)
+//     {
+//         // It is in the user range. This means we have to use the
+//         // user page tables.
 
-        // Check if the address is a valid for userspace.
-        if (virt_as_int > (0xC0000000 - MEM_BLOCK_SIZE))
-            return OS_INVALID_PARAMS;
+//         // Check if the address is a valid for userspace.
+//         if (virt_as_int > (0xC0000000 - MEM_BLOCK_SIZE))
+//             return OS_INVALID_PARAMS;
 
-        // SetMemoryWindowToChainLocalBlock(page_table_chain, );
-    }
-    else {
-        // Kernel PD entries are always set up to point to the page tables.
-        // Page table entries can therefore be modified directly.
-        const U32 local_pg_index = (virt_as_int - 0xC0000000) / 4096;
+//         // SetMemoryWindowToChainLocalBlock(page_table_chain, );
+//     }
+//     else {
+//         // Kernel PD entries are always set up to point to the page tables.
+//         // Page table entries can therefore be modified directly.
+//         const U32 local_pg_index = (virt_as_int - 0xC0000000) / 4096;
 
-        kernel_page_table_entries[local_pg_index  ] = attr | phys_as_int;
-        kernel_page_table_entries[local_pg_index+1] = attr | phys_as_int+4096;
-        kernel_page_table_entries[local_pg_index+2] = attr | phys_as_int+8192;
-        kernel_page_table_entries[local_pg_index+3] = attr | phys_as_int+12288;
+//         kernel_page_table_entries[local_pg_index  ] = attr | phys_as_int;
+//         kernel_page_table_entries[local_pg_index+1] = attr | phys_as_int+4096;
+//         kernel_page_table_entries[local_pg_index+2] = attr | phys_as_int+8192;
+//         kernel_page_table_entries[local_pg_index+3] = attr | phys_as_int+12288;
+//     }
 
-    }
+//     return OS_OK;
+// }
 
-    return OS_OK;
-}
-
+// BRIEF:
+//
+//
+//
 STATUS Map_Chain_To_Virtual_Address(
     U32     attr,
     CHID    id,
     PVOID   address
 ){
-    if (!Aligned(address,MEM_BLOCK_SIZE))
+    if (!Aligned(address, MEM_BLOCK_SIZE))
         return OS_INVALID_PARAMS;
-
 }
 
 //

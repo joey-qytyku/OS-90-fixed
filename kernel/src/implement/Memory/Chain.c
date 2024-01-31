@@ -14,10 +14,12 @@
 #include <Misc/log2.h>
 #include <Misc/Linker.h>
 
+#include <Debug/Debug.h>
+
 #include <Scheduler/V86.h>
 
-static U32    num_total_blocks;
-static P_MB   block_list;
+static U32     num_total_blocks;
+static P_PFE   g_block_list;
 
 // Size of PBT is dynamic and determined by checking size of physical RAM.
 
@@ -27,28 +29,22 @@ U32 Round_Bytes_To_Blocks(U32 bytes)
     return bytes >> BITS_NEEDED(MEM_BLOCK_SIZE) + (bytes & MEM_BLOCK_SIZE - 1);
 }
 
-// BRIEF:
-//      Allocate a chain of blocks.
-//
-// EXPLAINATION:
-//
-// INPUTS:
-//      num_pages:  Automatically converted to blocks. The program does not
-//                  need to know how large a block is.
-// FLAGS:
-//
-//  The following flags are provided for this function that decide attributes
-//  about the block.
-//
-//  CH_USER             When we map this memory, remember to make user pages.
-//                      Do not permit userspace to modify if CH_USER not passed.
-//
-// The privilege of the chain matters because a userspace program cannot
-// manipulate chains that belong to the kernel.
-//
-// RETURN:
-//      Allocated chain or INVALID_CHAIN
-//
+static VOID Print_Chain(P_PFE pfe)
+{
+    KLogf("Printing chain owned by PID %i\n----\n", pfe->owner_pid);
+    if (PFE_FREE(pfe)) {
+        KLogf("Chain unallocated, cancelling...\n");
+        return;
+    }
+    P_PFE cpfe = pfe;
+    while (!PFE_LAST_IN_CHAIN(cpfe)) {
+        KLogf("Page at local index:   %i\n", cpfe->rel_index);
+        KLogf("Page owned by process: %i\n", cpfe->owner_pid);
+
+        cpfe = &g_block_list[cpfe->next];
+    }
+}
+
 kernel CHID Chain_Alloc(
     U32 bytes,
     PID owner_pid
@@ -59,8 +55,11 @@ kernel CHID Chain_Alloc(
     // first flag, so we need a place to put the irrelevant loop iterator
     // value.
 
-    MB   nonsense_mb = { 0 };
-    P_MB prev_blk = &nonsense_mb;
+    if (bytes == 0)
+        return INVALID_CHAIN;
+
+    PFE   nonsense_mb = { 0 };
+    P_PFE prev_blk = &nonsense_mb;
 
     U32 num_blocks_to_alloc = Round_Bytes_To_Blocks(bytes);
     U32 base; // Index of first block
@@ -70,7 +69,7 @@ kernel CHID Chain_Alloc(
     // the next loop.
     for (U32 i = 0; i < num_total_blocks; i++)
     {
-        if (block_list[i].f_free)
+        if (PFE_FREE(&g_block_list[i]))
             base = i;
     }
 
@@ -80,7 +79,7 @@ kernel CHID Chain_Alloc(
     for (U32 i = 0; i < num_total_blocks; i++)
     {
         const U32 abs_index = base + i;
-        const P_MB  curr_blk  = &block_list[abs_index];
+        const P_PFE  curr_blk  = &g_block_list[abs_index];
 
         // The last in the list will have zero as the default
         // next link. This will not be changed for last entry
@@ -88,7 +87,7 @@ kernel CHID Chain_Alloc(
         // entry.
         curr_blk->next = 0;
 
-        curr_blk->f_free      = 0;
+        // curr_blk->f_free      = 0; // Dont need, implied?
         curr_blk->owner_pid   = owner_pid;
         curr_blk->rel_index   = i;
 
@@ -115,7 +114,7 @@ good:
 
 BOOL Chain_Is_Valid(CHID chain)
 {
-    if (block_list[chain].f_free == 1 && block_list[chain].rel_index == 0)
+    if (PFE_FREE(&g_block_list[chain]) == 1 && g_block_list[chain].rel_index == 0)
         return 1;
     return 0;
 }
@@ -138,9 +137,9 @@ U32 Chain_Size(CHID chain)
     // do while?
     do {
         byte_count += MEM_BLOCK_SIZE;
-        curr_inx = block_list[curr_inx].next;
+        curr_inx = g_block_list[curr_inx].next;
     }
-    while (block_list[curr_inx].next > 0);
+    while (g_block_list[curr_inx].next > 0);
 End:
     return byte_count;
 }
@@ -149,10 +148,13 @@ End:
 //      Allocate a contiguous range of blocks. This is done toward the end of
 //      extended memory for simplicity.
 //
+// Why not keep track of the top? Can I not do that?
+//
+// Do I need the contig bit in the PFE?+//
 CHID Chain_Alloc_Physical_Contig()
 {}
 
-typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
+typedef BOOL (*ITERATE_CHAIN_FUNC)(P_PFE,U32);
 
 // BRIEF:
 //      Run this function for each entry in this chain.
@@ -160,28 +162,28 @@ typedef BOOL (*ITERATE_CHAIN_FUNC)(P_MB,U32);
 // RETURN:
 //      A pointer to the last block entry checked.
 //
-static P_MB For_Each_Block_In_Chain(
+static P_PFE For_Each_Block_In_Chain(
     ITERATE_CHAIN_FUNC _do,
     CHID               id,
     U32                extra
 ){
-    P_MB block;
+    P_PFE block;
     // Pass it the index. If it returns 1, break.
-    for (block = &block_list[id]; ;)
+    for (block = &g_block_list[id]; ;)
     {
         if (_do(block, extra))
             break;
-        block = &block_list[block->next];
+        block = &g_block_list[block->next];
     }
     return block;
 }
 
-static BOOL Slant_Indices_By_Addend(P_MB block, U32 addend)
+static BOOL Slant_Indices_By_Addend(P_PFE block, U32 addend)
 {
     block->rel_index += (U16)addend;
 }
 
-static BOOL Check_Last(P_MB block, U32 dummy)
+static BOOL Check_Last(P_PFE block, U32 dummy)
 {
     UNUSED_PARM(dummy);
     return (BOOL)block->next;
@@ -191,10 +193,11 @@ static BOOL Check_Last(P_MB block, U32 dummy)
 static U32 Get_Index_Of_Last_Entry(CHID id)
 {
     const U32 last_block_2int = (U32)For_Each_Block_In_Chain(Check_Last, id, 0);
-    const U32 block_list_2int = (U32)block_list;
+    const U32 g_block_list_2int = (U32)g_block_list;
 
-    return (last_block_2int - block_list_2int) / sizeof(MB);
+    return (last_block_2int - g_block_list_2int) / sizeof(PFE);
 }
+// Change all references to blocks into pages?
 
 //
 // Scale the chain by the provided value. This operation is relative only.
@@ -237,7 +240,7 @@ STATUS kernel Chain_Extend(
     // iterate blocks_in_chain times
     const U32 final_block_before_ext = Get_Index_Of_Last_Entry(id);
 
-    // BOOL is_user = (block_list[id].owner_pid != 0);
+    // BOOL is_user = (g_block_list[id].owner_pid != 0);
 
     // We will use the chain alloc function to get a new chain. This will
     // be linked to the previous one later.
@@ -255,19 +258,22 @@ STATUS kernel Chain_Extend(
     );
 
     // Link the provided chain and the previous one. This will merge the two
-    block_list[final_block_before_ext].next = ext_chain;
-    block_list[ext_chain             ].prev = final_block_before_ext;
+    g_block_list[final_block_before_ext].next = ext_chain;
+    g_block_list[ext_chain             ].prev = final_block_before_ext;
 
     return OS_OK;
 }
 
+//
+// What if you want a range of page physical addresses
+//
 // BRIEF:
 //      Returns the physical address of a block in a chain.
 //      Works by following the linked list.
 //
 // RETURN:
 //      Address of the block in the chain
-//      NULL if does not exist.
+//      NULL if does not exist (uncommitted)
 //
 // Best if I unroll this.
 //
@@ -275,7 +281,7 @@ PVOID Chain_Walk(
     CHID    id,
     U32     req_index
 ){
-    P_MB block = &block_list[id];
+    P_PFE block = &g_block_list[id];
     U32 i = 0;
 
     for (; i < req_index + 1 ;i++)
@@ -287,15 +293,47 @@ PVOID Chain_Walk(
 
         // If there is no next block, do not continue.
 
-        if (block_list->next == 0)
+        if (g_block_list->next == 0)
             break;
 
         // Go to next block
-        block = &block_list[block->next];
+        block = &g_block_list[block->next];
     }
     // If the loop finished, it means that all blocks in this chain
     // were exhausted and this entry does not exist.
     return NULL;
+}
+
+// BRIEF:
+//      Scan the chain and find the physical addresses of the desired
+//      pages within.
+//
+//      This function may fail at any time. If it does, output buffer contents
+//      are undefined and should not be used.
+//
+// RETURN:
+//      OS_ERROR_GENERIC : if out of chain bounds or problem with chain AI
+//      OS_OK            : if successful.
+//
+STATUS Get_Chain_Physical_Addresses(
+    CHID    chain,
+    U32     base_index,
+    U32     num_pages,
+    PVOID*  out_computed
+){
+    P_PFE block;
+    U32 i = 0;
+    for (block = &g_block_list[chain]; i < num_pages; i++)
+    {
+
+        if (PFE_LAST_IN_CHAIN(block) && i < num_pages)
+            return OS_ERROR_GENERIC;
+
+        out_computed[i] = block - (ptrdiff_t)g_block_list;
+
+        block = &g_block_list[block->next];
+    }
+    return OS_OK;
 }
 
 // Stack trace info can be variable size and is independent of the linker?
@@ -303,7 +341,7 @@ VOID Chain_Init(VOID)
 {
     // const U32 lkr_end_int = (U32)&; // minus something?
     // const U32 mbsize = MEM_BLOCK_SIZE;
-    // block_list = (lkr_end_int + mbsize-1) & (~(mbsize-1));
+    // g_block_list = (lkr_end_int + mbsize-1) & (~(mbsize-1));
 
     // We must determine how many free blocks there are. This requires V86.
 
