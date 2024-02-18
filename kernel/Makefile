@@ -9,15 +9,17 @@ CC := $(TOOLCHAIN)/i386-linux-gcc
 # Assembler
 AS := nasm
 
+#KERNEL.IMG
+
 SRCDIR := src/implement
 OBJDIR := build/obj
 BINDIR := build
 
-SOURCES := $(shell find $(SRCDIR) -type f -name "*.c")
-ASSEMBLY := $(shell find $(SRCDIR) -type f -name "*.asm")
+SOURCES := $(shell find $(SRCDIR) -type f -name "*.C")
+ASSEMBLY := $(shell find $(SRCDIR) -type f -name "*.ASM")
 
-OBJS := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SOURCES:.c=.o))
-OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.o))
+OBJS := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SOURCES:.C=.o))
+OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.ASM=.o))
 
 EXEC := $(BINDIR)/KERNL386.EXE
 
@@ -27,9 +29,9 @@ ABI := -fcall-used-esi -fcall-used-edi -mno-mmx -mno-sse -mno-sse2 -mno-3dnow -m
 ARCH := -march=i386
 CENV := -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99
 
-CFLAGS := -I ./src/include/ -include ./src/include/Type.h $(OPTS) $(ABI) $(ARCH) $(DEBUG_OPTIONS) $(CENV)
+CFLAGS := -x c -I ./src/include/C/ $(OPTS) $(ABI) $(ARCH) $(DEBUG_OPTIONS) $(CENV)
 
-AFLAGS := -f elf32 -Ox -i src/include/ -i src/include/_NASMX
+AFLAGS := -f elf32 -Ox -i src/include/ASM/NASMX -i src/include/ASM
 
 LD := $(TOOLCHAIN)/i386-linux-ld
 
@@ -42,12 +44,12 @@ $(EXEC): $(OBJS)
 	$(LD) -T LinkScripts/Kernel.ld $^ -o sizetest.o
 	python3 LinkScripts/genksyms.py
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
+$(OBJDIR)/%.o: $(SRCDIR)/%.C
 	@mkdir -p $(dir $@)
 	@echo [CC] $<
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.asm
+$(OBJDIR)/%.o: $(SRCDIR)/%.ASM
 	@mkdir -p $(dir $@)
 	@echo [AS] $<
 	@$(AS) $(AFLAGS) $< -o $@

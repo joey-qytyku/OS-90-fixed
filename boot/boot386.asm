@@ -40,6 +40,13 @@ use and modify it to load other kernels.
         This code is working and kernel loads
         It was a linker error, fixed approx. 2 weeks ago
 
+7 Feb 2024
+        Been a very long time since I changed this file. I am changing the
+        load VMA to 8000_0000.
+
+        I really like this code and do not want to change it, not even to simply
+        improve the organization.
+
 %endif
 
 ;-----------------------------
@@ -314,8 +321,9 @@ PageSetup:
         mov     bx,16
 
         ;Create the page directory
+        ; UPDATE: Changed 768 to 512 reflecting new load VMA.
         mov     dword [es:bx],       (101h<<PAGE_SHIFT)|7h
-        mov     dword [es:bx+768*4], (102h<<PAGE_SHIFT)|3h
+        mov     dword [es:bx+512*4], (102h<<PAGE_SHIFT)|3h
 
         ;Copy the IDMAP page table to HMA
         mov     cx,256
@@ -381,9 +389,10 @@ GotoKernel:
         mov     es,ax
         mov     ss,ax
 
-        jmp     dword 8:0C000_0001h  ;Yes, this is a thing
+        ; Changed to 8000_0001h for new VMA
+
+        jmp     dword 8:8000_0001h  ;Yes, this is a thing
         ;Jumps over the protective RET
-        ;See StartK.asm for more information
 
 Corrupted:
         ERROR   KernelFile

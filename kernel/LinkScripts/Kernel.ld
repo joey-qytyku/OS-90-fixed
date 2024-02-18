@@ -6,11 +6,9 @@
  source code and can be found at <https://www.gnu.org/licenses/>.
 */
 
-
-/* Text section is smaller now. Something is terribly wrong */
 SECTIONS
 {
-	. = 0xC0000000;
+	. = 0x80000000;
 
     /* BSS IS NOT MAPPED WTF! Maybe it is. Problem is with RODATA */
 
@@ -21,36 +19,25 @@ SECTIONS
     }
     END_INIT = .;
 
-	.text : AT(END_INIT)
+	.CODE : AT(END_INIT)
 	{
+        *(.CODE)
         *(.text)
-        . = ALIGN(4K);
-	}
-    END_TEXT = .;
-
-    .data : AT(END_TEXT)
-    {
         *(.data)
-        . = ALIGN(4K);
-    }=0
-    END_DATA = .;
-
-    .rodata : AT(END_DATA)
-    {
         *(.rodata)
         *(.rodata.*)
         . = ALIGN(4K);
-        END_RODATA = .;
-    }=0
+	}=0
+    END_CODE = .;
 
-	.bss : AT(END_RODATA)
+	.bss : AT(END_CODE)
 	{
 		*(.bss)
         . = ALIGN(4K);
 	}
 	END_BSS = .;
 
-    BSS_SIZE = END_BSS - END_RODATA;
+    BSS_SIZE = END_BSS - END_CODE;
 
 	/DISCARD/ :
 	{

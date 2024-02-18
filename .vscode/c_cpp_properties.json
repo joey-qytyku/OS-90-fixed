@@ -14,7 +14,7 @@
         {
             "name": "os/90",
             "includePath": [
-                "${workspaceFolder}/kernel/src/include"
+                "${workspaceFolder}/kernel/src/include/C"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
@@ -36,7 +36,7 @@
                 "-std=c99",
                 "-Wextra",
                 "-m32",
-                "-include kernel/src/include/Type.h"
+                "-include kernel/src/include/C/Type.h"
             ]
         }
     ],
