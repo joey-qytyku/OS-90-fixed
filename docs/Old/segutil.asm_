@@ -1,0 +1,94 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                           ;;
+;;                     Copyright (C) 2023-2024, Joey Qytyku                  ;;
+;;                                                                           ;;
+;; This file is part of OS/90 and is published under the GNU General Public  ;;
+;; License version 2. A copy of this license should be included with the     ;;
+;; source code and can be found at <https://www.gnu.org/licenses/>.          ;;
+;;                                                                           ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+%include "NASMX/MACRO.INC"
+
+;===============================================================================
+;                               I m p o r t s
+;===============================================================================
+
+extern aqwLocalDescriptorTable
+
+IMPORT IaGetBaseAddress
+IMPORT IaAppendLimitToDescriptor
+IMPORT IaAppendAddressToDescriptor
+
+;===============================================================================
+;                               E x p o r t s
+;===============================================================================
+
+; Make the enum pre-multiply the values by 4
+
+PROTO Segment_Util
+
+;===============================================================================
+                                section .text
+;===============================================================================
+
+;-------------------------------------------------------------------------------
+; Get/set information about a local descriptor.
+; NOTE: This procedure only works with the local descriptor table.
+;
+; Available to kernel.
+;
+; This can be transfered very easily  to new ABI
+;
+PROC Segment_Util, U8 func, U16 seg, U32 operand
+LOCALS NONE
+        movzx   ebx,U16 [argv(.seg)]
+        and     bx,0FFF8h
+        add     ebx,aqwLocalDescriptorTable
+
+        mov     eax,[argv(.func)]
+        add     eax,.brtab
+        jmp     eax
+
+.brtab:
+        align   4
+        DD .SEG_GET_ACCESS_RIGHTS
+        DD .SEG_GET_EXT_ACCESS_RIGHTS
+        DD .SEG_GET_BASE_ADDR
+        DD .SEG_GET_LIMIT
+        DD .SEG_SET_ACCESS_RIGHTS
+        DD .SEG_SET_BASE_ADDR
+        DD .SEG_SET_LIMIT
+
+.SEG_GET_ACCESS_RIGHTS:
+        movzx   eax, U8 [ebx+5]
+        ret
+
+.SEG_GET_EXT_ACCESS_RIGHTS:
+        ; ...
+        ret
+
+.SEG_GET_BASE_ADDR:
+        INVOKE  IaGetBaseAddress, ebx
+        ret
+
+.SEG_GET_LIMIT:
+        lsl     eax, U16 [argv(.seg)]
+        ret
+
+.SEG_SET_ACCESS_RIGHTS:
+        mov     al,[argv(.operand)]
+        mov     [ebx+5],al
+        ret
+
+.SEG_SET_BASE_ADDR:
+        INVOKE  IaAppendAddressToDescriptor, ebx, U32 [argv(.operand)]
+        ret
+
+.SEG_SET_LIMIT:
+        INVOKE  IaAppendLimitToDescriptor, ebx, U16 [argv(.operand)]
+        ret
+ENDPROC
+
+
+

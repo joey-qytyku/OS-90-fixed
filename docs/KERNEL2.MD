@@ -1,12 +1,6 @@
-> Redirecting IRQs to userspace?
-
-> Can we store address mapping in an array for each process? This way, we dont need to allocate page tables? Probably not.
-
-> Should I rename drivers to something else? Maybe system service (SSV or SVC)
-
 # Introduction
 
-OS/90 features a preemptible, reentrant, multitasking, based on an exokernel-inspired design. The kernel is capable of emulating any 32-bit operating system.
+OS/90 features a preemptible, reentrant, multitasking kernel capable of emulating any 32-bit operating system. It is designed to force few abstractions.
 
 # Memory Manager
 
@@ -21,99 +15,13 @@ Features related to virtual memory are fully in the control of the subsystem dri
 
 ## Virtual Memory
 
-### Page Fault Handling
-
 # Scheduler
 
-OS/90 uses cooperative multitasking with advanced priority capabilities.
-
-## Cooperative Multitasking
-
-OS/90 uses cooperating multitasking. This seems impossible for an OS designed around emulation, but it does work. All processes have to perform IO or somehow invoke the OS in order to do any useful work. Each of such events represent a potential implicit yield to the next process.
-
-Whether or not a yield occurs is under the control of a driver. This allows fine-grained control which preemptive multitasking does not, but there is reduced consistency.
-
-## System Entry
-
-The kernel does not differentiate between exception and INT calls. Both using ring-0 IDT entries that cannot be called from user mode directly. A system entry is the invokation of any IDT vector by userspace. It will always generate an exception.
-
-Exception contexts are task-local and capable of yielding. Handlers must be thread-safe.
-
-If an IDT entry of ring-0 is called by userspace, a #GP is caused. The GP handler chain is invoked until the exception is swallowed. One of the handlers should check if there is an INT or similar instruction at the stored CS:EIP and proceed to dispatch it to the correct handler.
-
-> Use a far call with offset as the functiton ID?
-
-## System Exit
-
-Invoking the system exit is done by finding the exit location and simply jumping to it. This will cause the system to restore the userspace (always) register dump state, returning to the process that entered the kernel. The CR3 value stays the same because the process has not changed.
-
-The address of system exit is right after the registers on the stack. A simple indirect jump is all that is needed using the offset `RD.exit`.
-
-## Yield
-
-Yield cannot be a jump location because it may not actually occur and the process should be returned to in such a case. The location instead is a procedure call with no arguments.
-
-## Tasks Control Block
-
-The task control block is a standardized structure that is 4096 bytes long and naturally aligned. The begining is the 32-bit register dump. This RD includes segment registers for real mode and protected mode. The real mode sregs are not valid if the task was in protected mode and vice versa.
-
-> What about hooking SV86? I think we need a capture chain for it.
-
-The reason why there must be PM and RM registers is because the system entry procedure avoids conditional processing and unconditionally pushes the segment registers. Exiting V86 zeroes all DS,ES,FS, and GS. By the time we push them back, only the stack segment will be used in order to pop the rest of the INT/IRET stack frame.
-
-
-
-The rest of the TCB is defined as
-```
-typedef struct {
-    RD  rd;
-    PVOID   _yield;   // ?
-    PVOID   _sysexit;
-
-    _TCB*   next;
-    _TCB*   prev;
-    U32     id;
-    U16     priority;
-    U16     counter;
-
-    U32     general_flags;
-    U16     subsystem;
-    U16     architecture;
-
-    SCHED_PROC  post_proc;
-    SCHED_PROC  pre_proc;
-    SCHED_PROC  term_proc;
-
-
-}TCB, *P_TCB;
-```
-
-## Kernel Stacks
-
-Kernel stacks are at least 3K in size and are part of the TCB.
-
-
-## Reentrancy of the Kernel
-
-Mutex locks work as expected, but have implicit yield loop semantics to prevent deadlocks. The priority is also dropped significantly for the task spinning on the lock. It will raise the spin flag in this special case.
-
-The TCB is always safe to access since each system entry is tied to one instance of the process.
-
-> The lock function tries the lock first and if it is held, spin is raised
-
-> The entire kernel is a sort of class with methods and tasks are instances of the class.
-
-## Priority Levels
-
-Each chance to run yield as a no-op is called a "void yield." Each void yield will decrement the counter and if it goes to zero, the number is reset to the priority number.
-
-When the scheduler encounters the zero counter, it will reset it to the original value and repeat it.
-
-A negative priority level causes each counter decrement to mean one time that the process is ignored by the scheduler before it runs normally.
+OS/90 is preemptively multitasking and allows the kernel to be preempted by tasks.
 
 ## Exception Handling
 
-OS/90 supports reentrant exceptions.
+OS/90 supports reentrant exceptions. This means exception handlers can be called from multiple processes. This is necessary in order to allow for concurrent system calls.
 
 ## Event Handlers
 
@@ -121,11 +29,78 @@ Events are exceptions or software interrupt events defined by the IDT vector ref
 
 Events are caused by the user only. Exceptions in the kernel will instead go to a hookable list of handlers, which does not include INT calls because kernel mode cannot use INT.
 
+## Scheduler Implementation
+
+OS/90 uses an unconventional scheduler design, using a form of system-level ucontext/longjmp style approach to implement multitasking.
+
+The basic concept is that of the __context__. Contexts are a standard register dump structure containing the set of registers that is created when entering the system from an interrupt gate, entering SV86 or exiting, or entering a process context or saving one.
+
+```c
+typedef struct {
+        _DWB_R(A);
+        _DWB_R(B);
+        _DWB_R(C);
+        _DWB_R(D);
+
+        _DW_R(SI);
+        _DW_R(DI);
+        _DW_R(BP);
+
+        LONG   pm_ES;
+        LONG   pm_DS;
+        LONG   pm_FS;
+        LONG   pm_GS;
+        _DW_R(IP);
+
+        LONG   CS;
+        _DW_R(FLAGS);
+        _DW_R(SP);
+        LONG   SS;
+
+        LONG   v86_ES;
+        LONG   v86_DS;
+        LONG   v86_FS;
+        LONG   v86_GS;
+}STDREGS, *PSTDREGS;
+// This structure will never change.
+```
+
+The reason why there are two segment register sets is to avoid complex branching in the system entry code. If exiting from V86, all data segments except for SS are set to zero. The system entry code pushes the segment registers, whether they are zero or perfectly valid protected mode ring-3 selectors (the kernel always uses the flat model) does not matter. They are restored later and the correct values will end up in the registers after IRET.
+
+> In certain contexts, the STDREGS structure is actually not so standard and the last four V86-related fields can actually be omitted entirely depending on the context. The v86_xxx fields are only accessible in trap frames if the context was V86.
+
+There are procedures for entering different
+
+## Context Switching
+
+Contexts can be entered by calling an assortment of different routines which generate a stack frame. Each context switching function is non-reentrant and can
+
+
+The context switching is mandated by a "shadow program" that consists of a single function with no return and an endless loop that schedules processes and runs the next process.
+
+> Consider single linked list? Also do we need to have a "current process"?
+
+## Interrupt Reflection
+
+OS/90 does not use SV86 to handle IRQs. To avoid the pointless latency of scheduling a process to handle SV86 IRQs or modifications to SV86 to suit interruptibility from itself and other issues, OS/90 switches to physical real mode to handle a reflected interrupt.
+
+Switching to real mode directly allows SV86 to be interrupted by a real mode reflected interrupt with no additional complexity.
+
+This is VERY slow, but it was done in Windows standard mode, so it can't be THAT bad, right? And switching out of real mode is much faster on the i386 than the 80286, so it is actually better than that. Furthermore, switching to V86 is not without its costs either.
+
+According to the 80386 manual, IN is faster in protected mode but uses 26 clocks rather than 12 if running in V86 and not a privileged ring. INS uses 29 instead of 15. This means that V86 costs us 14 clocks per iteration for input, and 13 for output since its a bit faster.
+
+This means that our approach is actually good for IO speed, though protected mode emulation of string ops would be faster.
+
+On the i486, the same exact thing happens. I have no idea why PM would have faster IO. Maybe intel was trying to enourage us to use it more.
+
+The OS/90 kernel API provides no API for accessing physical real mode for such purposes because it would be wrong anywhere outside the main IRQ dispatcher.
+
 # Supervisory Virtual 8086 Mode (SV86)
 
 SV86 is a mechanism by which the kernel or any driver obtains a service provided by real mode software like the BIOS or DOS. OS/90 does not implement any of those features or interfaces natively and depends on the DOS interface.
 
-SV86 is a special context under which no yielding can occur. It is entered through a separate RD structure. (Technically, we can make it multitasking as long as no more than one process enters.)
+SV86 is a special context under which no preempting can occur. It is entered through a separate RD structure. (Technically, we can make it multitasking as long as no more than one process enters.)
 
 SV86 is emulated by default in the kernel.
 
@@ -141,7 +116,9 @@ This includes:
 
 ## Executable Format
 
-Drivers are very simple pieces of software. They are flat binaries with a list of relocations appended to the end.
+Drivers are very simple files. They are flat binaries with a list of relocations appended to the end.
+
+### Design Considerations
 
 The way they are generated is by merging any object files into one, generating a list of the relocations in binary, converting the object file to flat binary, and appending the relocations.
 
@@ -153,41 +130,41 @@ The linker will eliminate PC32 relocations. They are only needed when a procedur
 
 The header:
 ```c
-struct DRV_EXEC_HDR {
-    U32     magic; // "JQJQ"
-    U32     rel_off;
-    U32     rel_num;
+struct drv_exec_header {
+    uint    magic; // "JQJQ"
+    uint    bss_rva;    // Relative address of uninitialized memory.
+    uint    bss_pages;  // Pages of uninitialized memory
+    uint    code_bytes; // Number of bytes of actual code bytes
+    uint    rel_off;    // FILE offset to relocations
+    uint    rel_num;    // Number of relocations
 };
 ```
-Relocations are code-local offsets, or RVA's.
+
+BSS uses pages because that is the simplest way to allocate it. It is not in the actual file so there is no need for byte granularity for space-saving reasons. Code using a byte count so that padding bytes are avoided. In the end, both "sections" are allocated using page granularity.
+
+Relocations are code-local offsets, or RVA's (relative virtual address). They are nothing more than 32-bit pointers.
+
+### Executable Image
+
+The executable in memory behaves like a flat binary. It will be loaded at a page aligned boundary. Alignment of progbits sections is the responsibility of the linker.
+
+The BSS section is not section in the truest sense. It is simply a region of memory garaunteed to be exactly above the executable data. BSS is always zeroed.
+
+### gendrv.py
+
+This python script takes the path of an elf executable (not object) composed of every translation unit of a driver. It then generates the OS/90 executable.
+
+This process is quite simple. Getting the contents of the merged .text section is easily done by
 
 ## Environment
 
 The entry point is the load point. For initialization, the kernel initialization stack is being used, which is under a kilobyte in size (how big?). Avoid large stack allocations and recursion.
 
-# API
-
-## ABI
-
-The stack is used for all parameters. It is automatically cleaned. Arguments are to be pushed in reverse order as with cdecl.
-
-> The ABI is not cdecl compatible.
-
-Calling the API is done using a far call to LDT entry 16. The function code is the offset, which normally would be discarded.
-
-## Library Drivers
-
-Any driver can act as a library and expose an API to other drivers.
-
-Libraries may be called with whatever calling mechanism is necessary. OS/90 has a protocol for obtaining a library entry point LDT entry using the name of the driver, with automatic loading as well.
-
+> BSS is always zeroed, as with the kernel.
 
 
 # API Ideas
 ```
-TODO:
-    Process becomes task. "proc" means procedure.
-
 GS = Get or set based on input CF=0/1, by convention, ALWAYS set the carry flag before calling.
      Do not rely on its current value.
 
@@ -267,40 +244,4 @@ Unload_Driver
 
 Get_Boot_Disk_BIOS_ID
 
-```
-> Add hooking IDT entries? Maybe not? V86 and PM require different behavior. Each process needs the event handler.
-
-# C and C++ Support
-
-The ABI is compatible with newer versions of GCC with advanced inline assembly features. OSCall is an inline function.
-```
-OSCall(List64_New, &handle);
-OSCall(List64_Add, 5, 0);
-OSCall(List64_Delete, &handle);
-```
-
-Better support, including for C++ could be implemented later.
-
-```
-List64 list = List64();
-
-void Driver_Main()
-{
-    list64.add(10L);
-    list64.add(15L);
-    list64.add(1, 20L);
-    // 10, 20, 15
-}
-```
-Wrappers like this would have zero abstraction cost and should be almost completely inlined.
-
-Process register dumps can easily be accessed using a constant pointer with the __fs attribute.
-```
-P_RD const _rd = (P_RD)0;
-
-```
-
-GCC allows for this:
-```
-goto *_rd.YIELD;
 ```

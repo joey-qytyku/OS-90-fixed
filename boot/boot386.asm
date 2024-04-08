@@ -391,8 +391,7 @@ GotoKernel:
 
         ; Changed to 8000_0001h for new VMA
 
-        jmp     dword 8:8000_0001h  ;Yes, this is a thing
-        ;Jumps over the protective RET
+        jmp     dword 8:8000_0000h  ;Yes, this is a thing
 
 Corrupted:
         ERROR   KernelFile
@@ -401,7 +400,7 @@ Corrupted:
 ;############Data#############
 ;#############################
 
-Path:   DB      "\OS90\KERNL386.EXE",0
+Path:   DB      "\OS90\OS90.DAT",0
 SavedProgBase: DW 0
 KernelAddr:
         DD      0

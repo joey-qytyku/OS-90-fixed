@@ -1,5 +1,7 @@
 This document is old but probably good information.
 
+Now it is VERY old, but still relevant.
+
 # Subsystem Initialization
 
 The OS/90 kernel has the following subsystems:

@@ -1389,3 +1389,676 @@ run_task is a bit complicated, since it could enter a different context types.
 Whatever I have going on with SV86 is applicable with the rest of the scheduler. It is basically a setjmp/longjmp. We may need to rename those V86 TSS regs to something universal. The difference here is that IRQ#0 will deal with it instead.
 
 The procedure to go back to the caller involves simply copying the values of
+
+# Feb 18
+
+## Interrupts Again
+
+Why not use high-level interrupt handlers? I get that I do not want to force abstractions, but forcing each IRQ to have a stub with a bunch of pushes and pops involved seems wasteful. ISRs must conform to a specific design so that we can switch to a task from an ISR in a consistent manner.
+
+This will also allow for proper handling of spurious IRQs by writing the "actual IRQ" into a variable and passing it to the high-level handler.
+
+The whole reason I tried to have individual interrupt handlers without any abstraction was so that IRQs could be directed straight to userspace. This is still possible!
+
+Remeber the DOS semaphore? How exactly do we handle it? Well its really the responsibility of DOS should an entry to DOS be made by SV86. If an IRQ happens while in SV86, what are we supposed to do, especially if it tries to make an INT 21H call? It is unlikely that it would, though.
+
+## Tick Frequency
+
+Consider the speed of a 80386. About 20 MHz. The scheduler tick at 1MS (or 1 KHz) intervals is running at 100MHz frequency. It will not dominate the majority of a clock cycle. I think 1MS resolution is the gold standard here and I should think about that when dealing with time slices.
+
+# Feb 19
+
+## Kernel Call Interface
+
+The kernel is compiled with options to not save ESI and EDI before calling a procedure. This is done intentionally because it has been observed to reduce code size. Push/pop codes are not generated unless absolutely necessary.
+
+The problem is that changing compiler configurations may cause incompatiblity with drivers and that drivers have to push values it wants to save when we can avoid that.
+
+The solution is to have a call interface that saves all registers except for EAX, which is always the return value. Long return values are not supported.
+
+This type of ABI is not natively supported in C and will not yield any code density benefits for drivers if we just call directly. A wrapper is needed.
+
+I want there to be header definitions so that I can see the parameters with names. A macro like API() can be used to ensure that it works.
+
+`__attribute__((no_caller_saved_registers))` should work. EAX is still the return value and can be clobbered. The function defined with this saves all other registers. A function pointer type can also be defined in this way to ensure correct behavior.
+
+The API call table is a different topic, though. Can we define it to be at a certain location? Maybe it is at the start of the kernel image (4K with 1024 entries)?
+
+Now we need a way to call these functions. The way I had previously should work just fine, just with some tweaks.
+
+```
+static const struct _systab * const krnl = 0xC0000000;
+```
+The actual call mechanism is complicated. The current system cannot work anymore since it is not called directly. A call number is possible but somewhat wasteful. It is only one single 32-bit value being pushed among many others, so call number it is.
+
+The top 16 bits will be the driver ID. This ID can be fixed up with dynamic linking.
+
+Dynamic linking works only for the driver name. Calling the kernel is done by simply using the `krnl` structure.
+
+```
+struct thedriver_api *otherdriver {0};
+
+otherdriver = get_functions("EXAMPLE");
+otherdriver->example_function();
+```
+
+# Feb 20
+
+## API Entry Interface
+
+The previous idea written in C does not work. Separate function pointers for each procedure cannot be done. It is not possible to specify default call parameters on a function pointer, unless we happen to pass the index of the entry.
+
+So what is happening here? What is inside the table? Unless you use a wrapper and pass a function pointer, nothing makes sense.
+
+I know that a function typedef is required. I can define a function pointer prototype?
+
+```
+void ($set_irq_mask*)(ushort) asm("0x80000003");
+```
+
+$ means it is a kernel interface function. GCC allows $ in identifiers so no problem there. A header file will have all of these definitions.
+
+We need to organize all these entries into a table.
+
+But how do we add it to the table AND create the alias?
+
+### Thinking about it more...
+
+Think about it as a procedure. The driver needs to CALL something. Suppose I go with the call number option. How do we know which function was called?
+
+The idea of using the dollar sign thing is not possible if we use the call number. I kind of want to do it that way, though.
+
+Can we do fixups but using a function pointer? By analyzing the contents of the memory call instruction, we can insert a fixup to a relative 32-bit call. It requires writing a padding NOP.
+
+Nice idea, but I am still clueless as to how I am supposed to implement this.
+
+If you want to change the ABI of a function, you NEED a THUNK. There is no other way. How we are supposed to generate this wrapper is a complicated matter. The dollar sign thing can be the thunk.
+
+We can do something like this:
+```c
+// exportmeplz.c
+void exportmeplz(void) { ... }
+// exportmeplz.h
+#ifdef _APIDEF_
+THUNK(exportmeplz, void);
+#endif
+```
+The actual thunk is a mere call to the function with inline assembly. Here is some NASM-style pseudocode.
+```
+exportmeplz__:
+    push ID
+```
+
+I could generate the table in real time if needed. It can START as a table with direct pointers and then be adjusted automatically to go through a thunk.
+
+The actual thunk should work something like a hook.
+
+You obviously cannot use multiple functions with a single thunk wrapper. We also cannot know what entry of the call table was used.
+
+Can we use weak aliases? Constant expressions?
+Make $ a macro?
+
+### And Some More...
+
+If you really want the whole dollar thing, keep in mind that you can use a macro define for it. This may simply reference the global kernel call table and call the exact function that is needed.
+
+Internally, it should PASS the call table entry to the actual dispatcher, which can be the very first address in the table.
+
+
+This means we have to list every API call in dollar sign form. We can do it in groups though.
+
+```
+struct systab {
+    _A(exportmeplz);
+    #define $exportmeplz krnl->exportmeplz
+};
+```
+But the THUNK!!!! How? Inline assembly? Something like the way we handle the IDT?
+
+Also note that pushing can be proceduralized by simply jumping to the push point and back. If so, we could generate a thunk for EACH function.
+
+>
+
+### Symbol Tables
+
+Understand how symbol tables are actually used. We will have several relocations point to the symbol. This means that only difficult part is keeping track of every reference within it. Then we have to find the symbol in whatever we are exporting to and its relocations and just copy it.
+
+# Feb 21
+
+patchable_function_entry(n,m) is an attribute that inserts NOP statements. The M parameter is th enumber to insert BEFORE the label of the function! Bingo!
+
+The patch will call the function below it (with a 16-bit offset override) after pushing the registers to the stack. Or, it can push an associated ID.
+
+I should do it the simplest way possible. Just put them in a call table and fixup the call table to be eight bytes or so before the actual function. I can then make simple declarations for each function.
+
+We can use pusha and popa.
+
+Actually, we can NOT. This will restore EAX too.
+
+```
+push ebx
+push ecx
+push edx
+push esi
+push edi
+```
+This is only 5 bytes. Same with popping. Expand the patch region to 16B. 10 bytes for push/pops leaves 6 bytes for the rest. Can it be done? Call is 5 and ret is 1. Perfect.
+
+EBP does not need to be restored since the callee does that.
+
+Note that variadic function will automatically use cdecl. The caller cleanup must be done directly after the function call. This means that separate conventions must be used for something like printf.
+
+printf will be the ONLY variadic function in the kernel API. I have no plans for anything else. In such cases where a variadic function could be used, an array pointer is prefered since it is more versatile and less prone to user error.
+
+The next topic is how we actually create the API call entries. I STILL want to do the dollar sign thing.
+
+We can generate the API table as a structure. Then a dollar sign can be used to establish the function pointer typed call interface. It will use a constant pointer to a constant with static visibility so nothing is generated in `.data`.
+
+The API_DECL macro will have to change so that it uses the driver-visible ABI, but it remains essentially the same.
+```
+API_DECL(void, exportmeplz, void);
+```
+
+Creating the entry in the table, using the same ADD macro:
+```
+struct _systab {
+    _A(exportmeplz);
+};
+```
+
+YKW? I dont want the whole dollar sign thing anymore. I do not want to type "$" and immediately get blasted with all the functions the kernel exports. We will do it Java style with a bunch of subclassifications. Well, probably only two levels of dots.
+
+Here will be the classifications
+* sched
+    * irq
+    * v86
+    * taskctl
+* mem
+    * pgframe
+    * vm
+    * container
+    *
+* deb
+* drv
+* misc
+
+# Feb 23
+
+Technically, I did not totally suspend the project. I am just not going to be actively coding. I will write down ideas to use later.
+
+Putting the NOP statements before the function label is not technically required. If we use a multi-type NOP somehow,
+
+The reason this might be viable is because the function may be aligned by the compiler for performance.
+
+But what is the typical alignment? Also, we are optimizing for code density. If I need a function running fast, I can manually align it. GCC will usually align to 16 bytes, which is exactly the size of the patch point.
+
+Can we use the previous idea of having to "prep" a driver executable? It can work. We need some kind of special program. The problem is that the driver will have to be rebuilt
+
+(IRQ0 updates BIOS time?)
+
+## Regparm
+
+Regparm globally seems to decrease code density. It is not possible to zero extend a narrow immediate value with MOV. However, I am not fully sure. The best way to use x86 is generally to maximize register usage and occasionally push to the stack. I will check my bit array function and see the generated code.
+
+It also does not necessarily improve performance since complicated functions will have to push registers anyway.
+
+Regparm does make trivial functions much faster. The code for the bit array allocator uses less instructions with regparm, as well as a static version of the get bit function. I could just use the inline hint.
+
+If register parameters become universally used, we can avoid having a special driver ABI sicne registers will probably be clobbered anyway.
+
+(mno-accumulate-outgoing-args should be applied just in case btw.)
+
+## Types
+
+C allows for the constant qualifier to be bound to a typedef. I can make all variables constant by default like in Rust.
+
+Pointers are tricky. I can make a typedef for them.
+```
+mpmInt // Mutable pointer to int
+pInt // Immutable pointer to immutable int
+mpInt // Mutable pointer to int.
+```
+This also makes arguments constant by default.
+
+Converting between mutable and immutable types in expressions is possible.
+
+What about structure types? Maybe go back to typedefs. Use a macro to make the definition.
+```
+typedef struct {}TYPES(NAME);
+```
+This would generate pNAME, pmpNAME.
+
+Double pointers would be difficult with this, but I avoid double pointers anyway.
+
+## Back to Regparm
+
+Stack calling conventions are already used by my assembly code, so I should add some kind of asm_link attribute.
+
+They also tend to use CDECL.
+
+# Feb 24
+
+## Subsystem-aware Drivers
+
+If I make a mouse driver, this driver will expose an API to set the size of the screen, control mouse sensitivity, and whatnot. It will also have some way of reporting mouse positions relative to the screen.
+
+The difficulty is making this work with the DOS subsystem. The mouse API could be hooked, but special parameters need to be provided in order to control the emulation behavior for tasks. The mouse API has many different settings.
+
+The graphical cursor settings in the mouse API may also need to be supported, which requires making assumptions about the screen. This may require access to VM framebuffers as well.
+
+We may also need to deal with direct hardware access for the mouse, including direct IRQs.
+
+## SV86 Hooks
+
+Why do I even have an array of hooks? Why not just let each hook procedure recieve the index? This is way more dense and probably has little performance penalty issues.
+
+Also, do we need to make sv86 entry function nest-capable with a special control path for nesting?
+
+## Static Analysis
+
+I am thinking of adding static analysis to the build system to catch errors. I am specifically looking to accomplish this by using some kind of attribute system.
+
+For example:
+```
+_interrupt_ void isr(void *r)
+{}
+```
+
+Functions that are not marked as \_isr_safe_ are not permitted to be called inside the ISR.
+
+When it comes to output and input parameters, a pointer to an immutable argument automatically insinuates an input, since the function cannot alter it. Typical C programs do not have this, so it makes sense to have annotations to indicate that.
+
+I just figured out that defining an enumeration inside the return value actually defines the constants and the enum itself inside at the file scope.
+```
+enum Color { RED, GREEN, BLUE } get_random_color(void)
+{
+    enum Color ret = GREEN;
+    return ret;
+}
+
+int main()
+{
+    Color c = RED;
+}
+```
+
+## Restrict keyword
+
+C supports restrict, which is a qualifier that indicates that during the lifetime of a pointer, nothing else will also be pointing to it.
+
+This allows for some optimizations and compiler warnings when such behavior is violated.
+
+
+## API Idea
+
+Use function codes lol. The entire interface must be specified with utmost precision. Numerical function codes are the best way to do this.
+
+The regparm ABI must then be reconsidered. Where does the function code actually go? And the problem arises when thinking about how the call parameters are supposed to be copied. Probably not that hard to do, but functions with three parameters will always have to push to the stack.
+
+I can create a giant enumeration for them.
+
+FYI regparm uses the following order: EAX, EDX, ECX. The rest are on the stack. I think EDX comes before ECX because functions that take two parameters might be using a pointer and a size argument, and potentially running loops with ECX. Quite clever.
+
+Regparm is okay for the kernel. The code density of drivers is more important than the code density of the kernel. That is why I tried so hard to have a driver ABI designed around that.
+
+I also do not want to ruin pointer-and-count/whatever-style functions because ECX would have to be used if EAX is the function code.
+
+### EBX is callee saved?
+
+Yes it is. Just tested it. This was probably decided because EBX is often used as an address register and does not need an SIB byte when doing so.
+
+I will disable that.
+
+### Questioning te whole callee save thing
+
+Last time I did code density tests, I had a lot of procedures that were not implemented and simply returned. That may have leed to inaccurate results.
+
+I will do some experiments with REAL programs and see what happens.
+
+### Conclusion
+
+Stack calling conventions for drivers. Register conventions for the kernel wherever possible.
+
+This is because of the function code phenomenon require a register move or stack spill for functions with a pointer and number parameters list that have loops using ECX. It is also more code dense to use stack operations.
+
+## Testing
+
+I picked a the bootprog floppy image generator. It is 500 locs and does a lot of structure manipulation.
+
+### 1 -O2
+
+- Text: 8164
+- Data: 368
+
+### 2 -Os -mgeneral-regs-only -mpreferred-stack-boundary=2
+
+- Text: 6050
+- Data: 364
+
+It is quite clear that only -O2 is worth testing any further.
+
+### 3 -Os -mrtd -mgeneral-regs-only -mpreferred-stack-boundary=2
+
+- Text: 6018
+- Data: 364
+
+### 4 -Os -mrtd -fcall-used-esi -fcall-used-edi -fcall-used-ebx -mgeneral-regs-only -mpreferred-stack-boundary=2
+
+- Text: 6154
+- Data: 364
+
+### 5 -Os -mrtd -fcall-used-esi -fcall-used-edi -mgeneral-regs-only -mpreferred-stack-boundary=2
+
+This time, we are not call-clobbering EBX.
+
+- Text: 5982
+
+### 6 -Os -mrtd -fcall-used-esi -fcall-used-edi -fcall-used-ebx -mgeneral-regs-only -mpreferred-stack-boundary=2 -mregparm=3
+
+This is with no register callee saves AND regparm 3.
+
+- Text: 6134
+
+### 7 Same as before but without EBX being call-clobbered
+
+- Text: 5966
+
+### Regpam, the usual options, and EBX, ESI, EDI are SAVED
+
+Same as before? How?
+
+### Disclaimer
+
+I used my PCs gcc, not the cross compiler. This is mostly a RELATIVE benchmark to determine how certain options affect code generation.
+
+### Final Analysis and Conclusion
+
+GCC apparently loves to use EBX. It may even be calibrated internally to do so, who knows. Allowing EBX to be call clobbered causes a massive change in code size. 3 vs 4 shows an increase by 136 bytes with just call clobbering EBX. 5 vs 6 shows a difference of 168 bytes.
+
+OS/90 will have the following internal ABI for maximum code density and hopefully performance:
+- Regparm conventions for first three parameters. Passed in order: EAX, EDX, ECX
+- EBX is callee-saved
+- All other registers are fair game except EBP and ESP
+- Stack parameters are pushed in the cdecl/stdcall order, aka in reverse of apparent
+- Variadic functions require caller cleanup and do NOT use registers
+
+## API Calling Final Decision
+
+I give up trying to make it more code dense. There is no reason why drivers need to recieve a pointless performance penalty. We will bring back the previous call table and drivers will use the same calling conventions as the kernel.
+
+It is possible to fixup the modrm CALLs and turn them into immediate relative calls by fixup, followed by one NOP byte.
+
+Doing this may require patachable function entries, but less that our idea of appending 16 bytes to every exported function.
+
+The patch code simply pushes the call table index and saved EIP onto the stack and calls a function that performs the necessary work.
+
+If I do it using calls:
+```
+push dword [esp]
+push MyIndex
+call dofixup
+```
+This fits in 10 bytes. If I use a hypothetical special INT call, it is merely 7 bytes.
+
+The findings are clear. The only way to patch indirect callers is to reserve an INT vector for that purpose.
+
+There is the potential problem of trying to get the value of the indirect call address and use it later. Compilers may do this to improve performance and avoid extra memory accesses. This is handled by checking that the opcode is a valid indirect call.
+
+> A few tests on godbolt show that an extern with the prototype extern `const void (*const test)();` does optimize using registers to call. We must make sure that there is a const..
+
+A valid call [address] instruction is formatted as`FF` followed by the bits `xx010xxx` Really we only need to check for 0xFF since an inc dword [address] instruction which encodes to the same 1-byte opcode will not call anything.
+
+Calling a register leaves no patching opportunities since the code is two bytes. It must simply be ignored. Such behavior is unlikely, however, since functions are not typically called multiple times. The exception may be loops that cache the location.
+
+> Note that the kernel should not call the API table. This would be totally useless, but would not malfunction.
+
+An indirect call is much faster, so this is a worthwhile optimization. The only penalty is indirect register calls being slower and 8 bytes for every exported function.
+
+Actually, I can make it even smaller. I am using an INT call. It is possible to change the EIP to continue the function.
+
+This means that the whole thing can be done in under four bytes
+```
+int Vector
+DB Index
+nop
+```
+
+The INT handler is written in assembly and is unlike any other IRQ or exception handler in that it does not actually save registers unless required by the ABI. It implements the patch operation.
+
+> IRQ range is A0-AF. B0 will be the FIXUP vector
+
+# March 24
+
+I am not currently working on the kernel, but I will write some notes as to what I should do when I go back to it.
+
+## Reorganization
+
+The entire code will have to conform to my previous guidelines (with pascal case) with some changes.
+
+* IA32-related procedures will be prefixed with "i386." Example: i386SetLDTEntry
+* Structures visible to drivers must be prefixed with "Ks." For example KsV86RegDump
+* Pointers will still be done with the * operator.
+* All the mpmInt crap will be removed
+* Functions exposed to the kernel API will have it in the name now. "Os"
+* Subsystem prefixes are back. If a function has no specific subsystem or could be used by multiple, can overlap or the prefix can be omitted.
+
+Prefixes:
+- i386: Low-level architectural functions
+- Os: Any API call
+- Sd: Scheduler
+- Isr: ISR handler
+- T0: Safe for interrupts off context caller
+- T1: Safe for non preemptible context caller
+- T2: Safe for preemptible context caller (may still not be thread safe)
+- Tx: Safe for 0,1,2
+- As: Safe inside ISR or IRQ off section
+- Ts: Thread safe (does not imply reentrant)
+- Re: Reentrant (implies safe in all cases)
+- Um: Uses mutex lock
+- Xm: Expects mutex is held
+- Xd: Expects preemption disabled
+- D{p,i} Disables preemption or interrupts
+
+Os must take precedent over all in the ordering. Scheduling/context/threading characteristics come second and can be merged. Subsystem is the very last.
+
+Now we can self document functions and make wrong code look wrong.
+
+Examples:
+
+OsReDbPrintf("Hello, world!");
+
+But hey, at least you know right away if something is thread safe!
+
+OsT12Sd_Svint
+
+Read this as "Driver API call that is safe in preemptible and non-preemptible context"
+
+Technically, Svint CAN be used in an ISR but that is only an internal feature. I could maybe change this.
+
+## IMPORTANT INFORMATION
+
+In C, adding any integer to a pointer has the implicit affect of multiplying that by the size of the type it points to! Why the heck did they do this?
+
+## Fourth Rewrite?
+
+This is big enough that it might as well be the fourth rewrite. It better be the last.
+
+Here are the things that need to happen:
+
+- IA32 subsystem gets ALL procedures renamed and rewritten if needed to conform to the new ABI.
+- Scheduler is complicated. Every function and type must be renamed to comply with the new guidelines.
+  - Header files are redone. Scheduler is now merged into ONE giant header file.
+- Type.h is fully reworked to reflect types used by the xconio API.
+- As much code as possible is to be deleted or relocated into the OLD folder. More code means more maintenance, especially if that code is not being used already. The codebase must grow naturally.
+- Segutil needs to be properly implemented.
+- All assembly code must be updated to fit new ABI or discarded
+- Documentation needs to be thoroughly cleaned up when everything else is done.
+
+I almost want to do the ENTIRE thing from scratch, but there is little reason. IA32.asm is just fine, but it needs a serious makeover.
+
+# April 4
+
+The previous plan is essentially correct. A lot of work to do. Keep in mind each bit of the entire project needs to be fully tested as well.
+
+I think I should read the documentation and make updates. I need to get back in the zone with kernel development, especially with the scheduler.
+
+## Subsystem and Driver Communication
+
+Device drivers need to somehow communicate with the subsystem. I would like to reduce the necessity for subsystem awareness and make drivers capable of handling many different situations.
+
+Drivers may implement a hardware or software interface, or both. If they are implementing a hardware device by emulation or arbitration, some standardization is possible. If it is an interrupt call or something like that, the issue is a bit more complex, but something could be done.
+
+# April 5
+
+Follow the plan. What you want is not what you need.
+
+The assembly code can use the ASM_LINK macro. String functions definetely NEED to use the new calling conventions though for performance and should be written in assembly too.
+
+Straight to ia32.asm then. It's a kludge, but it will be worth it to clean up that stuff.
+
+## Segment Related Stuff
+
+I do not like the "Ia" prefixes and want to remove them. But before that, I need to look at what I have.
+
+- IaGetBaseAddress: Get base address of a descriptor with address
+
+- IaAppendAddressToDescriptor: Set the address, should honestly rename to SetAddress.
+
+- IaAppendLimitToDescriptor: Self-explanitory. Change to set limit. Clobbers EAX,EBX,EDX,ESI
+
+- SetIntVector: Set an interrupt vector. Clobbers ABCD, which is not good.
+
+> I can rewrite everything to conform to the new ABI though. Not that hard to do.
+
+New names:
+- i386GetBaseAddress
+- i386SetDescriptorAddress
+- i386SetDescriptorLimit
+- i386SetIntVector
+
+Remember the regparm order. EAX, EDX, ECX.
+
+YKW? I dont event want to bother rewriting any of that crap. Its tested and works.
+
+
+# April 6
+
+I think I need a comprehensive plan for reorganizing the scheduler.
+
+First of all the header files. I tried a Java-like approach where I made everything importable separately, but this is not typical for C.
+
+STDREGS is a structure used by all parts of the scheduler in some way.
+
+## Scheduler
+
+Does the scheduler NEED to work this way? Why not just give IRQ#0 some random PCB pointer that tells it what to run? The handler can copy the context to its trap frame and return.
+
+Scheduler decisions are made by setting this pointer thing. A post procedure can handle this process.
+
+Dealing with yields is a different story. That requires a very clear way to enter an arbitrary process. I think yielding is a very useful feature, by the way.
+
+I am deciding not to do cooperative multitasking in any way. If I want the ability to just enter a particular context, what do I do? The yield function would do what the scheduler does, but IRQ#0 needs to be informed of what happened.
+
+Or I can do away with the idea of a "current process" entirely. That pointer I was talking about is really just the NEXT process. It needs to be set to point to the next process.
+
+Yielding involves relinquishing the rest of the timeslice and basically acting like IRQ#0 was called.
+
+Well what is it that IRQ#0 does? It just pushes the current context onto the stack and maybe modifies it. Nothing too complicated about that.
+
+I think I need more clarity on what a yield actually is. Yielding is ALWAYS done by the kernel context of a PCB on the behalf of that PCB. This changes the active process.
+
+The answer is already written. Call the IRQ#0 handler but decrement the counter!!!! There is no reason why that cannot work.
+
+> By this I mean calling the IDT entry, not the high level handler. We will have to use `INT 0A0h`. Seems like a bad idea but it really is not.
+
+I keep talking about yielding for a reason. It allows for a massive performance improvement. Letting the system hang for the remainder of a timeslice after a system entry before the kernel thread can be terminated is wasteful. Spinlocks can be significantly enhanced by implicit yield semantics. Otherwise, spinning on a lock would waste massive CPU cycles.
+
+```
+// Power of 2 must be used.
+ENHLOCK el = { ENH_1_OVER(32) };
+
+EnhLock(&el);
+EnhUnlock(&el);
+```
+
+Actually, system entries do not work quite like that. I have demonstrated previously that it is perferctly safe to IRET back to the user context from the kernel thread. This does not change the "current process" at all and has no way of interfering with other processes. Just make sure to turn of interrupts when doing the exit.
+
+### Conclusion
+
+The whole context thing is not really necessary, as demonstrated above.
+
+SV86 is a different story, but remember that it has special treatment. I can do it in the same way as I did before.
+
+## Other Notes
+
+I need to establish a practice of working on only one subsystem at a time. The project needs to grow naturally as needed.
+
+Right now, everything is about the scheduler.
+
+## Scheduler Plans Again
+
+I will completely wipe the scheduler code as it is right now. Just did, good.
+
+Now, there will be these files:
+- sv86.asm
+- task.c
+- irq.asm
+- main.c (scheduler)
+- sync.c
+
+SV86 will be completely done in assembly. I have no reason to use C. Register conventions will be used.
+
+irq.asm is also assembly, and will deal with IRQ dispatching. I will translate any existing code.
+
+main.c will be the basic glue code.
+
+task.c will provide functions for controlling processes. It will implement creating tasks. Working memory manager is not required, and a callback is used to receive a memory page. Yielding and idle wait is also found here
+
+sync.c will implement the enhanced synchronization procedures. I will make this later. This will build on existing primitives.
+
+# Apr 7
+
+## SV86 and V86 IRQs
+
+Reflecting IRQs to DOS is a complicated subject. As of now, SV86 runs in a preemptible but interruptible context, which means that it is possible for SV86 to interrupt SV86.
+
+BUt that is not the only issue. How do we even reflect to real mode?
+
+I mean sure, we could use the whole BIOS restart vector hack to handle IRQs. That is what Windows 3.1 standard mode used to do, and its speed was not actually that bad.
+
+The only issue is that is so painfully slow. But it might just work.
+
+## Going to Real Mode
+
+The i386 can easily switch to real mode by simply turning off the CR0 PE and PG. While using the 286 reset strategy does work, it is not more efficient.
+
+The process is quite complicated.
+
+- Jump to protected mode switch region
+- Save IDTR, GDTR, LDTR, into a special region in HMA. CR3 will retain its state since we are NOT resetting.
+- Disable paging
+- Switch GDT to one with special base addresses and probably using 16-bit selectors
+- Disable protected mode
+- Do whatever
+- Load the original GDT, LDT, IDT
+- Enter 16-bit protected mode
+
+This is not exactly a smooth process. The reset thing is not too bad, though I am not sure how good BIOS support is. Well its part of the BDA, so it probably is supported. I can try it on qemu.
+
+Just tried it and it worked. I just had to use the CMOS instead.
+
+As for the i386 solution, it can work without having to load another GDT by simply reserving segments for that purpose. It is also more reliable.
+
+> Not to mention that the IRQ mask may or may not be wiped by the BIOS.
+
+So why am I doing it this way? There really is no problem with it, as long as the driver does not do anything goofy, but that is a risk that always exists. For example, if any DOS ISR enables interrupts, an OS/90 IRQ could be handled by a DOS driver and wreak havok. I am pretty sure this was never done back then.
+
+Speed will suffer, but DOS compatibility is not really about speed. Using some sort of SV86 would not be a whole lot better.
+
+# April 8
+
+Implementing the going to real mode process involves copying the trampoline code into the HMA at a specific location. Doing this also requires the code involved to be base-zero because of the segmented model used.
+
+Because the HMA is being used, the code actually needs to be ORG 16.
+
+Doing this can only be done by precompiling the code or making a linker script section. The former is simplest.

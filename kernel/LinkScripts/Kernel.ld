@@ -8,36 +8,39 @@
 
 SECTIONS
 {
-	. = 0x80000000;
+        . = 0x80000000;
 
-    /* BSS IS NOT MAPPED WTF! Maybe it is. Problem is with RODATA */
+/*
+Explainiation on sections
 
-    .init :
-    {
-        *(.init)
-        . = ALIGN(4K);
-    }
-    END_INIT = .;
+The compiler emits sections that have an alignment as large as the highest
+alignment requested by the generated assembly. The linker knows this and honors
+the input section alignment rather than simply copying the section exactly
+at the location.
 
-	.CODE : AT(END_INIT)
-	{
-        *(.CODE)
-        *(.text)
-        *(.data)
-        *(.rodata)
-        *(.rodata.*)
-        . = ALIGN(4K);
+This means it is rather safe to merge sections regardless of alignment.
+The linker will insert padding where necessary.
+
+*/
+	.text :
+        {
+                *(.init)
+                *(.text)
+                *(.data)
+                *(.rodata)
+                *(.rodata.*)
+                . = ALIGN(4K);
 	}=0
-    END_CODE = .;
+        END_CODE = .;
 
 	.bss : AT(END_CODE)
 	{
 		*(.bss)
-        . = ALIGN(4K);
+                . = ALIGN(4K);
 	}
 	END_BSS = .;
 
-    BSS_SIZE = END_BSS - END_CODE;
+        BSS_SIZE = END_BSS - END_CODE;
 
 	/DISCARD/ :
 	{

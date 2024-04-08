@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.h": "c",
         "extdos.h": "c",
         "scheduler.h": "c",
         "memory.h": "c",
@@ -63,12 +64,29 @@
         "PRINTF.C": "cpp",
         "PRINTF.H": "cpp",
         "SCHED.C": "cpp",
-        "sched.h": "c"
-    },
+        "sched.h": "c",
+        "stdbool.h": "c",
+        "contexts.h": "c",
+        "stdregs.h": "c",
+        "main.h": "c",
+        "anno.h": "c",
+        "task_state.h": "c",
+        "all.h": "c",
+        "syscall.h": "c",
+        "unistd.h": "c",
+        "atomic_fenced.h": "c",
+        "task.h": "c",
+        "sv86.h": "c",
+        "hash_map": "c",
+        "bitset": "c",
+        "algorithm": "c"
+},
     "folder-color.pathColors": [
         {
             "folderPath": "os90/kernel/src/implement/",
             "color": "foldercolorizer.DarkViolet"
         }
-    ]
+    ],
+"C_Cpp.default.compilerPath": "/home/joey/opt/cross1/bin/i386-linux-gcc",
+"files.encoding": "cp437",
 }
