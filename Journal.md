@@ -1836,9 +1836,6 @@ I am not currently working on the kernel, but I will write some notes as to what
 The entire code will have to conform to my previous guidelines (with pascal case) with some changes.
 
 * IA32-related procedures will be prefixed with "i386." Example: i386SetLDTEntry
-* Structures visible to drivers must be prefixed with "Ks." For example KsV86RegDump
-* Pointers will still be done with the * operator.
-* All the mpmInt crap will be removed
 * Functions exposed to the kernel API will have it in the name now. "Os"
 * Subsystem prefixes are back. If a function has no specific subsystem or could be used by multiple, can overlap or the prefix can be omitted.
 
@@ -2062,3 +2059,833 @@ Implementing the going to real mode process involves copying the trampoline code
 Because the HMA is being used, the code actually needs to be ORG 16.
 
 Doing this can only be done by precompiling the code or making a linker script section. The former is simplest.
+
+# April 10
+
+Wow, the days are passing by so fast.
+
+## IRQ Mask
+
+The interrupt mask register found on bootup is used to determine the status of interrupts. If an interrupt is masked, it is available for general use by a 32-bit driver. If it is unmasked, the interrupt already has a handler somewhere.
+
+## Load in HMA?
+
+If I load the kernel in HMA (assuming that it fits and it probably will), there are a few advantages.
+
+I will not be able to run the kernel in the lower half.
+
+## The IOPB
+
+Will I actually be using the IOPB? My idea was to allow direct access to a specific device, but this is quite complicated since it would require direct access to the interrupt in many cases.
+
+DOS software could access the ports but not be able to access the IRQ, for example, since ring-3 IRQs are not supported for V86.
+
+Do ring-3 interrupts work though?
+
+IRET is needed to return from an interrupt. Returns to different rings can only be done using task switching.
+
+The conclusion now is that directly handling IRQs in ring-3 is not possible with IRET.
+
+But does it have to be IRET? We could just use an INT vector to emulate IRET. This would make the interrupt handler slower.
+
+I am starting to think this may be a bad idea.
+
+## Back to the IOPB
+
+The IOPB takes up 8192 bytes of memory. It also is not compatible with my bit array functions.
+
+The idea of it was to tightly control which ports programs were allowed to access for security. It does not have to be used though. If there is not one, or the IOPB pointer is set to an invalid offset, only IOPL matters.
+
+The IOPB is only checked if the current ring is less privileged than the IOPL ring. If IOPL is set to 3 for a process, it can directly access anything.
+
+This means that without an IOPB, there can be no mixed configurations with both real and fake devices.
+
+Unless I emulate every IO instruction. I already have code that does this based on reverse engineering the ISA instruction encoding.
+
+Emulating string operations makes disk IO significantly faster, which is likely to be the V86 code that takes up the most CPU time.
+
+It looks like my current code cannot emulate 32-bit operations. This is not good because I have no idea what the BIOS code could do. If the BIOS tries to access PCI, it will fail.
+
+It seems that most assemblers output the 66 override before the instruction and REP at the start.
+
+The IOPB is kind of required because setting IOPL to 3 in V86 causes it to be able to call the protected mode IDT directly.
+
+This is not that bad since each handler will invoke a system entry, but this may not be the desired effect.
+
+> TODO
+
+## Excpetions?
+
+I am not so sure now of using exception handlers to emulate instructions...
+
+It is kind of needed since INT calls should not call exception handlers. Trying to do so will always cause an exception.
+
+I have tried implementing a system entry event concept. The idea was that exceptions and software interrupts are "events" which get an ID.
+
+This made calling the IDT directly more practical. The only issue is that it assumes a DPMI-compatible environment. It also means that SV86 and UV86 need to be handled quite differently.
+
+What if we have an independent IDT for each DOS process? That was the original idea. Fake IRQs need special handling, but such a thing is possible.
+
+The problem with that is handling IRQs, except it isnt really a problem since the IRQ vectors are reserved.
+
+DPMI exceptions can then be detected by checking if the cause of the interrupt in the range was not an INT instruction, in which case we are clear to proceed with handling the exception.
+
+If no handler is set, it can be reflected.
+
+The IDT would have to work in a certain way. Special handlers would need to be used for exceptions that check if an INT caused it and reflect to SV86. This is subsystem-specific.
+
+The local idt will be referred to as the LIDT and not the instruction.
+
+## LIDT
+
+The LIDT will be 2048 bytes long. The information block of the TCB is not defined, but it is certain that a larger TCB size is needed.
+
+We will go back to 8192 byte TCBs. 4096 bytes at the end are the stack. The first 256 are the kernel information block. 1792 bytes are for the subsystem's use and 2048 are for the LIDT.
+
+Actually, we do not need to do it this way. Just use functions for getting certain information in a portable way.
+
+Actually, I can fit the TCB is 4096 bytes with a 2048 byte stack and a 256 byte subsystem block.
+
+But what will the LIDT actually run? It needs a special system entry procedure. It also needs the ability to handle interrupt capturing and whatnot.
+
+Also, the LIDT will vary between active processes and switching the IDT when entering a kernel context seems wasteful.
+
+I think I should just emulate all IO. This means a global SV86 register is unfortunately required. The #GP handler must handle everythign according to the global SV86 flag.
+
+Sadly this is how the 80386 was designed. I have no idea why INT and IRET are IOPL sensitive.
+
+## Excepion Handling and Other Things
+
+I still have not decided on how this is supposed to happen.
+
+Here are the possiblities:
+1. Local IDT, IOPL=3 in SV86, no IOPB
+2. One IDT, IOPL=0, all INTs cause exceptions, IO emulated
+3. One IDT, common system entry for exceptions and INTs, IOPL=3, direct IDT access
+
+Option 3 requires a different ISR in order to memorize which vector was invoked. This is a bit wasteful, as it will take about 2048 bytes in order to do this. It also requires quite a bit of conditional branching since I tried it before.
+
+2 is what I was tring to do after the redesign. Every ISR is ring-0 and each INT will cause a #GP. Then we use hooks.
+
+The way hooks work is that a new handler replaces the previous one and then calls it if there is nothing to handle. It must start with the final handler in the list in order to override previous ones, though it should not matter much.
+
+V86 hooks will be the same.
+
+## Exceptions 3
+
+Exception handlers will go to the system entry procedure, and there will be one. The error code is something that must be mentioned.
+
+OS/90 allows multiple programs to cause exceptions at the same time and handle them concurrently. Exceptions of the same type can also be handled this way.
+
+This means that the error code of some exceptions cannot be saved in a global variable. The index of the exception handler must also be saved.
+
+This means that an exception handling table like the one used for IRQs is needed.
+
+Do we need to worry about the error code though? Yes. It needs to be pushed out. Why could they not just add an error code register?
+
+I can use a lookup table to determine if a pop should occur. Branches are not good though.
+
+# April 12
+
+## V86
+
+I can have one giant chain for all V86, but this would be bad for performance since I expect to create quite a large number of hooks.
+
+A chain for each vector is more sensible, although it does NOT need to implement every vector, but it might as well since there is not much to save by chopping out a few of the 8086 exceptions.
+
+1024 bytes must be used for the initial table, which is quite large.
+
+## Load in HMA
+
+I can in face do IO into the HMA and there is nothing to stop me. OS/90 turns on the A20 gate and leaves it on. The only reason the XMS specification recommends not doing IO there is because DOS typically normalizes pointers passed to it.
+
+This gives me some more idea though. If OS/90 can 100% fit inside 64K, which I am sure it can, I can even put in inside the bootloader.
+
+61440 bytes is actually more precise. Its a hard constraint, but the compiler is good at keeping the code small.
+
+OS90.EXE will perform the whole procedure. It will incbin the kernel binary. I have to make in an EXE because
+
+### An Obstacle
+
+The initialization page tables take up a significant amount of space.
+
+## Extended Memory Free Region
+
+How do I find out where the available extended memory is? I think it was supposed to come after the kernel, but now things are different. I will have to pass the extended memory base address to the kernel when switching to protected mode.
+
+# April 13
+
+## HMA
+
+The problem with this is the initialization page table, which will waste 4096 bytes of memory for nothing. Unless I redesign the whole thing to not use a higher half kernel, which is probably a bad idea, this may still be infeasible.
+
+I will leave this as a possibility, but in the future, I still need to find if it will even fit.
+
+So far the numbers are good, so if the initptab can fit inside the kernel image, then that is fine.
+
+Oh wait, remember how the HMA is not 64K and a page has to be masked from its size to get the real number of bytes? Yes, I have 4K, but I actually need 8K to make the whole thing work. I need a page directory and a table.
+
+# April 18
+
+## Plan
+
+SV86 will not work in T0. I cannot think of a specific reason for this, especially considering that SV86 is not preemptible to begin with, but it might be because some BIOS functions wait for interrupts and there could be a blockage.
+
+It could be because SV86 has to go through the system entry, which is a preemptible region normally and I am not sure if it will behave correctly with interrupts off.
+
+I am just not sure. I do not see why interrupts would be disabled considering that preemption automatically is.
+
+If the call is doing something that requires disabling them, then we should let it happen.
+
+## The Actual Plan
+
+- I need exception handling completely working.
+- The scheduler does not need to multitask yet.
+- Interrupts must be handled.
+- Real mode reflection should be completely working.
+- SV86 should be completed and tested, including the exception handler
+
+When SV86 is done, I will test it with everything possible. BIOS INT 10h, file IO, all of them. I need to make sure it works perfectly.
+
+# April 19
+
+## Direct Interrupts
+
+The OSDev wiki says that the interrupt requests ignore the PL bits on the IDT entry. THat could mean that it does not check privilege levels when switching. I am not sure.
+
+I think I decided earlier not to use direct IDT entries due to various complications.
+
+## IDT is Working
+
+The entries are being placed in the IDT. This is good. Now I need to move on to somehow being able to handle interrupts.
+
+IRQ#0 will ALWAYS be handles in protected mode, but the rest are totally reflectable.
+
+So what prevents me from just enabling interrupts?
+
+The level 2 interrupt handlers are already configured btw.
+
+## Is IMR Handled Correctly?
+
+What order does the PIC use? I looked it up and the IMR goes from bit 0 to bit 7 in expected order.
+
+The problem is that the master PIC has a mask of 0x8F or 10001111 in binary. This is impossible because the timer IRQ must be unmasked. I am not sure when this happened.
+
+ITS IN REVERSE!
+
+# April 22
+
+I just read that switching to real mode apparently DOES require changing to 16-bit protected mode first. On a real PC, it will apparently lock up the CPU if the code segment is still 32-bit.
+
+http://www.osdever.net/tutorials/view/protected-mode
+
+Bochs does not really care, but this is actually undefined behavior and may not work on all CPUs.
+
+This means new segments must be added to the GDT. The code and data segment must both be byte granular and have a limit of FFFF.
+
+In my case, they will overlap and have the same base address.
+
+To enter this segment, I will use a far call from the master ISR.
+
+## Memory Manager
+
+I will have to start from scratch since none of my previous writings are very relevant to the current situation, but there are some bits and pieces I want to remember to include.
+
+- Raw memory region allows direct access to all physical memory in a linear region. It is ring-0 only and is used to manage MM structures.
+- Page Frame allocation table (PFAT)
+- Dynamic lists, std::vector style
+- Allocating virtual address spaces
+- Page frame chains with IDs
+- Holding a chain-local index in each chain block for virtual memory support
+- Uncommitted memory allocations, except the memory must grow sequentially (we look backward until a committed page is found and looked up in the PFAT)
+- Virtual memory is allocated by reserving a linear region in kernel or user memory space.
+- DOS memory allocation features (DAlloc, DFree, DRealloc)
+- Allocations will not free themselves after task termination, subsystem decides what to do.
+- Managing the dirty bit
+- Locking pages with a special bit.
+- Swapping, will it be chain-level or page level?
+- Remember that the PFAT is very important for virtual memory. The front/back links are very important, as well as the index. We do a delta calculation to figure out how many pages need to be swapped back in. A chain cannot be fully swapped out?
+- Eviction function?
+
+Read ## Physical Block Table (PBT) and the bracket comment. Useful?
+
+# April 23
+
+SV86 will be the focus for today.
+
+I will have to design a few new things. The #GP handler needs to be worked on with emulation for IRET, INT, and other things.
+
+This means that there is no way to escape the interrupt counter. Luckily, we do not have to worry about interrupt reentrancy and other stuff.
+
+#GP should never come from SV86 unless it is a sensitive instruction.
+
+IO instructions, as it seems currently, need to be fully emulated. I really want to avoid this. An IO permission bitmap allows for a complete avoidance of the overhead.
+
+Something else to consider: will SV86 support trapping IO, for example to emulate a device but use an existing real mode driver?
+
+I think NOT. It is better to control the entire interface. If a driver is going to emulate a piece of PC hardware, it should probably implement a proper interface for it too. A 32-bit disk driver should control INT 13H, not emulate the entire ATA disk interface.
+
+## SV86 #GP Handler
+
+The general protection fault handler can be inserted in real time since it handles every possible correct situation in SV86.
+
+I will EMULATE IO port access for faster disk IO. I have proven in previous documents that the speedup is significant and documented the format of IO instructions to make this simple.
+
+The problem is that my existing code only decodes the operation, which is fine, but it does not execute them. Maybe i can find some way to make a branch table using the bits and run the instruction, but that would be too many combinations.
+
+Makes me question if all this is worth it. I think I will bring back the IOPB. By default, it will allow all (set to zero).
+
+
+# April 26
+
+## SV86
+
+SV86 needs to be able to run nested hooked interrupts. Consider this: INT 21H uses INT 13H to access the disk for file IO. If INT 13H cannot be trapped, there cannot be 32-bit IO.
+
+A possibility is to remove the current capture chain entirely and use some kind of stub that goes to protected mode, but this would require switching from T1 to T2.
+
+A better idea would be to retain the capture chains but allow them to be used in each instance of INT. Nested calls to INT are handled by GP# with accurate stack emulation unlike the initial SV86 call which does not use a stack. The INT counter is used for this.
+
+I have to consider how to return to the caller. Perhaps I can guarantee the contents of the kernel stack prior to the V86 entry so that when SV86 causes an exception, we can immediately get the necessary information to go back to the caller. We only need to GO BACK, not perform the whole return process.
+
+I need to change a few things to do this. What need to be restored is EIP and ESP, which are not recoverable anyway. I do think they should be on the stack for cache locality.
+
+# May 7
+
+## Naming Conventions
+
+Are the naming conventions excessive?
+
+First of all, reentrancy can denoted as it is on Unix. Reentrant must imply thread safe. Safety within an interrupt context is a different issue and a reentrant may still not be a function you want to call inside an ISR.
+
+Well, a reentrant function does not access any outside state.
+
+```
+OS_SVINT86_t12
+```
+
+Reentrant will never be used unless it is actually reentrant.
+
+```
+OS_printf_r
+```
+
+I think interrupt safe implies reentrant. Actually, I see no reason why any function called in an ISR would be reentrant, unless that function is not shared whatsoever, and for the OS it will be.
+
+# May 8
+
+## Naming Conventions Updated
+
+```
+OS_     Any function for the OS API
+_r      Reentrant
+_t{012} Context type
+```
+
+Subsystem tags are pointless and just take up two characters for no reason. They do not help very much either.
+
+Also svint should now be macro-cased. How about OS_SVInt86_t12()?
+
+
+# May 9
+
+## TODO List for next few days
+
+I have to study for my last AP exam over the weekend, but Thursday and part of Friday will be avaialble.
+
+I need to do the following:
+- Change naming conventions. First thing.
+- Keep working on SV86 and interrupts.
+
+## Can I make a build program?
+
+I am not a huge fan of makefiles. I would prefer to have a simple program that does the building with parameters only. This should be portable too and work for any C project.
+
+```
+make90 --profile "OS90 Kernel" --proj kernel --inc include -build build
+```
+
+Maybe this can be a python script.
+
+All I need is to setup the includes
+
+# May 10
+
+## Makefile
+
+Keep the same.
+
+## Use Assembly?
+
+Besides the bit allocator which I cannot seem to be able to write in assembly no matter how hard I try, everything else can be in assembly.
+
+That means the ABI can be whatever is convenient.
+
+For C, we have to actually set registers or the carry flag before calling functions. They can be called using the standard mechanism.
+
+```
+_EAX = 0x10;
+_EBX = &params;
+OS_INTxH();
+```
+The only issue is compiler warnings for pointers. Is there a way I can ignore them?
+
+No, I need separate void* registers.
+
+The C API is not really that important. I need to establish a proper project structure for actually using assembly.
+
+What I need for assembly:
+- Debugging with printf
+- Assertions
+
+I will extern functions instead of using prototypes or headers.
+
+I do need a way of making imports and exports tables since the current method does NOT work.
+
+I will have a standard header file with the necessary features.
+
+```
+DEB "EAX = ", eax
+DEB "EAX = ", [ebx]
+```
+
+### Maybe... Not?
+
+Is there a real advantage to this?
+
+Do you want to write this sort of code?
+
+```
+char string[] = "Hello, world\n\r$";
+
+VOID Example()
+{
+        STDREGS r;
+        r.EAX = 9;
+        r.EDX = string;
+
+        _iEAX = 0x21;
+        _EBX = &params;
+        OS_INTxH();
+}
+```
+
+This only needs to apply to assembly functions. In that case, I can write all my other code in C.
+
+Actually, this does basically nothing useful. Improving the performance of functions is all about using better algorithms and reducing the instructions or memory accesses.
+
+## Drivers
+
+I am not so sure about the idea of using the table for calling procedures. Being able to link the functions sounds better, but the catch is that we cannot use ordinals of any sort and must rely on named symbols.
+
+### Executable Format
+
+> I will make it perfectly clear right now: not a single option is going to be easy to do.
+
+But what executable format should I use? EXE has a lot of bloat from Microsoft-specific things. ELF is too complicated for simple drivers, although very well documented.
+
+Anything else requires either a special toolchain that I do not currently have (but can have). I can also roll my own format with the whole ELF simplified subset idea.
+
+I do not need to do any of the manipulations of the relocation or symbol sections. Instead, I can dump the contents of the ELF executable and generate the appropriate content.
+
+ELF has a dynamic section (not a real section but reserved region of file) that specifies every library that must be imported by name as NEEDED.
+
+# May 14
+
+## IO Handling
+
+It looks like my idea of the exokernel design may not be viable any longer.
+
+I have a new concept now. There are three components to the use of a device:
+- Subsystem client
+- Subsystem link
+- Device driver
+
+All three are separate drivers.
+
+Creating a link gives the subsystem but NOT managed tasks exclusive access to the device driver interface.
+
+The device driver should provide a function for locking the device.
+
+In the VxD model, the device driver handles all access to the device by emulating IO or blocking all processes trying to access it. This is still the same. The main difference is that the subsystem is added as an extra layer.
+
+The subsystem must control the driver before it can be used, and the only way to do this is through the link driver.
+
+When a program performs port IO or in any way required the use of a device, the driver will decide how to act, but the link driver must be used to signal it to do so. Because the subsystem is responsible for emulating IO port access, it must decode the operation and send it to the link.
+
+The actual interface does not need to be specified.
+
+## IO Handling: Analysis
+
+Not a bad idea, but the lack of standardization in the interface is not exactly a good thing. I do not want to write the drivers and get annoyed with how often I need to rewrite everything.
+
+I also am not fully sure how bus subordination is supposed to work.
+
+Also, I am not sure why the subsystem has to do even deal with the link driver at all. The point was to abstract the difference in client subsystems and separate things. The link driver seems unnecessary.
+
+The connection idea could still be used in order to avoid having a chain of IO port handlers. A subsystem could have list of drivers that must receive any IO. This does not need to be an automatic process and can be manually dispatched by the subsystem.
+
+It may be better to simply latch the driver onto an individual process. This does not HAVE to be automatic. The user could decide what devices get passthrough or which ones get emulated using parameters, or select which devices are included in the subsystem.
+
+We are still not trying to create a full virtualization system, although it could be possible.
+
+# May 15
+
+## Handling Exceptions
+
+I can simply create a list of kernel mode exception handlers for each task!
+
+That is essentially what happened with DPMI, but for user mode.
+
+Currently, there is a chain of handlers. Why do that when you can just call the subsystem exception handler directly?
+
+After all, only one subsystem can actually react to exception. They cannot be interfered with by other subsystems and passed along.
+
+The excpetions that are handled by the subsystem might be quite limited. Floating point errors 100% need to be abstracted to account for FPU differences.
+
+The coprocessor segment overrun and the general protection fault are called depending on the type of FPU. The FPU error IRQ could also be used here, and it would require abstraction.
+
+I was going to add a driver to manage the FPU, but that would be impossible now. Subsystems should not need to know about the FPU, and only the kernel is supposed to deal with calling the high-level exception handlers.
+
+Page faults need to be exclusively handled by the kernel. There is no other way. It would be cool if the subsystem could have some control over virtual memory, but that will not be possible.
+
+The list of exceptions may be something like this:
+```
+VE_DIVZ
+VE_SEG_NP
+VE_STACK_FAULT
+VE_ALIGN_CHECK
+VE_FPU_ERROR
+```
+
+## Subsystems and Drivers
+
+
+
+# May 17
+
+## Real-time Scheduling
+
+OS/90 will have a feature where a select few tasks can be scheduled as periodic and real-time.
+
+Actually, real-time may not be the most accurate way to describe it. I will call this "interval-based task scheduling."
+
+This will be for situations where a high-priority event must be handled at a very specific interval.
+
+There will also be support for synchronizing ITS tasks at any point in time to account for any errors.
+
+A use case for this would be vertical sync on generic VGA hardware with no interrupt for it.
+
+ITS tasks are expected to yield immediately after performing a critical task. The task that would normally be run by the scheduler at that point in time without ITS is then given its time slice.
+
+ITS uses modulus to determine intervals. The system uptime is mod'ed with the number of miliseconds at which the interval breaks.
+
+ITS code is usually implemented as a tight loop. It must yield its timeslice to avoid significant  harm to system performance.
+
+### Purpose
+
+To allow for certain harware drivers communicate with low-priority devices like keyboards, or handle situations that are inherently periodic, like vertical blanking.
+
+Having a thread with uncertain scheduling properties is not a good idea by comparison. If there are many processes using a lot of time, there is no garauntee that something will run periodically.
+
+VBLANK could be handled by polling the appropriate VGA register every 8 MS or so.
+
+ITS allows the keyboard and mouse to both be polled in a multitasking environment.
+
+# May 22
+
+
+## ELKS
+
+ELKS could in theory run as a subsystem of DOS. I am not sure if ELKS drivers will be supported, but it would be nice if that was possible.
+
+Just looked at the ELKS repo and it seems like modules are either neutered or non-existent, so this is not possible.
+
+But I can run ELKS programs. As long as the executable is loaded properly, it is simple enough to trap any INT 80h calls and perform the necessary translation. I wrote some docs on how that works. DOS/DPMI can handle all of this.
+
+From what I understand, ELKS may support memory models but it has a single 64K heap. XMS exists, but that is separate from the actual OS.
+
+This means that executing ELKS programs in protected mode should not be a hassle at all. I think ELKS already has limited support for 16-bit protected mode.
+
+Consequently, I do not need to have a separate subsystem or any at all to run ELKS programs.
+
+
+## Subsystems?
+
+Do I really need support for subsystems?
+
+I considered the idea of running programs for ELKS directly on OS/90 using a translation layer. The potential problem is related to address spaces.
+
+DOS already has a multitasking region. Unless there is some way they can be shared, perhaps automatically by the kernel, the subsystems would either need two separate regions.
+
+Anyway, I could figure this out. The issue is whether or not the concept of a subsystem does any good.
+
+Why not do what I did previously and make OS/90 a DOS emulator?
+
+This would mean that the RMR, EXE loading, etc will be handled by the kernel. DPMI will also have to be supported. Nothing changes, but INT and exception behavior becomes standardized.
+
+The subsystem idea is not bad for performance since it uses callbacks to handle exceptions. I can benefit from the separation that it provides between the scheduler and other components.
+
+## SV86
+
+Is SV86 really going to be non-preemptible?
+
+My new design for INTxH uses a lock instead of a preempt increment, so now I wonder.
+
+As it is currently, SV86 does NOT actually use a single buffer for register parameters, so that is not a potential issue.
+
+THe only potential problem is the system entry procedure and needing to deal with a supervisory virtual 8086 mode in the scheduler.
+
+The advantage could be enhanced multitasking. I could access the filesystem using DOS while allowing other tasks to run as long as they are not blocked. Each task can independently request SV86, but only one can actually get a service.
+
+Handling services concurrently presents many problems, however, and is not required. It requires separate stacks and potentially special configuration to avoid conflict. BIOS code cannot possibly be trusted to be reentrant and may very well disable interrupts to ensure this.
+
+Without concurrent services, there are advantages to this approach, though there is added complexity.
+
+Tasks must now have a kernel-SV86 state and must also be able to switch to and from that context. The proper handling of IOPL-sensitive instructions must become a task-local operation.
+
+Additionally, SV86 requires the scheduler to be fully working, even before the memory manager is ready. I am not sure about how that will work.
+
+Is it possible to have two versions of SV86 or something? Probably best not to.
+
+### Conclusion
+
+Its probably not worth it to do all this. SV86 is fine the way it is. 32-bit disk and FS drivers will make it all faster.
+
+# May 23
+
+## Error Codes
+
+I did previously talk about the subject of error handling, but I looked at the DOS extended error codes and I think that it is a good idea. It reports the "locus" of the error (block device, memory, etc) and even a suggested action. The action may not be very useful for the kernel since it does not usually ask the user to correct an error.
+
+> I do think there should be a way to receive keyboard input early in the boot process so that drivers can let the user correct any issues. This will have to use the BIOS.
+
+## Keyboard
+
+The keyboard driver needs to emulate the BIOS interface.
+
+Keep in mind the way scan codes are handled with it:
+https://www.stanislavs.org/helppc/scan_codes.html
+
+## Thinking About Things
+
+I will write only one operating system in my entire life. Logic would conclude that this operating system that I create should be the best that I can make.
+
+Is the OS as it stands right now exactly that? I wonder.
+
+The OS does not need to be based entirely on the design of the BIOS and DOS just because it uses it internally. Maybe there can be some sort of abstraction layer between the underlying low-level software stack and the userspace or even high-level drivers? Maybe like Windows 98 with its WDM VXD.
+
+But maybe not...
+
+At some time, I should clear my head and envision the perfect operating system.
+
+# The Perfect Operating System
+
+This is not a journal entry, but a short little essay of sorts to collect some ideas.
+
+## Userspace
+
+### Paths
+
+I like the idea behind Java NIO with its Path object and the ability to concatenate paths or make the relative to something, etc.
+
+In the OS, one would create a path object and then create a file using the path as an argument.
+
+```
+HPATH hp = CreatePath("docs/readme.md", P_DRIVE_REL | P_FPATH);
+
+HPATH localpath = SwitchPathDrive(hp, 'C');
+
+HFILE hf = OpenFile(localpath, FILE_RD);
+
+DeletePaths(2, localpath, hp);
+```
+
+Paths can be drive-relative, folder and drive relative, or asbolute.
+
+The driver letter can easily be changed as it is internally stored as a single byte.
+
+The right and left side of the path can both be extended, and duplicate slashes are automatically removed.
+
+Drive letters are still good and the simplest way to handle partitions.
+
+### General IO
+
+UNIX is known for device files, which are a decent idea because they are accessible from the command line, but I feel like it does not have to be this way. This was done because back then many things were done using scripts. In the early days of UNIX, there were not even shared libraries, so piping output and communicating directly with devices was a desireable thing that made the userspace more versatile.
+
+That was all good when people only used the command line, but UNIX really began to show its age when complex specifications were built on top of it to adapt it form environments outside of mainframes and servers. Just look at Free Desktop and dbus for example.
+
+Now what design is that? I don't know.
+
+### Pipes and Redirection
+
+## Kernel Mode and Drivers
+
+### Translation
+
+Perhaps there can be an altered model of user-kernel communication.
+
+Subsystems currently play the role of a translation layer for the underlying DOS, but a more abstract interface for subsystems could be possible.
+
+They could translate to some sort of kernel language that is then translated to something understandable by DOS.
+
+I think I should try to think of an example.
+
+Maybe there can be standardized driver models. For example, standard console drivers and standard FS drivers, things like that. Userspace does not use files but addresses a driver using some sort of addressing method.
+
+```
+Address:
+
+LLLLMMMMMmmmmmFFFFF
+
+L = Locus
+M = Driver type major
+m = Driver type minor
+F = IOCTL function
+```
+
+In command line, it would be more like this:
+```
+cat file.txt > <chardev:reciever:printer:MAIN,write>
+```
+
+I think this idea is very old, perhaps older than UNIX, like the time when computers were mostly operated by punching in codes to make them do things.
+
+It is also not objectively better than UNIX.
+
+# May 24
+
+## Decision
+
+I will NOT plan any major modifications to the OS design.
+
+At least not for now.
+
+## Still Thinking About It
+
+SV86 is the core of the OS in a way. I wonder if there is a way I can reduce its importance and NOT have it be some sort of standard interface.
+
+It really should not matter though. The driver model is barebones at the moment. It can have a framework built on top of it.
+
+# May 25
+
+## Device Files
+
+I will reuse an older idea. The whole unix-style device filesystem will be supported using a Q drive letter and is inside the folder SYS.
+
+The filesystem does not work as expected, though. Each item can have child items. There is no real directory.
+
+```
+type test.txt Q:\SYS\PNP\DEV\CHARDEV\PRINTER
+```
+
+## Filesystem
+
+I need to be able to allocate drive letters so that virtual drives or other filesystems can be implemented by drivers. Otherwise, they would have to do attempt to access each drive to detect existence.
+
+
+The kernel needs a filesystem API for accessing the DOS services in an abstract way. They will automatically perform translation as well.
+
+To support files larger than 4GB, I will use 64-bit seeking, even though DOS will probably never support this.
+
+## A Different Model?
+
+But instead of trapping DOS, why don't I establish a native kernel interface, and from there drivers for the FS or disk can hook things?
+
+The default behavior will be to reflect to DOS through SV86. The request can be trapped at this stage, or it can be trapped before going to the kernel.
+
+So basically:
+```
+     Native Interface |=>| Hooks
+     SV86 => SV86 handlers
+          DOS+BIOS
+
+```
+
+The idea is that I can implement some higher-level operations without having to fully depend on DOS or use the not-so-fun and SV86 interace.
+
+Subsystems translate system calls to the native kernel API rather than DOS itself. This makes subsystems somewhat portable, should I decide to make OS/90 capable of running on ELKS instead of DOS.
+
+The DOS subsystems seems to be quite dependent on DOS though. It needs it to allocate conventional memory and as planned currently sends every INT that is not locally trapped by the process straight to SV86 for DOS to handle it.
+
+It does not HAVE to be this way, though. If I add this abstraction layer, I can run DOS programs directly on ELKS. THe only problem is reduced performance from the abstraction overhead.
+
+The advantage is that drivers do not actually need to know anything about DOS whatsoever. I can take this a step further by really pushing for those device files and use them in kernel mode as well to implement a sort of intramodular procedure call.
+
+## Plug and Play
+
+OS/90 will never support ACPI and I have no problem making it as incompatible with it as possible out of pure spite. With that being said, I still need to handle PnP and power management.
+
+I decoupled PnP from the kernel a while ago, and it was for a good reason. I also got rid of the bus interface and allowed buses to decide how they are to be accessed by subordinate drivers. These were good decisions, but there is the issue of plug and play.
+
+The idea is dealing with docking/undocking, shutting down, sleeping, etc. OS/90 will probably not support hibernation, but it may need to be capable of idling.
+
+Device drivers control all devices of a certain specific type. That means the drivers need to receive certain events that relate to PNP in a proper way without having to know anything about what kind of PNP is being used.
+
+We can have a command set given to the driver, totally optional of course (so I can delay doing this until a later time), which sends events.
+
+For example:
+```
+PNP_POWEROFF
+PNP_SLEEP
+
+PNP_DOCK
+PNP_UNDOCK
+
+PNP_LID_OPEN
+PNP_LID_CLOSE
+
+PNP_REMOVE_SUBORDINATE
+PNP_ADD_SUBORDINATE
+
+PNP_ENABLE_DEVICE
+PNP_DISABLE_DEVICE
+
+PNP_UNINSTALL
+PNP_INSTALL
+
+PNP_DRIVER_DISABLE
+PNP_DRIVER_ENABLE
+```
+
+- With that subordinate stuff, I may actually need to add back bus drivers.
+- No idea what that lid stuff does. I just put it there.
+- Installing means to make that device accessible and recognizing its presence. Enabling simply "enables" the device according to what it considers to be an enabled state.
+- Disabling or enabling a driver means to make the device it controls temprorily unavailable or restore it from such a state. On the startup of a driver, it is already enabled.
+
+It does not matter how perfect I want to make it. What matters is what I can make that one person can understand. This will have to be done.
+
+Commands given to PNP drivers can always fail or be terminated due to a device disconnection, hardware failure, software bug, or user action. I think my advanced error handling idea can be used for this. I could even have a table of error action handlers.
+
+## KNI
+
+I just looked at the DOS INT21H listing and the filesystem calls. Do I REALLY want to implement all of that?
+
+
+## 32-bit Disk Access
+
+There are two controllers which both can have their own states to keep track of the drive selection. It is also possible to send various commands to both, and this can potentially be done in an interruptible context. Read the ATA page on OSDev.
+
+# May 26
+
+## IPC, Drivers, Intermoduler Procedure Calls?
+
+The OS/90 scheduler will support the following features:
+- Yielding a task timeslice
+- Yielding to a specific task
+- Periodic scheduling (will probably not add immediately)
+
+## KNI
+
+I will NOT do the KNI thing.
+
+## Subsystems
+
+There will be a DOS subsystem. Whether or not I need other subsystems is actually debatable.
+
+As stated previously, I could run ELKS within its own subsystem or simply use DPMI/DOS to execute ELKS programs. Doing so makes it possible to have ELKS programs interact with DOS programs seamlessly.
+
+But even if ELKS is its own subsystem, such an interaction could still be possible. The standard IO handles are the same. File handles can totally be shared between ELKS and MS-DOS. Exceptions do need special handling for handles to work, so a separate subsystem is logical.
+
+
+# May 27

@@ -1,6 +1,6 @@
 # Introduction
 
-OS/90 features a preemptible, reentrant, multitasking kernel capable of emulating any 32-bit operating system. It is designed to force few abstractions.
+OS/90 features a preemptible, reentrant, multitasking kernel capable of emulating any 32-bit operating system.
 
 # Memory Manager
 
@@ -13,8 +13,6 @@ OS/90 supports (or will):
 
 Features related to virtual memory are fully in the control of the subsystem driver or a subsystem-asscociated task using whatever inteface is provided by the former.
 
-## Virtual Memory
-
 # Scheduler
 
 OS/90 is preemptively multitasking and allows the kernel to be preempted by tasks.
@@ -25,15 +23,15 @@ OS/90 supports reentrant exceptions. This means exception handlers can be called
 
 ## Event Handlers
 
+> Is this up to date? No.
+
 Events are exceptions or software interrupt events defined by the IDT vector referenced, are caused by tasks, and are dispatched after system entry. Each process has a pointer to a system entry routine.
 
 Events are caused by the user only. Exceptions in the kernel will instead go to a hookable list of handlers, which does not include INT calls because kernel mode cannot use INT.
 
-## Scheduler Implementation
+## Scheduler Internals
 
-OS/90 uses an unconventional scheduler design, using a form of system-level ucontext/longjmp style approach to implement multitasking.
-
-The basic concept is that of the __context__. Contexts are a standard register dump structure containing the set of registers that is created when entering the system from an interrupt gate, entering SV86 or exiting, or entering a process context or saving one.
+### Standard Register Dump
 
 ```c
 typedef struct {
@@ -69,17 +67,6 @@ The reason why there are two segment register sets is to avoid complex branching
 
 > In certain contexts, the STDREGS structure is actually not so standard and the last four V86-related fields can actually be omitted entirely depending on the context. The v86_xxx fields are only accessible in trap frames if the context was V86.
 
-There are procedures for entering different
-
-## Context Switching
-
-Contexts can be entered by calling an assortment of different routines which generate a stack frame. Each context switching function is non-reentrant and can
-
-
-The context switching is mandated by a "shadow program" that consists of a single function with no return and an endless loop that schedules processes and runs the next process.
-
-> Consider single linked list? Also do we need to have a "current process"?
-
 ## Interrupt Reflection
 
 OS/90 does not use SV86 to handle IRQs. To avoid the pointless latency of scheduling a process to handle SV86 IRQs or modifications to SV86 to suit interruptibility from itself and other issues, OS/90 switches to physical real mode to handle a reflected interrupt.
@@ -96,74 +83,188 @@ On the i486, the same exact thing happens. I have no idea why PM would have fast
 
 The OS/90 kernel API provides no API for accessing physical real mode for such purposes because it would be wrong anywhere outside the main IRQ dispatcher.
 
+## Context Types in Detail
+
+> Change to ABC?
+
+T0: Interrupts disabled, preempt count irrelevant
+T1: Interrupts enabled, preemption disabled
+T2: Interrupts enabled, preemption enabled
+
+Interrupts are fully non-interruptible and non-preemptible atomic contexts that totally finish upon executing. There are ways to handle IRQs with interrupts enabled, but it uses a thread.
+
+T2 can be ring-0 or ring-3, while T0 and T1 are always the kernel, because processes can never change the preemption count. (imagine if they could!).
+
+It could be possible to change the preemption count on behalf of a process and go back to the process.
+
+## Thread Safety of API
+
+The entire kernel API is thread safe unless otherwise specified. Some functions are reentrant and have 'r' appended to the end. Some functions can only run in certain context types.
+
 # Supervisory Virtual 8086 Mode (SV86)
 
 SV86 is a mechanism by which the kernel or any driver obtains a service provided by real mode software like the BIOS or DOS. OS/90 does not implement any of those features or interfaces natively and depends on the DOS interface.
 
-SV86 is a special context under which no preempting can occur. It is entered through a separate RD structure. (Technically, we can make it multitasking as long as no more than one process enters.)
+SV86 is a special context under which no preempting can occur. It is entered through a separate RD structure.
 
-SV86 is emulated by default in the kernel.
+These functions are related to SV86:
+```
+VOID OS_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
+VOID OS_INTxH_t12(BYTE vector, PSTDREGS regparm);
 
-# Emulation Support
-
-Since there is no default behavior for INTs, exceptions, virtual IRQs, etc, it is necessary to provide subsystem drivers the necessary utilities to implement the operations.
-
-This includes:
-- Simulate far call/far return
-- Simulate INT/IRET in 16-bit or 32-bit mode
+```
 
 # Drivers
 
-## Executable Format
+Drivers are essentially DLL's for the kernel. They can be used to implement the OS layer of a subsystem or can provide an interface to a device. They share a global symbol table and can use each other interfaces.
 
-Drivers are very simple files. They are flat binaries with a list of relocations appended to the end.
+Drivers can have the extensions:
+- BIO: Basic I/O
+- SVC: Subsystem virtualization core
+- SLI: Subsystem link interface
 
-### Design Considerations
+> There is one driver for every device of a certain class and there cannot be duplicate drivers.
 
-The way they are generated is by merging any object files into one, generating a list of the relocations in binary, converting the object file to flat binary, and appending the relocations.
+> Drivers use a custom executable format. See EXEC.MD for more information on building procedures.
+## Environment
 
-i386 ELF has two types of relocations that matter: R_386_32 which is a simple addition by the addend. R_386_PC32 is relative to the instruction pointer (S+A-P).
+The entry point procedure is called by the kernel. It will be using a very limited stack space, perhaps no larger than 512 bytes.
 
-The linker will eliminate PC32 relocations. They are only needed when a procedure needs to be near-called with a relative 32-bit address and the only option is to use an absolute address in the binary and relocate it later. For position-dependent code like OS/90 drivers, only R_386_32 relocations matter. These will simply add to the addresses.
+## Detection of Features
 
-### Recap
+Driver interfaces implement something called a FEATURE. This is essentially a list of strings related to what features the system "supports." Each driver will specify the features it depends on and those that it implements.
 
-The header:
-```c
-struct drv_exec_header {
-    uint    magic; // "JQJQ"
-    uint    bss_rva;    // Relative address of uninitialized memory.
-    uint    bss_pages;  // Pages of uninitialized memory
-    uint    code_bytes; // Number of bytes of actual code bytes
-    uint    rel_off;    // FILE offset to relocations
-    uint    rel_num;    // Number of relocations
+The feature is bound to the driver that implements it, but a driver cannot be queried for its own features through this interface. A separate interface must be established for this.
+
+```
+VOID DriverEntry(VOID)
+{}
+```
+
+## Drivers and Subsystems
+
+### Device Driver and Link Driver
+
+Drivers are meant to provide function calls to the global kernel namespace that allow for a device to be used in an abstract manner.
+
+Devices drivers support various features, except for those related to device operation:
+- Saving or restoring state
+- Reseting a device
+- Disabling device
+
+The functions implemented by the device driver must be used by another type of driver called a subsystem link interface, or SLI. This does not technically have to be a separate file, but generally it should be.
+
+The subsystem decides how it wants to handle any kind of IO request. Anything that goes to IO ports needs to be decoded using the appropriate kernel functions and sent to a SLI. The SLI can create a new device context for emulation, queue requests, etc. however it wants.
+
+The interface is not formally defined,  but it is recommended that devices are handled one-by-one.
+
+> How does a subsystem know what device to talk to?
+
+> The naming protocal for SLI's is to add "BIO" to the name or insert into the last three characters to fit in 8 characters. Drivers must have 8.3 names. For example: `VGABIO.SLI` or 8042BIO.
+
+> Can there be multiple links?
+
+### Device Discovery
+
+OS/90 keeps track of every link driver and the device driver it is bound to.
+
+### Code Examples
+
+> How do I deal with the concept of a bus?
+```
+
+static LINK ln;
+static HDEV hdev;
+
+VOID DriverEntry(VOID)
+{
+        if ((ln=OS_DeclareSubsystemLink(DRV_NAME_ASCIIZ, "8042", "DOS")) == -1) {
+                OS_KernelLog("Error linking to subsystem");
+        }
+
+        hdev = OS_DeclareDevice(&dev_opcodes);
+}
+```
+
+Devices can then be taken over by the susbsytem using this interface by asking the kernel to grant resources.
+
+```
+// SUBSYSTEM DRIVER
+
+VOID DriverEntry(VOID)
+{
+        OS_RequestLink("8042");
+}
+
+BYTE first_time = 1;
+
+VOID HandleIOPortAccess(IO_PORT_PACKET *p)
+{
+        ...
+        LINK link = OS_GetLinkFromResource(RES_IOPORT, 0x60, 1, 0x64, 1);
+
+        OS_RequestLink(link);
+
+
+        OS_Droplink(link);
+}
+```
+
+> Link is a const char * internally, but should never be changed so it is opaque.
+
+It is up to the subsystem to create links and close them. Subsystems can share devices through this method.
+
+### Realistic Examples
+
+Some drivers implement a V86 interface and have no need to deal with subsystem-device interaction. For example, a disk caching or 32-bit disk/FS access driver; it does not need to support direct INT 13H access from DOS programs. This is not impossible, however.
+
+Most devices cannot reasonably support context switching. To handle this, a device driver should either have a request queueing system or more often have a function that locks it.
+
+The link between the subsystem and the device driver is exclusive as long as the subsystem keeps the connection. This does not mean that the device can safely multitask at the driver level because multiple tasks can run under a subsystem.
+
+# Subsystem Drivers
+
+Subsystems are drivers which implement a trap-and-emulate runtime for an operating system, and handle the execution and termination of tasks subordinate to it. Tasks are created by subsystems with limited kernel involvement.
+
+The subsystem is defined by a subsystem descriptior block, or SDB.
+
+```
+typedef struct {
+        SS_CMD  commands[16];
+        SS_XH   exceptions[32];
+}SDB,*P_SDB;
+```
+
+The command list:
+```
+enum {
+        SSC_
 };
 ```
 
-BSS uses pages because that is the simplest way to allocate it. It is not in the actual file so there is no need for byte granularity for space-saving reasons. Code using a byte count so that padding bytes are avoided. In the end, both "sections" are allocated using page granularity.
+- xh is the exception handler, but there is a catch. The procedures are not standard PSTDREGS consumers and take a pointer to the task that caused the issue and a code indicating the cause.
 
-Relocations are code-local offsets, or RVA's (relative virtual address). They are nothing more than 32-bit pointers.
+## Exceptions in Detail
 
-### Executable Image
+The exception handlers are called by the real handlers in the kernel for the process, but not all the exceptions have subsystem-controlled handlers and some are abstracted.
 
-The executable in memory behaves like a flat binary. It will be loaded at a page aligned boundary. Alignment of progbits sections is the responsibility of the linker.
+These exceptions are supported:
+```
+VE_DE   Divide by zero
+VE_GP   General protection fault
+VE_AC   Align check
+VE_UD   Illegal instruction
+VE_FE   Floating point error (abstract)
+```
 
-The BSS section is not section in the truest sense. It is simply a region of memory garaunteed to be exactly above the executable data. BSS is always zeroed.
+Coprocessor segment overrun is passed to VE_GP.
 
-### gendrv.py
+## Example Subsystem
 
-This python script takes the path of an elf executable (not object) composed of every translation unit of a driver. It then generates the OS/90 executable.
+Building a subsystem requires a lot of code that can be quite
 
-This process is quite simple. Getting the contents of the merged .text section is easily done by
+# API Ideas (OLD)
 
-## Environment
-
-The entry point is the load point. For initialization, the kernel initialization stack is being used, which is under a kilobyte in size (how big?). Avoid large stack allocations and recursion.
-
-> BSS is always zeroed, as with the kernel.
-
-
-# API Ideas
 ```
 GS = Get or set based on input CF=0/1, by convention, ALWAYS set the carry flag before calling.
      Do not rely on its current value.

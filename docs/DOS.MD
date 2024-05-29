@@ -1,3 +1,13 @@
+# Notes
+
+Some operations, such as getting the extended error information, require per-VM contexts.
+
+Such could be with some filesystem operations.
+
+The Disk Transfer Area which is used for scanning directory entries for example is decided by the program and must keep a persistent state.
+
+There is a default DTA at offset 80h in the PSP.
+
 # DOS Support Subsystem
 
 ## DOS Multitask Region (DMR)
@@ -16,8 +26,52 @@ This region of memory is garaunteed to be page aligned since there will be no sp
 
 The DMR is used to multitask 16-bit DOS programs using isolated address spaces, with the rest of real mode memory being globally shared. The DMR is bank switched upon task entry with the program's memory.
 
+The contents of the physical DMR without mapping anything do actually exist and can be used to schedule programs.
+
+If the program does not fit inside the DMR, there is no problem. Such programs are NON-CONFORMANT and have only one difference: they are loaded in global conventional memory instead of the DMR. They can actually be faster than DMR programs because they do not need to have the DMR mapped in.
+
 ## Support for Virtual DOS Screens
 
 Capturing writes to the VGA framebuffer is a complex subject since it could involve a video driver. There is no standard OS/90 video driver model at the moment.
 
-OS/90 only supports 0xB8000 for each program's virtual screen and can handle 80x50 text mode by allocating extra memory. Switching video modes, which is sometimes done to clear the screen, is the resposibility of a video driver.
+OS/90 only supports 0xB8000 for each program's virtual screen and can handle 80x50 text mode by allocating extra memory. Switching video modes, which is sometimes done to clear the screen, is the resposibility of a video driver if one exists, or a UI environment which knows to keep track of video modes.
+
+# INT Hooks
+
+There will be program segment prefixes that will be exactly the same because the memory being used also is. The call for fetching the PSP does not need to be trapped, but anything related to the termination or creation of a process needs to be.
+
+When a program is spawned, OS/90 will capture the entire call and cause the task that requested it to switch program flow to the newly allocated region.
+
+# Subsystem Block
+
+The subsystem block is a single pointer to a separately allocated piece of data large enough to contain the necessary information. It is no larger than 2048 bytes long.
+
+
+
+```
+FAR_POINTER_16
+
+typedef struct PACKED {}LIDT_ENTRY;
+
+typedef struct {
+        LIDT_ENTRY      leh[DPMI_SUPPORTED_LEHS];
+        LIDT_ENTRY      lidt[256];
+        FAR_PTR_16      rm_livt[256];
+        FAR_PTR_16      rm_service_stack;
+        LONG            virtual_if;
+        PVOID           virtual_device_list[32];
+
+        SHORT           ee_code;
+        BYTE            ee_class;
+        BYTE            ee_action;
+        FAR_PTR_16      disk_xfer_area;
+        SHORT           psp;
+        PVOID           dmr; // NULL if using the "real" one
+}VDOS_BLOCK;
+```
+
+# DPMI
+
+OS/90 supports DPMI 0.9 with some 1.0 features and reports 0.9 to software.
+
+This part of the document lists each DPMI feature and how OS/90 implements them.

@@ -325,8 +325,10 @@ PageSetup:
         mov     dword [es:bx],       (101h<<PAGE_SHIFT)|7h
         mov     dword [es:bx+512*4], (102h<<PAGE_SHIFT)|3h
 
+        ; April 9, 2024: Updated to map the HMA too.
+
         ;Copy the IDMAP page table to HMA
-        mov     cx,256
+        mov     cx,110h
         mov     si,IDMap
         lea     di,[bx+4096]
         rep     movsd
@@ -431,7 +433,7 @@ XMM:    ;Extended memory move
 ;for V86
 IDMap:
 %assign i 0
-%rep 256
+%rep 110h
         DD      (i << PAGE_SHIFT) | 7h
         %assign i i+1
 %endrep

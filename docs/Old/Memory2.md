@@ -54,7 +54,7 @@ DPMI: DOS Protected Mode Interface. OS/90 implements and reports 0.9 but has som
 
 The single address space means that IPC is very easy and context switching is much faster due to not having to flush TLB entries when switching modes. Page tables do not have to be allocated for each process. Process memory can also be accessed directly.
 
-OS/90 cannot support isolated address spaces.
+OS/90 can support isolated address spaces to a limited degree using scheduler hooks. THis is done for DOS programs.
 
 # Implementation Data Structures and Algorithms
 
@@ -108,6 +108,8 @@ On the i486, INVLPG can be used on this window, needing only a few iterations an
 
 > The window is internal and should not be accessed by drivers.
 
+> We do not need the window because we use a raw memory region!
+
 # Virtual Memory List
 
 Memory mapping must occur on a virtual address space no larger than physical memory at the moment.
@@ -119,7 +121,7 @@ The following is a full description of the API implemented by the memory manager
 ## Check Memory Manager Lock
 
 ```c
-BOOL KERNEL_ASYNC MmReentStat(VOID);
+BOOL MmReentStat(VOID);
 ```
 
 If this returns one, then absolutely no memory manager functions may be called by an interrupt handler.

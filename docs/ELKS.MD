@@ -1,8 +1,6 @@
-# ELKS Subsystem for OS/90 (ELKS90.DRV)
+# ELKS Compatiblity
 
-OS/90 will have a task subsystem for running ELKS userspace software. All ELKS programs can access the OS/90 flesystem though a mount point.
-
-ELKS/90 is capable of multitasking by running each unix process as a separate task.
+> TODO
 
 # Implementation
 
@@ -22,7 +20,9 @@ These calls end up using DOS handles or whatever the capturing driver uses. Para
 
 ### mount, umount
 
-These commands will not be supported and return an error.
+## Signals
+
+Signals are supported.
 
 # Resources
 
