@@ -133,17 +133,8 @@ static inline BOOL ATOMIC32_FENCED_COMPARE32(ATOMIC32 *address, LONG imm)
         return ret;
 }
 
-#define K_PreemptDec() ATOMIC32_FENCED_DEC(&g_preempt_count)
-#define K_PreemptInc() ATOMIC32_FENCED_INC(&g_preempt_count)
-
-#define IRQ_OFF_SECTION(num) \
-        FENCE();\
-        LONG flags__##num = SAVE_FLAGS();\
-        FENCE();\
-        _CLI();
-
-#define END_IRQ_OFF(num) \
-        SET_FLAGS(flags__##num);\
+#define PREEMPT_DEC() ATOMIC32_FENCED_DEC(&g_preempt_count)
+#define PREEMPT_INC() ATOMIC32_FENCED_INC(&g_preempt_count)
 
 extern LONG g_preempt_count;
 

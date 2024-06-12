@@ -2887,5 +2887,325 @@ As stated previously, I could run ELKS within its own subsystem or simply use DP
 
 But even if ELKS is its own subsystem, such an interaction could still be possible. The standard IO handles are the same. File handles can totally be shared between ELKS and MS-DOS. Exceptions do need special handling for handles to work, so a separate subsystem is logical.
 
+# May 29
 
-# May 27
+## Interrupts
+
+When I type on the keyboard, it appears that no interrupts are reflected to DOS. I suspect that the Bochs BIOS simply does not use the IRQ and only polls.
+
+I will try QEMU.
+
+There are no problems at all. I believe the interrupt reflection routine is working.
+
+Time will tell if that is really the case.
+
+## Scheduler
+
+My next job will be to get kernel threads to work. To do this, I will need to allocate memory or just reserve it in the BSS section.
+
+A few changes must be made in the scheduler. I am not so sure if I need to fully expell a task block from memory. Sometimes it is acceptable to simply mark it as dead so that it may be reused immediately.
+
+Deallocating the page is not TOO expensive, but I also want the memory allocator quite isolated from the rest of the kernel.
+
+The onyl issue with resident memory is that I do not have a way of garbage collecting any task blocks that are no longer needed. They will just take up space for no reason.
+
+I think deallocation is needed. Freeing a page can be done with one single write to the PBT.
+
+# May 30
+
+## Scheduler
+
+Once the scheduler starts, the KernelMain procedure will never exit. It simply ceases to exist as an execution state.
+
+I will need to create two threads and run them to demostrate that this all works.
+
+## Virtual Address Spaces 2
+
+Being able to map abritrarily is a complicated feature. The whole page table gargage collection idea can work though.
+
+Originally, I had a reserved chain which was used only for page tables. The RMR enables such a thing to work.
+
+The only issue is that this is not very convenient when we want to delete parts of the allocation. For that reason, I may need
+
+## Catch 22
+
+If SV86 depends on the scheduler being ready and the scheduler depends on the memory manager being ready, there is a problem of circular dependencies.
+
+This means that the scheduler must be totally decoupled from the memory manager. There needs not be any "fork" or "exec" command. The subsystem deals with most of that.
+
+SV86 does not actually depend on tasks being able to run as long as interrupts are enabled.
+
+## Wait
+
+There is a difference between a generic interrupt disabled section and an interrupt service routine. Any kernel thread can disable interrupts. I cannot think of many problems that could arise. After all, the SV86 context itself can also disable interrupts.
+
+> THIS IS IMPORTANT. T0 can be deceptive unless properly defined. I may need to respecify some things.
+
+Context types:
+```
+ISR: Interrupt service routine. Cannot call non-reentrant code or access data that is not IRQ-protected.
+
+T0: Voluntary interrupt disabled section. Only reentrant code can be called.
+
+T1: Voluntary preemption disabled section. Anything that does not hold a lock is safe.
+
+T2: Preemption and interrupts disabled. Most functions are safe.
+
+```
+
+## Invalidation
+
+I need this:
+```
+PageInvalidate(PVOID addr, LONG count);
+```
+
+addr is automatically rounded down to a page bound.
+
+
+## V86 Issues
+
+I used to just disable preemption every time I entered SV86 to protect the SV86 data in memory. Not I have a lock. Since I know that SV86 needs to be able to run in an interrupts disabled context (NOT ISR), a lock is not possible.
+
+I think what I need to do is re-enable preemption the moment I can an INT handler and disable it again. I want to prevent preemption for reflection and fetching the data.
+
+Just add an inc and dec.
+
+## OS API Naming Concention
+
+I no longer like using the OS_ prefix. I think I can just use underscore and a capital letter. Even though it is a reserved namespace, my names are surely not going to be used by any compiler and there is no standard library either.
+
+
+# May 32
+
+## Naming Convention Decision
+
+I will NOT do the underscore thing. Not good practice. There will be no special convention for API calls.
+
+## VERY IMPORTANT
+
+> The kernel should be designed around the API and not the other way around.
+
+Each subsystem needs to have its functions outlined before I even work on the kernel at all!
+
+# June 1
+
+## Assembly Code (IMPORTANT)
+
+I NEED to ensure that ECX is not callee clobbered by any assembly routines
+
+# June 2
+
+I need to make sure ECX is saved. Will do that now.
+
+## Notes for the Future
+
+I should make OS/90 into a VERY basic DOS multitasker until the UI can be fully developed. Something like the first version of OS/2.
+
+Maybe use the VGA page flipping for that, idk.
+
+# June 3
+
+## IMPORTANT: Notes on FPU support
+
+IRQ#13 is special because it is NOT ANSYHCRONOUS. This allows me to make some assumptions about the circumstances of an IRQ#13.
+
+It is practically an exception handler and represents nothing more than a simple change from user to kernel. So long as preemption is turned off in the critical region to prevent other tasks from also using the FPU, we get full control.
+
+A driver will handle the FPU. No need to worry right now.
+
+## Page Tables
+
+Can we statically allocate all page tables?
+
+A 1GB address space has 262144 pages. It takes 256 page tables to represent these, which are 1MB in size.
+
+Such memory use is very high. It does not help much that the virtual address space is shared and global. Other operating systems handle constricted address spaces more efficiently.
+
+But keep in mind that a computer with somewhere between 16-64MB of RAM is unlikely to access such a large address space. The size of the swap file is the important determining factor for the size of the address space (which will be configurable).
+
+I would estimate that four times the physical memory is about as large as the virtual address space needs to be. Excessively large swap files
+
+## Swap Partitions
+
+If I add swap support, I should use swap partitions instead of swap files for performance reasons.
+
+> VFC tags: maybe add messages that explain why that tag was selected or where to find it? For example, a video can have a tag and a time with it to where in the video something is mentioned.
+
+# June 5
+
+## Stacks and Contexts (IMPORTANT)
+
+In the current multitasking design, the trap frame goes into the stack at a quite predictable location and is local to each process. But there is another register dump structure.
+
+The way I understand it is that the trap frame is ONLY for going back to user mode when running in kernel mode. I suppose this means that the register dump is only kernel mode.
+
+But actually, it should mean that the contents of the register dump are only the state of user or kernel when the task is not running. If a kernel mode task accessing its own task block, the register dump contains garbage from previous kernel mode register saves.
+
+When the task switch interrupt happens, whatever is currently running, user or kernel, has the context saved in the task block.
+
+But what about ESP0 is the task state segment? When kernel mode returns to user mode within the same task, ESP0 is set to the very top of the stack area to reset everything for the next entry to the kernel. This is done in an interrupts off section.
+
+The process of switching tasks involves simply saving the trap frame of the interrupt to the current process and copying to the next.
+
+The scheduler does not need a concept of a current process as a variable. The current process is defined by the stack currently in use.
+
+The tasks will be organized in a circular array. The first task will reference itself.
+
+Yielding a time slice does not work when preemption is off. It simply calls IRQ#0 directly with an INT instruction to initiate a context switch.
+
+# June 6
+
+## Task Blocks
+
+TBs must use a doubly-linked structure. This is not currently the case and it needs to be updated.
+
+A singly-linked circular array works fine for insertions at the start or end (which is normal for scheduling tasks) but does not when removing tasks from the list arbitrarily.
+
+Task pointers
+
+## Alternative: Task Slots
+
+OS/90 does not need to run many tasks. On my linux system, I have a total of 700 threads running with the browser open. When I close it, I have 500 threads running. It drops to 300 when I close VSCode (what the heck).
+
+Why a code editor needs 200 threads is something I will never understand.
+
+But considering this...
+
+A task block can be reduced to 128 bytes. 300 threads is unrealistic, but with that many I need 38400 bytes.
+
+So why allocate a full page every time I need a new task? Creating new tasks is not inexpensive because memory always has to be allocated. Because stacks must be used, the other approach is not exactly faster either.
+
+The advantage is a larger kernel stack size with very little change in memory usage. I can even make kernel stacks customizable, though most systems have a fixed size for various reasons.
+
+There is one problem and that is performance. Getting the current task takes a subroutine, unless I use a special variable at the end of the stack for that, and even then, memory accesses are required.
+
+The scheduler currently depends on the stack-task binding. Task linking is the only way to efficiently multitask.
+
+Conclusion: We are NOT doing this.
+
+## What Comes Next
+
+A major milestone in my OS will be getting tasks to work. I will implement kernel threads. printf is a complex function that will test all the registers, so I will try to print things in two threads.
+
+## Yield
+
+Can I just switch stacks?
+
+# June 7
+
+## Task Blocks Again
+
+Because task blocks never move and are always 4K in size, there is no reason for task states to even be recorded. Active tasks remain in the list. Inactive tasks are simply detatched from the list to be reattached latter.
+
+## Scheduler Time Slices
+
+I should have a global variable called "time slices granted" so that CPU percentages are possible to calculate.
+
+## Initialization
+
+How do we initialize the scheduler?
+
+## SV86 Call Mechanism
+
+Can I save stack space by using registers directly. Of course I will have to save them, but there will be no need to copy to the memory that many times.
+
+```
+_ah = 0xE;
+_al = 'A';
+INTxH(0x10);
+```
+
+The problem I have encountered is that GCC does not support using partial registers.
+
+Actually, it DOES. All I have to do is declare the register as an array. A few defines can handle the rest!
+
+There is the advantage of not having to decide if the registers need to be stack allocated or not.
+
+The problem is not being able to decide the stack, which makes this whole thing infeasible.
+
+Conclusion: keep it.
+
+# June 9
+
+## Scheduler Startup
+
+## Features
+
+I think the OS/90 feature detection idea is really good. It is a bit like in DOS with installation checks, but instead of using a reserved interrupt call, a string or ID could be used.
+
+It can work like a dynamic version of Linux CONFIG macros.
+
+Code:
+```
+
+FT_PNP_BIOS pnpb;
+
+VOID InitFeature(VOID)
+{
+        pnpb = GetFeature("PNP BIOS Kernel Support", &&Found);
+
+        Found:
+}
+```
+
+## Scheduler Ideas
+
+Linux has a preemption counter for each thread. This makes sense and works. This way, a process with preemption off can yield to another without leaving it off.
+
+Another idea is that disabling interrupts is transparent to the drivers and is done by a procedure. This procedure can simply MASK the interrupts rather than actually disable them! Not only that, it could actually leave IRQ#0 enabled, thereby allowing T0 to become preemptible!
+
+Okay, maybe that was dumb.
+
+Perhaps each task can have its own interrupt mask value, or virtual IF.
+
+Just throwing ideas out there. >>> The preemption counter idea is a certain improvement. I also think that a high-level interrupts disabling mechanism is necessary so that an IF=0 task can switch to another one and have IRQs back on again.
+
+An IRQ does NOT have the ability to switch to a task of course. But why not? Can I add a mechanism where an interrupt can participate in scheduling or something. Maybe native threaded interrupts by default? Maybe some sort of jump or INT instruction call to initiate a switch.
+
+Making IRQs a preemptible context is crazy. It could make sense in a real time OS, but it might be excessive here.
+
+# June 10
+
+## Previous Ideas
+
+Preemptible IRQs are quite unrealistic, though the idea of interrupts being able to switch tasks is something I though look into. I may need some sort of uniform interface for switching a task, perhaps a jump point.
+
+A preempt counter for each task block is a must. It makes sense because yielding from a task currently blocking preemption is necessary.
+
+Adding a HL interrupts disabled thing is not necessary since the IF in the EFLAGS register is thread local anyway. Making the interrupt mask local is an interesting idea however, but I do not see a major benefit. Under what circumstance would it be useful? Perhaps
+
+## Switching Tasks
+
+I could use the IRET instruction to switch the stack and so that the INT 0A0h handler can switch to the next task. It will try to save a context to it, though.
+
+So no.
+
+Another option would be messing with the task links. The operation is basically a linked list entry move operation.
+
+## IRQs
+
+If IRQ#0 can switch tasks, why not let other IRQ handlers do the same? A thread pool can be used to handle IRQs. If that is so, we could make it possible to allocate memory and do other things within interrupt handlers! Of course, most of the actual work on the handle will need interrupts disabled.
+
+A thread pool will be quite large, at leas 64K. I will allocate it in the kernel memory.
+
+## Thinking About it Some More
+
+An IRQ can do a context switch, sure, but there are problems. First of all, it would simply RESUME the thread, not instantiate a new one. Not exactly an advantage. There is only one context for the interrupt, so it is essentially NOT reentrant because of that.
+
+Basically, the whole threaded IRQ idea cannot really happen unless I add interrupt contexts to each task block. This is not something I would like to do.
+
+## Conclusion
+
+Preemption will be localized by adding a counter for each task. This allows for the safe coexistence of preemptible and non-preemptible tasks.
+
+T0 needs to be specified as a yield-safe context, since it kind of already is.
+
+## What to Do
+
+I am a bit bored of this now. I will try to get a Windows virtual machine on my Gentoo desktop so I can play some video games. I have all the necessary RAM and CPU cores for that.
+
+# June 11
+
+
+

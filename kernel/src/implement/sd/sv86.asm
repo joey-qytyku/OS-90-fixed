@@ -48,28 +48,13 @@ endstruc
 ;ммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм
 
         global EIP_CONTINUE
-        global OS_HookINTxH, OS_INTxH_t12
+        global V_HookINTxH, V_INTxH
+        global g_sv86
 
 ;ммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм
                                 section .text
 ;ммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм
 
-;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-; EAX: stdregs ptr, EDX: error code
-;
-; SV86 does not need the error code. (NOTE SAVE EBX)
-;
-; What context is this?
-;
-SV86_HandleGP:
-        push    ebx
-
-        mov     esi,[eax+STDREGS._CS]
-        shl     esi,4
-        add     esi,[eax+STDREGS._EIP]
-
-        pop     ebx
-        ret
 
 ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
 ; In C: BYTE vector, ISR* out_isr_old, ISR isr_new => VOID
@@ -77,35 +62,24 @@ SV86_HandleGP:
 ; The new ISR must call the previous. It does not need to call it directly.
 ; Compilers notice identical prototypes and convert it to a jump.
 ;
-; I think it should return a thunk though.
 ;
-OS_HookINTxH:
-.tryagain:
-        bts     dword [sv86_lock],0
-        jc      .tryagain
+; TODO: SAVE EBX!!!!!!!!!!!!!!!!!
+;
+V_HookINTxH:
+        inc     dword [g_preempt_count]
 
         mov     esi,[eax*4+v86_table]   ; ESI = The current entry
         mov     [edx],esi               ; *out_isr_old = current entry (ESI)
         mov     [eax*4+v86_table],ecx   ; current entry = isr_new
 
-        mov     byte [sv86_lock],0
+        dec     dword [g_preempt_count]
         ret
-;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-; BYTE vector, PSTDREGS regparm => VOID
-;
-;
-OS_INTxH_t12:
-.tryagain:
+
+V_INTxH:
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
         ; Save the base pointer.
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
         push    ebp
-
-        ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-        ; Lock SV86
-        ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-        bts     dword [sv86_lock],0
-        jc      .tryagain
 
         xchg bx,bx
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
@@ -120,7 +94,8 @@ OS_INTxH_t12:
         ; We will call the first handler chain entry.
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
 
-        ; Save arguments, will clean later (takes only two)
+        ; Save arguments and ECX, will pop later
+        push    ebx
         push    eax
         push    edx
 
@@ -130,8 +105,14 @@ OS_INTxH_t12:
         ; Return value is the next handler to call, if there is one.
         ; EBX is callee saved, so we can use it here.
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+        ; Preemption is potentially enabled so that the caller is preemptible
+        ; while the SV86 data remains protected. Only reflection needs to run
+        ; in T1.
+        ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+        dec     dword [g_preempt_count]
         call    ebx
         mov     ebx,eax
+        inc     dword [g_preempt_count]
 
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
         ; Did it specify itself to be the last handler by returning 1 instead?
@@ -152,6 +133,7 @@ OS_INTxH_t12:
         ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
 
         add     esp,16
+        pop     ebx
         pop     ebp
         ret
 
@@ -243,12 +225,8 @@ EIP_CONTINUE:
         pop     dword [TSS+8]
         pop     dword [TSS+4]
 
+        pop     ecx
         pop     ebp
-
-        ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-        ; Unlock SV86
-        ;ддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
-        mov     byte [v86_table],0
 
         ret
 
@@ -267,7 +245,7 @@ InitV86:
 ;ммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм
 
         align   64
-sv86_lock DD 0
+g_sv86 DD 0
 
 v86_table:
         times 256 DD V86StubHandler

@@ -16,22 +16,22 @@
 // Any non-alphanumeric byte is incorrect.
 BYTE EarlyGetChar(BOOL req_enter)
 {
-        STDREGS r;
+        STDREGS r = V86R_INIT;
         r.AH = 0;
-        OS_INTxH_t12(0x16, &r);
+        V_INTxH(0x16, &r);
         return r.AL;
 }
 
 VOID EarlyGetString(BYTE *buff, SHORT size)
 {
-        STDREGS r;
+        STDREGS r = V86R_INIT;
         r.AH = 0;
 
         SHORT buffpos = 0;
 
         while (1)
         {
-                OS_INTxH_t12(0x16, &r);
+                V_INTxH(0x16, &r);
 
                 if (r.AX == 0x1C0D) // Key == ENTER
                         break;

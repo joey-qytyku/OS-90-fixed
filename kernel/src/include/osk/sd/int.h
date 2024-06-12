@@ -12,7 +12,7 @@
 #define INT_H
 
 //
-// Not all exception can be directly handled by a subsystem and some are
+// Not all exceptions can be directly handled by a subsystem and some are
 // abstracted, but the virtual exceptions allow for effectively the same
 // amount of control by the subsystem.
 //
@@ -22,8 +22,6 @@
 // the concept of preemptible exception handlers, but is actually safe.
 // The only context in which the FPU can ever be used is a preemptible
 // user one.
-//
-//
 //
 // The FPU cannot be used by SV86 and doing so causes a system crash.
 //
@@ -46,21 +44,21 @@ typedef void (*ISR)(STDREGS*, LONG error);
         Get in-service register as 16-bit mask, each index corresponds with a
         real IRQ vector.
 */
-SHORT OS_GetInService(VOID);
+SHORT GetInService(VOID);
 
 /*
         Get interrupt mask register.
 */
-SHORT OsDi_GetIrqMask(VOID);
+SHORT GetIrqMask(VOID);
 
 /*
         Get a high-level IRQ handler pointer. Can be used for hooking.
 */
-ISR OS_GetStage2ISR(VOID);
+ISR GetStage2ISR(VOID);
 
 /*
         Set the ISR.
 */
-VOID OS_SetStage2ISR(ISR);
+VOID SetStage2ISR(ISR);
 
 #endif /*INT_H*/

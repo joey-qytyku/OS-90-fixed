@@ -14,8 +14,19 @@
 
 #include <osk/db/debug.h>
 
+extern VOID M_Init(VOID);
+
+STDREGS r;
+
 VOID KernelMain(VOID)
 {
         printf("Hello\n");
+        M_Init();
+
         STI();
+
+        // r.AH = 0xE;
+        // r.AL = 'A';
+        // r.BX = 0;
+        // V_INTxH(0x10, &r);
 }

@@ -14,7 +14,7 @@
         {
             "name": "OS/90 Kernel",
             "includePath": [
-                "${workspaceFolder}/kernel/src/include/**"
+                "${workspaceFolder}/kernel/src/include/"
             ],
             "defines": [],
             "cStandard": "gnu99",
@@ -32,8 +32,6 @@
                 "-std=c99",
                 "-Wextra",
                 "-m32",
-                "-include",
-                "kernel/src/include/Type.h",
                 "-I",
                 "kernel/src/include/"
             ],

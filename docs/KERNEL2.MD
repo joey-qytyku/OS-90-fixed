@@ -110,11 +110,10 @@ SV86 is a special context under which no preempting can occur. It is entered thr
 These functions are related to SV86:
 ```
 VOID OS_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
-VOID OS_INTxH_t12(BYTE vector, PSTDREGS regparm);
-
+VOID OS_INTxH_t012(BYTE vector, PSTDREGS regparm);
 ```
 
-# Drivers
+# Drivers (VERY WIP)
 
 Drivers are essentially DLL's for the kernel. They can be used to implement the OS layer of a subsystem or can provide an interface to a device. They share a global symbol table and can use each other interfaces.
 

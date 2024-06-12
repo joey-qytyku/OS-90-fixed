@@ -5,6 +5,13 @@ The memory manager of OS/90 contains the following components:
 - Page table mapping generation
 - Swapping to disk
 
+# Definitions
+
+VAS: Virtual address space
+
+RMR: Raw memory region. A flat representation of the physical RAM from zero to the last RAM byte. Located at 0x80400000.
+
+AMR: Allocation mapping region. Where pages requested from the kernel are mapped. Excludes the first 256+16 pages of the address space.
 
 # Address Space Layout
 
@@ -15,12 +22,10 @@ The kernel is not mapped to `0xC000_0000` like most kernels, but to 0x8000_0000.
 The address space layout is as follows:
 ```
 Conventional and UMA    0
-HMA                     0x100000
-
-
+HMA                     001_00000
+AMR                     001_10000
 Kernel                  8000_0000
 Raw Memory Region       8040_0000
-
 ```
 
 The HMA is always present and is critical to the operation of the system. It will be impossible for DOS programs to have a virtual HMA as of now. The remaining 16 bytes not available to DOS are also included.
@@ -39,9 +44,8 @@ Each entry follows this structure:
 ```
 tpkstruct
 {
-        WORD    rel_index   :14;
+        WORD    rel_index   :15;
         WORD    f_inuse     :1;
-        WORD    f_phys_cont :1;
 
         short    next;
         short    prev;
@@ -75,23 +79,20 @@ Functions provided:
 CHAIN CAlloc(LONG bytes_commit, LONG bytes_uncommit, LONG flags);
 VOID  CFree(CHAIN ch);
 int   CQUery(CHAIN ch, LONG flags)
+PVOID CWalkRMR(CHAIN);
 ```
 
-# Page Tables and Virtual Address Spaces
+# Virtual Address Spaces
 
-> I may need a separate linked list implementation for this to be efficient.
+OS/90 preallocates every page table needed for the virtual address space. A 1:1024 ratio exists between page tables needed to represent and pages represented. This makes it quite viable to do this and avoids using any complicated methods of keeping track of address spaces.
 
-The page tables needed for the allocatable region are dynamically allocated and are based on the position requested for mapping for chains. Any mapping within the ALLOC region can be requested.
+The kernel has a configurable option for the extended memory page frames to virtual address space pages conversion ratio.
 
-OS/90 uses a 64-bit linked list to keep a list of mappings. A single mapping is a pair. The first value has the base address, some flags, and the size of the mapping. The following entry is the chain and the reference count.
+Preallocation means that the page tables themselves can be traversed to reserve and generate mappings.
 
-OS/90 uses reference counting garbage collection for page tables which are no longer used. Each time a mapping range is used by a chain, the count is incremented. This allows one mapping to be used for more than one chain. Each chain inside it is called a resident chain. When all residents are removed, the page tables are expunged. The mapping remains, however, and the default state on creation is zero residents.
+# Page Hooking?
 
-```
-int ReserveMapping(PVOID address, LONG bytes, LONG flags);
-int DeleteMapping(int mapindx);
-```
+It would seem impossible for a single address space OS to be able to run DOS programs that directly access the video memory, but it is in fact possible.
 
-> Is this too complicated? Also, how do we deal with page directory entries?
+By checking the memory manager reentrancy lock, it is possible to call a remap procedure at the right time to "bank swap" a mapping dynamically. To avoid interference with OS/90 software directly accessing VGA, it is necessary to restore the original identity mapping.
 
-> DPMI 0.9 does not support mapping to a forced location. Allocations also only happen on 16-byte boundaries. I WILL support uncommitted allocations, but DPMI will not be able to use it.

@@ -16,8 +16,10 @@
 ;                           E N D   D E F I N E S
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
-;===============================================================================
+;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ;                               E Q U A T E S
+;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+
 GDT_NULL        EQU     0
 GDT_KCODE       EQU     1
 GDT_KDATA       EQU     2
@@ -64,7 +66,7 @@ ICW4_SLAVE      EQU     1<<3
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
         extern IDT,IDT_INFO
-        extern OsDiSd_GetIrqMask, OsDiSd_SetIrqMask
+        extern GetIrqMask, SetIrqMask
         extern EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7,EXC_8,EXC_9,EXC_10,EXC_11,EXC_12,EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
@@ -168,6 +170,7 @@ i386MonitorRing3IO:
 ;       PVOID   address
 ;
 i386GetDescriptorAddress:
+        push    EBX
         ; Descriptors are perfectly valid offsets to the LDT when the DPL
         ; and GDT/LDT bits are masked off.
 
@@ -190,38 +193,46 @@ i386GetDescriptorAddress:
         or      EAX,ECX
 
         ;EAX now contains the address, we are done.
+        pop     EBX
         ret     4
-
-; Don't remember too well but ChatGPT did help me a bit with this one
 
 i386SetDescriptorAddress: ;(VOID *gdt_entry, DWORD address)
         push    ebp
         mov     ebp,esp
+
+        push    ebx
 
         mov     ebx,[ebp+8]
 
         movzx   eax, word [ebp+12]
         mov     [ebx+2],ax
 
-        movzx   eax, BYTE [ebp+12+2]
+        movzx   eax,BYTE [ebp+12+2]
         mov     [ebx+4],al
 
-        movzx   eax, BYTE [ebp+12+3]
+        movzx   eax,BYTE [ebp+12+3]
         mov     [ebx+7],al
+
+        pop     ebx
+
         pop     ebp
         ret     8
 
 
 i386SetDescriptorLimit:
+        push    ebx
+
         mov     esi, [esp+4]
         mov     dx, [esp+8]
 
-        mov     word [esi], dx
-        mov     word [esi+6], dx
+        mov     word [esi],dx
+        mov     word [esi+6],dx
 
-        mov     ah, BYTE [esi +6]
+        mov     ah,BYTE [esi+6]
         shl     ax, 8
         mov     BYTE [esi+2], ah
+
+        pop     ebx
         ret     8
 
 SetIntVector:
@@ -252,7 +263,7 @@ SetIntVector:
         ;
         ; Reconfiguring the PICs will destroy the mask registers.
         ;
-        call    OsDiSd_GetIrqMask
+        call    GetIrqMask
         push    eax
         ; Different bits tell OCWs and ICWs appart in CMD port
         ; Industry standard architecture uses edge triggered interrupts
@@ -284,7 +295,7 @@ SetIntVector:
 
         ; Rewrite mask register
         pop     eax
-        call    OsDiSd_SetIrqMask
+        call    SetIrqMask
 
 %endmacro
 

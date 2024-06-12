@@ -13,30 +13,41 @@
 
 #define NUM_EXCEPTIONS 21
 
-static ISR eh[NUM_EXCEPTIONS] = {};
+static ISR eh[NUM_EXCEPTIONS];
 
 LONG g_preempt_count = 0;
 
-VOID OS_SetException(BYTE index, ISR isr)
+VOID SV86_HandleGP(LONG error_code, PSTDREGS trapframe)
 {
-        eh[index] = isr;
+
 }
 
-ISR OS_GetException(BYTE index)
+VOID SetException(BYTE index, ISR isr)
 {
-        K_PreemptInc();
+        PREEMPT_INC();
+        eh[index] = isr;
+        PREEMPT_DEC();
+}
+
+ISR GetException(BYTE index)
+{
+        PREEMPT_INC();
         return eh[index];
-        K_PreemptDec();
+        PREEMPT_DEC();
 }
 
 //
 // This procedure is the system entry point. It handles every exception.
 //
-VOID Sd_SystemEntryPoint(LONG index, LONG error_code, PSTDREGS trapframe)
+VOID SystemEntryPoint(LONG index, LONG error_code, PSTDREGS trapframe)
 {
         // Current state:
         // - Interrupts are off
         // - Preemption unknown, but disabled by proxy
         // - Trap frame contains user context
-        STI();
+
+        // Maybe the current interrupt state should be updated to reflect the previous one
+        // at the opportune time?
+
+        SET_FLAGS(trapframe->EFLAGS);
 }

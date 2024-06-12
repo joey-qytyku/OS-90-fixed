@@ -9,26 +9,25 @@
 */
 
 #include <osk/sd/task.h>
+#include <osk/sd/basicatomic.h>
 
-HTASK TsT2Sd_CreateKernelThread(KTHREAD_PROC ktp)
-{
+VOID S_Terminate(PTASK pt)
+{}
 
-}
+VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
+{}
 
-//
-// Completely expunges the task after calling the exit hook.
-//
-LONG TsT2Sd_TerminateTask(HTASK handle)
-{
-        PTASK pt = (PTASK)handle;
+PTASK S_NewTask(VOID)
+{}
 
-}
+VOID S_Yield(VOID)
+{}
 
-//
-// Returns whatever is passed to it because handles are pointers.
-// Always use this in driver code.
-//
-TASK *TsT2_TASKPtrFromHTASK(HTASK handle)
-{
-        return (TASK*)handle;
-}
+VOID S_Sched(PTASK pt)
+{}
+
+VOID S_Deactivate(PTASK pt)
+{}
+
+VOID S_SelfTerminate(VOID)
+{}

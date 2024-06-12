@@ -34,11 +34,12 @@ typedef struct {
         LONG    fini;
         LONG    code_bytes;
         LONG    bss_bytes;
-        LONG
         LONG    num_syms;
         LONG    strtab_bytes;
 }EXEC_HEADER;
 ```
+
+init and fini are both procedures and use the standard calling conventions. Libraries and drivers can use both to initialize and clean up.
 
 ## ELF Relocations
 
@@ -72,6 +73,8 @@ Any other relocations do not matter.
 
 ## OS/90 Relocations
 
+> I should switch to a "structure of arrays" so that I can compress the relocations. 16 bytes is too much.
+
 OS/90 uses the exact same relocation scheme as ELF. The relocation tables are added into the final binary with a linker script. There is a rela table and rel table, both are separated.
 
 ```
@@ -104,17 +107,3 @@ Strings can be no longer than 255 bytes because of the 8-bit size specifier. The
 A function with any name may be used as an entry point for drivers or programs. The entry point is an RVA subject to offsetting by the load base determined suitable by the loader.
 
 The entry point is called with the standard OS/90 calling conventions. A stack is provided, but can be switched in userspace but never for drivers..
-
-### Global Symbol Namespace
-
-The string table and symbol table are both loaded into memory but are not directly accessible. The relocations are not because they are applied at load time.
-
-In the case of drivers, all drivers share the same symbol space. Global symbols are exported to one giant global state. This means that naively compiling the driver could introduce symbols that could collide with other drivers or generally pollute the global namespace with unnecessary symbols. This is important when using functions that apply accross translation units of a driver but are not public to other drivers.
-
-In driver code, the compile command should include `-fvisiblity=hidden`. This means that anything that is not explicitly marked with the macro OS_PUBLIC or the visible attribute is automatically not visible. This will not apply the correct calling conventions, so make sure that is done too if the compiler is not compatible.
-
-When the linker is passed `--strip-all`, it will delete symbols which are not visible.
-
-```
-OS_PUBLIC VOID PublicFunction();
-```

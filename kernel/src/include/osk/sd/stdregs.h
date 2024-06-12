@@ -7,6 +7,8 @@
   บ     source code and can be found at <https://www.gnu.org/licenses/>.     บ
   ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
 */
+#include <Type.h>
+
 #ifndef STDREGS_H
 #define STDREGS_H
 
@@ -60,7 +62,8 @@ in cases when switching from a V86 context. alloca can be used in such
 situations.
 
 When entering V86, the V86 registers are used, but should be
-accessed using the ES,DS,FS,GS,CS names.
+accessed using the ES,DS,FS,GS,CS names since the v86 ones are a bit of an
+implementation detail.
 *******************************************************************************/
 typedef struct {
         _DWB_R(A);

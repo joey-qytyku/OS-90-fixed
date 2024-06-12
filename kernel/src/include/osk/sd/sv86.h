@@ -13,24 +13,30 @@
 
 #include "stdregs.h"
 #include "int.h"
+
+#define V86R_INIT { .ESP = 0 }
+
 /*
- * If the call is consumed, returns NULL. Otherwise, it returns
- * the next INT call to try. Can be anything, really, but is usually the
- * last in the chain.
- */
+        If the call is consumed, returns NULL. Otherwise, it returns
+        the next INT call to try. Can be anything, really, but is usually the
+        last in the chain.
+*/
 typedef VOID* (*V86HND)(STDREGS*);
 
+// Indicates to SV86 that there are no more procedures to run
 #define SV86_RET_CONSUMED NULL
 
-// Not recommended
+// Not recommended, but will signal an immediate reflection to SV86.
 #define SV86_RET_REFLECT  ((PVOID)(1))
 
-VOID OS_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
+VOID V_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
 
 /*
         General purpose V86 INT service routine.
         If the stack in regparm is zero, the built in HMA SV86 stack
         is used.
+
+        The register dump is modified after the call.
 
         This does NOT reflect interrupts to real DOS but can be used to call
         DOS services for DPMI-level support.
@@ -39,15 +45,11 @@ VOID OS_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
         should be scheduled appropriately (exclusive tasking if needed) if
         direct hardware access is needed.
 
-        Cannot be used with interrupts disabled.
-
-        Does not disable preemption when running. It has a lock that prevents
-        more than one process from accessing SV86, which protects the SV86
-        handler table as well.
+        Can be used with interrupts disabled, but not in an ISR.
 
         Preemption is blocked within SV86 if it actually reflects to real mode.
-
 */
-VOID OS_INTxH_t12(BYTE vector, PSTDREGS regparm);
+VOID V_INTxH(BYTE vector, PSTDREGS regparm);
+
 
 #endif /* SV86_H */

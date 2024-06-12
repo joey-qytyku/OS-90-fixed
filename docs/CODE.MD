@@ -1,37 +1,59 @@
 # Source Code
 
+## Structures and Types
+
+### Integral Types
+
+```
+LONG    32
+SHORT   16
+BYTE    8
+```
+
+Each has a pointer variant.
+
+### Naming
+
+All types are capitalized. The basic integer types have pointer forms with a simple 'P' added to the start. Any type that starts with P in its basic form should have an underscore after the P to indicate pointer. For example, `P_PNP_INSTCHECK`.
+
+Astericks when not used to dereference or multiply should be avoided.
+
+Pointer work a little different with typedefs.
+
+- PBYTE: Pointer to byte
+- const PBYTE: Constant pointer to a mutable byte
+- PBYTE const: Mutable pointer to a constant byte
+- const BYTE const: Const ptr to const byte
+
+> Because PBYTE is one single unit, the const qualifier will apply to all of it, not just the base type.
+
+### Signed Integers
+
+- `SIGINT` is to be used for return types that convey an OS/90 error code.
+- Unsigned types should be used in every place where a signed type is not clearly needed.
+
+### Strings
+
+Strings should be defined as arrays of characters for any named string constants to avoid allocating a needless address field. Character pointers are only for parameters.
+
+Strings are pointers to or arrays of unsigned bytes. `const char *` is not allowed. Use `PBYTE const`. The latter type is compatible witht he former.
+
 ## Procedure Naming
 
-The OS/90 kernel follows a strict naming procedure. A prefix indicates the thread/interrupt safety of a function, performance cahracteristics, what types of contexts it is safe to call in, and reentrancy.
+Pascal case is to be used.
 
-It does not look nice, but is actually a grreat idea. It forces the programmer to think about important attributes of functions and makes wrong code look extremely wrong.
+It does not look nice, but is actually a great idea. It forces the programmer to think about important attributes of functions and makes wrong code look extremely wrong.
 
 Callbacks also use this system.
 
-Examples:
-```
-OsDpT12Sd_HookSV86ISR
-OsDp0T12Sd_SVINT86
-```
-
-The full guidelines are as follows:
-* IA32-related procedures will be prefixed with "i386." Example: i386SetLDTEntry
-* Functions exposed to the kernel API will have it in the name now. "Os"
-* Subsystem prefixes are back. If a function has no specific subsystem or could be used by multiple, can overlap or the prefix can be omitted.
-* Pascal case is used
-* Function return and inputs should be expressed as "To X from Y" if applicable.
-
 Prefixes:
-- i386: Low-level functions for CPU
-- Os: Any API call
-- Sd: Scheduler
-- Isr: IRQ handler
+- i386: Low-level functions for CPU (Kernel only)
+- TI: (comes before numbers) Safe inside ISR or IRQ off section. This may be because it disables INTs. Just because a function is reentrant, does not mean an ISR should use it!
 - T0: Safe for interrupts off context caller
 - T1: Safe for non preemptible context caller with interrupts on
 - T2: Safe for preemptible context caller (may still not be thread safe)
 - T{0,1,2}: Safe for any combination. For example, T01 or T12
 - Tx: Safe for 0,1,2
-- As: Asynchronous caller safe, or safe inside ISR or IRQ off section. This may be because it disables INTs. Just because a function is reentrant, does not mean an ISR should use it!
 - Ts: Thread safe (does not imply reentrant nor T2).
 - Re: Reentrant (implies safe in all cases, including As)
 - Um: Uses mutex lock
@@ -40,9 +62,16 @@ Prefixes:
 - Xid: Expects interrupts disabled (may remove)
 - D{p,i} Disables preemption or interrupts
 
-Os must take precedent over all in the ordering. Scheduling/context/threading characteristics come second and can be merged. Subsystem is the very last.
+This naming convention is stringly recomended and should be used even for non-API code.
 
-I highly recommend using this naming convention in all driver code.
+For example, the ISR function can have _TI appended to it.
+
+Functions that convert a data item from one formt o another should have the output type explicitly in the name and indicate a FROM operation so that the type returned is on the left side.
+
+For example:
+```
+char charFromLONG(LONG l);
+```
 
 ## Variable Naming
 

@@ -7,36 +7,31 @@
   บ     source code and can be found at <https://www.gnu.org/licenses/>.     บ
   ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
 */
-#pragma once
 
-#include <osk/sd/stdregs.h>
+#ifndef TASK_H
+#define TASK_H
 
-#define SUBSYS_BLOCK_SIZE 256
+#include "stdregs.h"
 
-//
-// Internally, this is treated as a pointer to the task block.
-// Task blocks never move because they are 4K in size.
-//
-typedef LONG HTASK;
+#define SUBSYS_BLOCK_SIZE 28
 
 typedef PVOID (*PAGE_GET)(VOID);
 typedef VOID (*KTHREAD_PROC)(PVOID);
 
 typedef BOOL (*T0_TASK_PREHOOK)(STDREGS*);
-typedef void (*T0_TASK_POSTHOOK)(STDREGS*);
+typedef VOID (*T0_TASK_POSTHOOK)(STDREGS*);
 
 // The task exit hook runs in T2, not T0.
-typedef void (*T2_TASK_EXITHOOK)(STDREGS*);
+typedef VOID (*T2_TASK_EXITHOOK)(STDREGS*);
 
 typedef struct Task_ {
         STDREGS regs;
-        void *next;
-        SHORT _time_slices;
-        SHORT _counter;
-        LONG  _flags;
-
-        SHORT subsystem;
-        SHORT arch;
+        PVOID   _next;
+        PVOID   _prev;
+        SHORT   _time_slices;
+        SHORT   _counter;
+        LONG    flags;
+        LONG    preempt;
 
         T0_TASK_PREHOOK pre;
         T0_TASK_POSTHOOK post;
@@ -44,7 +39,7 @@ typedef struct Task_ {
 
         char name[8]; // Need this? I guess for debugging.
 
-        BYTE    subsystem_block[SUBSYS_BLOCK_SIZE];
+        BYTE    _subsystem_block[SUBSYS_BLOCK_SIZE];
 }TASK, *PTASK;
 
 #define TFLAG_MASK 0b111
@@ -65,24 +60,19 @@ regs: This is the active context of the thread. It can be kernel mode or
        registers are on the stack, but this is of no interest to the
        scheduler and only that of the task, which is now in ring-0.
 
-next,prev: The tasks are a doubly-linked circular list. There is no definite
-            beginning or end to it. When a task is terminated, the links are
-            crossed over and the memory is deleted.
+next,prev:      The tasks are a doubly-linked circularlist. There is no definite
+                beginning or end to it. When a task is terminated, the links are
+                crossed over and the memory is deleted.
 
-time_slices:  The number of time slices this task gets when scheduled.
-              It is a count of how many times the task is rescheduled by
-              IRQ#0 instead of switching to the next task.
+time_slices:    The number of time slices this task gets when scheduled.
+                It is a count of how many times the task is rescheduled by
+                IRQ#0 instead of switching to the next task.
 
-counter:      A decrementing counter that represents the number of time
-               slices left to give the process.
+counter:        A decrementing counter that represents the number of time
+                slices left to give the process.
 
-subsystem:  OS/90 provides the field as a standard way to determine what
-            kind of operating system or environment this program belongs
-            to, so that a subsystem driver can correctly service any
-            events caused by the task.
-
-arch:       The architecture being "emulated" by the subsystem or kernel.
-            Does not mean a whole lot.
+arch:           The architecture being "emulated" by the subsystem or kernel.
+                Does not mean a whole lot.
 
 pre,post,onexit:        These are scheduler hooks. Scheduler hooks can be
                         used to simulate the existence of isolated address
@@ -95,36 +85,25 @@ pre,post,onexit:        These are scheduler hooks. Scheduler hooks can be
                         Note that `onexit` is called within a preemptible context.
                         The rest are atomic.
 
-_flags: Provides some basic information about the task:
-        First three bits are reserved as task states and are used by
-        the scheduler only.
-
-        Do not access flags directly.
+preempt:                The preemption counter was once a global atomic variable
+                        that blocked preemption when nonzero, but was made
+                        task-local. This is because a thread that has preemption
+                        disabled should be able to swith to another without
+                        carrying over the same preemption state.
 *******************************************************************************/
 
-/*******************************************************************************
-TASK_DYING:     This task should not be scheduled or awakened. The
-                termination chain is currently running.
-
-TASK_ASLEEP:    Task that is not to be scheduled but may be awakened.
-
-TASK_x_ON:      Currently executing.
-
-Tasks do not get marked as busy because they switch modes and are serviced
-by the kernel using a dedicated kernel thread.
-
-It is not necessary to distinguish between kernel and user tasks because
-the CS RPL gives this information.
-
-*******************************************************************************/
-enum {
-        TASK_DYING,
-        TASK_ON,
-        TASK_ASLEEP
-};
-
-static inline PTASK GET_THREAD_TASK(VOID)
+static inline PTASK GET_CURRENT_TASK(VOID)
 {
         register LONG e asm("esp");
         return (PTASK)(e & (~4095));
 }
+
+VOID S_Terminate(PTASK pt)
+VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
+PTASK S_NewTask(VOID);
+VOID S_Yield(VOID)
+VOID S_Sched(PTASK pt)
+VOID S_Deactivate(PTASK pt)
+VOID S_SelfTerminate(VOID);
+
+#endif /* TASK_H */

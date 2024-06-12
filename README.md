@@ -6,31 +6,21 @@ OS/90 is a work-in-progress 32-bit operating system designed to be binary compat
 
 OS/90 has no specific memory requirement, but may fail at any point if there is too little. 1MB is enough for very basic use, but at least 2MB is recommended.
 
-There is also no CPU requirement, but the i386SX may not be the best option because OS/90 uses a lot of 32-bit code.
+There is also no CPU requirement except for a 32-bit processor, but the i386SX may not be the best option because OS/90 uses a lot of 32-bit code.
 
-A VGA adapter is required.
+A VGA adapter is required for the UI.
 
 # Installation and Use
 
-OS/90 releases are ZIP files. The entire OS goes inside the OS/90 directory in the root.
+OS/90 releases are ZIP files. The entire OS goes inside the `OS90` directory in the root.
+
+Installing the OS is done by creating an OS90 directory at the root of the boot medium and extractign the installation ZIP into it. Any additional packages for the OS will also be extracted somewhere in this directory.
+
+It is very unlikely that OS/90 install files will even not fit inside a floppy disk.
 
 ## Boot Media
 
 OS/90 can be booted from a floppy disk or a hard disk.
-
-## Boot Options
-
-There are several bootloaders to choose from which are inside the OS/90 directory.
-
-- OS90.COM:    Load kernel in extended memory
-- OS90LOW.COM: Load kernel in conventional memory
-- OS90HMA.COM  Load kernel in high memory area
-
-## Installing Drivers
-
-If a DOS driver is not sufficient for proper device support, a device driver can be used. Drivers are `.DRV` files. Any drivers placed in `OS90\DEVICES` will automatically be loaded.
-
-Adding support for different subsystems is also done using drivers, which are instead placed in `OS90/SUBSYS`.
 
 # FAQ
 
@@ -46,13 +36,15 @@ Any component of DOS or the BIOS can also be trapped to provide a 32-bit impleme
 
 The name was partially inspired by IBM OS/2, although OS/90 spits on the OS/2 orthodox layered design at every opportunity (seriously).
 
-The 90 was chosen because OS/90 was meant to be for 90's era computers. This is no longer the case, so 90 means nothing specific. (I simply found targetting an entire decade of hardware with a hobbyist operating system to be unreasonable.)
+The 90 was chosen because OS/90 was meant to be for 90's era computers. This is no longer the case, so 90 means nothing specific. Targetting a decade was not a great idea because the category was too broad and I could not narrow down what was actually characteristic about 90's computing to make a single OS based on it.
 
 Now the name means nothing in particular, but it kind of stuck.
 
 ## What version of DOS should be used?
 
-FreeDOS is recommended and is actually used for debug builds.
+Anything newer that 3.3 should work.
+
+FreeDOS is good but requires modifications. COMMAND.COM needs to be replaced because the built-in one swaps programs to extended memory and allocates a massive chunk for that, thus starving OS/90 significantly. There is no option to disable this behavior.
 
 ## Is OS/90 an operating system or an operating environment?
 
@@ -64,13 +56,13 @@ The source code uses codepage 437 characters to make it viewable in DOS. Visual 
 
 ## Where can I find documentation for driver development?
 
-The docs folder has some information about the kernel design and some API details. The best documentation is still the source code.
-
-The documentation will at no point will be perfect or complete, so feel free to send me an email.
+There is a full API handbook included with the source code.
 
 ## What subsystems are planned?
 
-32-bit DPMI and DOS subsystem is a priority.
+32-bit DPMI and DOS subsystem is a priority. ELKS linux programs may be supported at some point.
+
+A 32-bit linux compatiblity layer IS a possibility, but would take a long time to be fully operational.
 
 ## What are the Licensing Terms?
 

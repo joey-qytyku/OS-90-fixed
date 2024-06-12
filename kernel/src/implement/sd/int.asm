@@ -32,20 +32,22 @@ The low-level handlers simply jump to the middle part unless they are
 
 %endif
 
-        %include "lowlevel/hmadef.inc"
+        %include "osk/ll/hmadef.inc"
 
         global IDT, IDT_INFO
-        global OsDiSd_GetInService
-        global OsDiSd_GetIrqMask
-        global OsDiSd_SetIrqMask
-        global OsDiTxSd_GetStage2ISR
-        global OsDiTxSd_SetStage2ISR
+        global GetInService
+        global GetIrqMask
+        global SetIrqMask
+        global GetStage2ISR
+        global SetStage2ISR
 
-        global EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7,EXC_8,EXC_9,EXC_10,EXC_11,EXC_12,EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
+        global EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7
+        global EXC_8,EXC_9,EXC_10,EXC_11,EXC_12
+        global EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
 
         global ISR_7, ISR_15, ISR_REST
-        extern Sd_SystemEntryPoint
-        extern printf_
+        extern SystemEntryPoint
+
         section .text
 
 %macro Save 0
@@ -123,7 +125,7 @@ EXC_13:
         push    13 ;;
         jmp     EXC_CONT
 
-EXC_14: ; THIS IS BEING CALLED FOR SOME REASON
+EXC_14: ; THIS IS BEING CALLED FOR SOME REASON, nah.
         pop     dword [ss:EXC_CODE]
         push    14 ;;
         jmp     EXC_CONT
@@ -154,7 +156,7 @@ EXC_CONT:
         pop     eax
         mov     edx,[EXC_CODE]
         mov     ecx,esp
-        call    Sd_SystemEntryPoint
+        call    SystemEntryPoint
 
         Restore
         iret
@@ -177,10 +179,7 @@ ISR_REST:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Get in-service register, but as a bit mask, not an index.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        call    OsDiSd_GetInService
-
-        ; I don't think this is right...
-        ; It gives me the B8_8F thing.
+        call    GetInService
 
         xchg    bx,bx
 
@@ -190,7 +189,7 @@ ISR_REST:
         ; Spurious is unlikely.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         test    eax,eax
-        jz      .SPUR
+        jnz     .SPUR
 
 .CONT:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
@@ -198,7 +197,7 @@ ISR_REST:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Convert the bit mask to an index. It is known that mask != 0.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        bsf     eax,eax
+        bsf     ebx,eax
 
         xchg    bx,bx
 
@@ -214,8 +213,7 @@ ISR_REST:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         xchg    bx,bx
         mov     eax,esp
-        lea     ebx,[stage2_isr_list+eax*4]
-        call    ebx
+        call    [stage2_isr_list+ebx*4]
 
         ; IRQ index is still in EBX
 
@@ -241,19 +239,24 @@ ISR_REST:
         cmp     byte [actual_irq],15
         jnz     .NO_EOI
 
+        align   16
 .EOI_BOTH:
         mov     al,20h
         out     0A0h,al
+
+        align   16
 .EOI_MASTER:
         mov     al,20h
         out     20h,al
+
+        align   16
 .NO_EOI:
         Restore
         iret
 
 ; TESTED WORKING
 
-OsDiSd_SetIrqMask:
+SetIrqMask:
         pushf
         cli
         xchg    ah,al
@@ -269,7 +272,7 @@ OsDiSd_SetIrqMask:
 
 ; Possibly untested
 
-OsDiSd_GetIrqMask:
+GetIrqMask:
         pushf
         cli
 
@@ -285,8 +288,8 @@ OsDiSd_GetIrqMask:
         popf
         ret
 
-; PROBLEM: NEXT READ IS FROM FIRST PORT, NOT SECOND. THe IMR is always the second.
-OsDiSd_GetInService:
+        align   64
+GetInService:
         pushf
         cli
         xor     eax,eax
@@ -306,19 +309,23 @@ OsDiSd_GetInService:
         popf
         ret
 
-OsDiTxSd_GetStage2ISR:
+GetStage2ISR:
         ; Does not need to disable interrupts because it is atomic
         mov eax,[stage2_isr_list+eax*4]
         ret
 
-OsDiTxSd_SetStage2ISR:
+SetStage2ISR:
         mov [stage2_isr_list+eax*4],eax
         ret
 
+        align   64
 ;ÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ
 ; Handler for IRQ0. TODO update time in BDA.
 ;
+; This does not deal with inactive tasks.
+;
 IRQ0:
+        ; CONVERT TO A JUMP LOCATION!
         xchg    bx,bx
 
         xor     ebx,ebx
@@ -328,18 +335,16 @@ IRQ0:
         cmp     [preempt_count],ebx
         jnz     .SKIP
 
-
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Get the TASK structure.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         mov     ebx,esp
         and     ebx,~4095
 
-
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Decrement the scheduler counter in the task.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        dec     word [ebx+80+4]
+        dec     word [ebx+80+8]
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; If not zero, continue with switching tasks.
@@ -349,11 +354,20 @@ IRQ0:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Reset the counter to its time slice.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        mov     ecx,[ebx+80+8]
-        mov     [ebx+80+4],ecx
+        mov     ecx,[ebx+80+12]
+        mov     [ebx+80+8],ecx
 
 .CONT:
         ; Copy stdregs of the next task and exit the ISR.
+
+        ; If the next task is in V86 mode, we will copy the full 80 bytes
+        ; Otherwise, we will copy only 64 bytes.
+        xor     eax,eax
+        test    byte [ebx+(13*4)+4],(1<<2)      ; ZF = 0 if not V86, 1 if V86
+        setz    al                      ; AL = ZF
+        shl     eax,4                   ; AL<<4 = 16 or 0
+        add     eax,64-4                ; Offset approprately for backward copy
+
         std
         mov     esi,[ebx+80]    ; Get next pointer in current PCB
         mov     esi,[esi]       ; Dereference the pointer
@@ -362,17 +376,32 @@ IRQ0:
         mov     ecx,20
         rep     movsd
 
+        ; I may want to directly fetch the registers at some point.
+        ; Would require some stack manipulation, but is doable.
+
+        ;;
+        ;; Task state segment?
+        ;;
+
 .SKIP:
         ret
 
-OsT12Sd_Yield:
+;
+; Are you sure it's that simple?
+; The registers of the userspace are on the stack.
+;
+; Can we not just put everything on the stack?
+;
+        align   64
+S_Yield:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Take away all time slices from current task.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
 
+        cli
         mov     eax,esp
         and     eax,~4095
-        mov     word [eax+80+4],0
+        mov     word [eax+80+8],0
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Decrement the system uptime counter to compensate.
@@ -381,11 +410,6 @@ OsT12Sd_Yield:
         sub     dword [system_uptime],1
         sbb     dword [system_uptime+4],0
 
-        ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        ; Call the IRQ0 handler (can I do better though?)
-        ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-
-        cli
         int     0A0h
         sti
         ret
