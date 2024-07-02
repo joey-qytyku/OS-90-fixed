@@ -20,7 +20,7 @@
                 __asm__ volatile("cli" ::: "memory"); \
         }
 
-typedef ALIGN(4) LONG ATOMIC32;
+typedef struct { LONG _; } ATOMIC32;
 
 #define ATOMIC32_INIT { 0 }
 

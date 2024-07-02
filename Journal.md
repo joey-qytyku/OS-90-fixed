@@ -1047,7 +1047,7 @@ C has the advantage of being more self-documenting and flat-out being way easier
 
 To emphasize the fact that this is a rewrite, maybe I should change the style. I can do anything I want to. My choice to imitate the Win32 style, at least at first, was arbitrary.
 
-I like using the Whatever_Case style, but maybe I should just go back to the snake_case. It looks good with acronyms, which do not need to be capitalized, and is very readable. Most importantly This_Case is much easier to type that snake_case and does not require excessive pressing of the shift key.
+I like using the Whatever_Case style, but maybe I should just go back to the snake_case. It looks good with acronyms, which do not need to be capitalized, and is very readable
 
 typedef struct and typdef enum should no longer be used. Always use a simple struct or enum to prevent any kind of confusion as to what that type actually is.
 
@@ -3207,5 +3207,417 @@ I am a bit bored of this now. I will try to get a Windows virtual machine on my 
 
 # June 11
 
+## Subsystem for XENIX?
+
+I should look into supporting some sort of UNIX environment.
+
+UNIX support mostly hinges on the system calls.
+
+Things that need to be supported include:
+- Access controls
+- Long file names with dots or spaces in them
+
+Implementing long file names with no modifications to the 8.3 format requires
+
+# June 12
+
+## LFN and Unix
+
+Some versions of DOS are capable of long file names, but there is no requirement within OS/90 that it be supported by the underlying DOS.
+
+LFN does not need to be supported natively. It is possible to make a file called `__LONG__._$_` or something in each directory and use it to store long file name strings.
+
+This can be done at two levels: the subsystem driver or the filesystem driver. The FS driver has to hook the INT 21H interface, so it is most likely the better option.
+
+## Drivers Planned
+
+- EMSRD.DRV: EMS RAM drive
+- VLFN.DRV : Virtual long file names
 
 
+## Features Again
+
+Can I add the ability to extend features? For example, how do I detect subsystems? Can I check for a feature named "subsystem" and access them? I can add an interface for subsystems since they are an important part. No need.
+
+## Userspace
+
+I have written about this before and will do so again: I need a real OS/90 userspace subsystem.
+
+Okay, I started a specification for the shell and various commands. But I am now thinking: do I want an OS/90
+
+# Jun 13
+
+## Continuing Userspace
+
+I now have a shameless UNIX knockoff shell specification. But what will the userspace API actually be like? Maybe that is not too important right now. I am sure it will involve IPC and asynchronous IO.
+
+The difference between the DOS subsystem and whatever UNIX subsystem I may come up with is the handling of console IO. Currently, the DOS-S sends teletype output directly to a virtual framebuffer.
+
+Well, not quite. AH=9 INT 21H is supposed to output to STDOUT. Attempts to force duplicate any of the standard handles as well as attmepts to read and write them are all caught.
+
+The input to the programs is handled with V_INTxH, which is used to request keystrokes. The keyboard driver implements the BIOS interface.
+
+By simply assuming that the BIOS exists, there is practically no need for a real driver model, but it can exist. A feature could be used to detect the presense of a keyboard input driver and request an input stream.
+
+But there are issues. How do we decide which task gets the keyboard, and how does this work in a desktop environment?
+
+> "serve" input?
+
+Yes. We need to be able to SERVE input. That means we call a function to send it. Using the BIOS interface and a V86 hook for keyboard input is not fully necessary, but in the end it will require the use of a special interface.
+
+A similar thing needs to be done for the mouse. How do we implement clicking in the command line window? It will be essentially the same. The data needs to be "sent" or something.
+
+# June 14
+
+## Keyboard and Mouse
+
+Keyboard input can only be received by one single task. This will usually be the UI. So how is the keystroke sent to the task that requests it?
+
+The BIOS interface is used by the subsystem to request a keystroke for the task. The actual task that should receive keystrokes must be determined by the keyboard driver, and the rest have to wait.
+
+By comparison, UNIX systems usually have a raw keyboard input device of some sort. STDIN and STDOUT handles are special because they have a fixed number and are local to each process, but are inherited by child processes of init. This way, output is directed to the TTY device by default. Input likely is mapped to the keyboard, which in the devfs can be symlinked to the actual keyboard device's text input file. The TTY device can also handle input too.
+
+Cannot confirm all of this, but that is a working stdio model.
+
+## Everything is a ...
+
+I wonder if UNIX is the last operating system, a design that can be perfected no further. I suppose MULTICS is slightly better by making everything a segment, and files are just mmap-ed.
+
+How about... everything is a... pointer?
+Everything is a... memory address.
+
+All operations are loads and stores?
+
+Whatever it is, we are STUCK being unable to do better than UNIX because humans just can't do any better than files and directories.
+
+Obviously I cannot MMAP the whole filesystem. But do I even need to use real addresses?
+
+> Regular FS but with random access load/store and string operations?
+
+# June 15
+
+## Interrupts and Task Switching
+
+Can I make interrupts switch to the task that owns it?
+
+Also, with proper synchronization, an IRQ should be able to access the process in some ways, right? As long as it is the current one?
+
+## Subsystem Independent Program
+
+I want to have a text editor that can work in any subsystem. My idea is to allow for a driver to implement a program for multiple subsystems.
+
+## The Native Interface Idea
+
+Think about the benefits! The filesystem can be totally enhanced. Transparent file compression, long file names, file permissions, and other things which FAT does not have already. These can be supported using overlay FS features.
+
+NEI has the advantage of making these features very easily accessible by subsystems.
+
+Ideas:
+- Executable-sepcific compression
+- Could I have a concept of a program that mediates access to a file?
+
+> Native Executive Interface (NEI/90)
+
+# June 20
+
+NEI does not need to be structured around any existing interface. The point of the subsystem is to translate to it.
+
+## No NEI
+
+I tried it it before and tried it again for some reason. DO NOT ADD ANOTHER INTERFACE. Think small.
+
+# June 21
+
+The OS/90 kernel is not tied to a specific OS or even a driver architecture. It is a paravirtualization interface like Xen, but not as advanced or isolated.
+
+## Kernel Stacks
+
+OS/90 is not a normal operating system, so it does not need an arbitrary limitation on stack space if that impedes on the intended design.
+
+Currently, accessing the task block of the current task is done by performing an AND operation on the stack pointer. This is very fast and requires no memory access.
+
+An alternative is to have the stack come BEFORE the task block. Knowing the stack size would then be a requirement, but the calculation is still free of memory accesses. The approach is to add the size of the stack minus one and and by the bitwise NOT of the stack size minus one.
+
+## Wait
+
+Do interrupts work properly?
+
+Yes they do, silly. The ESP saved onto the stack is the old one before the interrupt.
+
+# June 22
+
+## Idea
+
+What if I have a folder where adding anything to it notifies a program controlling it?
+Or a folder that recieves a local path when some arbitrary path is given to it. For example: /dev/net/dns/www/google/com.
+
+# June 23
+
+```
+&:\ATA/atactl.exe --identify > identify.bin
+&:\subsys\DOS\run.exe prog=C:\COMMAND.COM mem=128
+```
+
+New idea! Instead of using IO to interact with device files, we can simple EXECUTE them!
+
+When a drive specification is wrong, COMMAND.COM says the same message for letters and for any other character. This means that DOS programs can interact with this filesystem. I had this idea before, but I will repurpose it. Now it has an improvement.
+
+The kernel interface will support standard IO and typical FS operations, which have to be used in the translation.
+
+## Implementing the KFS
+
+The KFS requires memory allocation to work.
+
+It will simulate a FAT filesystem with short 8.3 names. Extentions are needed because the executable special files need to have the ending EXE.
+
+```
+typedef struct PACKED {
+        KFSPROC handler;
+        PVOID   parent;
+        PVOID   next;
+        BYTE    _;
+        BYTE    name[11];
+}KFS_NODE;
+```
+
+Use 6.3 RT-11 style names?
+
+RUN.EXE
+
+## Why Subsystems?
+
+DPMI on its own is not totally sufficient for implementing an operating system like Linux or even Elks. It would need some way of extending the DPMI interface to do this.
+
+The main problem with going full DPMI is the fact that I have to integrate it with the rest of the kernel. I can try not to. In fact, the whole DOS subsystem idea can persist.
+
+Remember, the OS/90 kernel does not force a certain type of userspace. If someone wants to build a totally custom OS with my kernel, I would be happy to support that. (More later)
+
+As it is now, the kernel code will be much neater than the previous DPMI-orniented code. All I am suggesting is a reconsideration of the necessity of the DPMI idea. I can reduce it to one subsystem basically.
+
+But why? My current design accomodates subsystems perfectly.
+
+What I have now is there to provide a logical way of linking userspace with the kernel. Don't settle for less.
+
+# June 25
+
+No, I cannot use 6.3 names because drivers use 8 characters. Unless I use the last three as part of it.
+
+## IO
+
+How IO will be performed on OS/90?
+
+I think I should do some kind of minimal NT-style IRP message passing system.
+
+```
+//
+// A prefix bit deterimes if it is required or optional
+//
+IODF_REQUIRE()
+IODF_OPT_METHOD(IODF_ASYNC, IODF_EXCLUSIVE, IODF_USE_TIMEOUT. IODF_TERMUSR)
+
+KFS_HMEM
+
+typedef struct {
+        LONG            kfs_handle_from;
+        LONG            kfs_handle_to;
+        MUTEX           mutex;
+        PVOID           thread_user_caused;
+        LONG            ms_timeout;
+        LONG            ms_min_delay;
+
+        SHORT           param_com;
+        SHORT           param_subcom
+        LONG            param_flags1;
+        LONG            param_flags2;
+        BUFF_BRK_PROC   param_buffbrk;
+}IO_DIR;
+
+typedef struct {
+        LONG            result;
+        LONG            real_flags1;
+        LONG            real_flags2;
+        PBYTE           drvname_servicing;
+}IO_TICKET;
+```
+
+```
+IO_DIR iod = {
+        KFS_MEM,
+        0,
+        0,
+        NULL
+        0,
+        0,
+        IO_FS,
+        IO_FS_WRITE_BUFFER,
+        IODF_REQ(IOFF_ASYNC)
+};
+
+VOID Example(VOID)
+{
+        EARLY_CONSOLE console = GetFeature("Early Console");
+
+        console->AttachStdio();
+
+        IO_TICKET *iot = RequestIO(&iodir);
+}
+```
+
+A quick little mock-up.
+
+# June 26
+
+Interesting idea with the IO thing, but it does not seem like it would make IO faster or anything.
+
+The only reason why Windows 95 has that wacky IO driver model is because it is not a fully preemptive OS like mine is. It needs to schedule events for later because of non-reentrancy. OS/90 does not have this problem.
+
+Concurrent IO requests are not a problem at all. I think an IO driver model CAN exist, but it should be more like a very debilitated version of linux cgroups. Basically, make a bunch of groups with different priorities and let the user tune them.
+
+I need to keep in mind the design of the filesystem and block device drivers. I expect that if they implement caches, they will do so separately.
+
+I think the FS driver should be dealing with caches. The disk driver should get buffers sent to it and do the job of ordering the requests correctly and running them.
+
+Disk cache could make sense because then we could optimize based on usage patterns. Things like read-ahead buffering can be done. I can even use some sort of cache locating table. IDK. I could come up with something.
+
+A FS cache however is a very good idea for making certain FILES way faster. It also allows for more options in regards to protecting data by controlling the buffering of FS structures.
+
+Okay, I thought about it a little bit. Both can coexist. Caches provided by the disk driver are exactly that, caches. That means writing to them make the cache dirty. They are to be copied into file buffers which can actually be interacted with by the user withotu having to tell the disk driver at all. Read and write commands can operate transparently on memory buffers which can be later written back.
+
+If the filesystem needs to read sectors, the disk driver could find out that the requested sectors are available in a cache. The cache can be revealed as read-only so that it can be copied or otherwise used.
+
+Idea:
+Keep a table of blocks of sectors with pointers to caches and a byte to count how many times the block is requested. Once done using it, the block is decremented.
+
+> Disk cache has another advantage: being able to read the same block at the same time. FS cache can only do this for files and not just any sector.
+
+Once a block or group of blocks get decremented to zero, the number of blocks decremented are removed by searching the (number of blocks*2) blocks starting from the begining of the table if they have the lowest number.
+
+```
+1 1 2 2 2 3 3 3 3
+
+0 0 1 1 1 2 2 2 2
+
+First two are deallocated
+```
+
+There are some potential issues. The main problem is that in the begining, there will be no caches in use. This will lead to constant allocation and deallocation of the exact same block.
+
+Solution: there is a limit to how many cached blocks there can be. A zero is not an instant eviction. Only if it is zero and has a buffer and there are no more cached blocks left does this need to happen.
+
+The revised algorithm is that when a range of blocks are decremented, caches with the least value of the requested range length times two blocks will have their caches invalidated and freed from memory. This involves at least two loops. The least value method is needed in the case that every single block is being used in some very strange configuration.
+
+This may be good for improving read speeds, but what about writing?
+
+> We need a way of scheduling some sort of IO transaction without immediately starting any operations. For example, reading filesystem structures with known locations. Basically batching the requests and sending them at once. This allows for optimal reordering.
+> Doing that may require a more advanced interface, since INT 13H is not really designed for this.
+
+INT13H can be used as the basic request interface so long as the thread making the V86 call is blocked, which is will already be. With a V86 hook it is basically a procedure call.
+
+There is still the problem of not knowing the true sector size of the disk drive. Real mode INT13H only knows about 512 byte sectors and the BIOS has to simulate 512-byte sectors. Some hard disks also support virtual 512-byte sectors.
+
+INT13H AH=1? How do we handle this global error state?
+
+The biggest problem is the 512-byte sector limitation. This can be overcome by merging requests to read sequential sectors.
+
+The major problem is the extended error state. Because it is global, it is hard but NOT impossible to make it work. Each thread can get its own error code and drive byte.
+
+The final issue with INT 13H is that it uses CHS, which is useless for hard drives that use LBA.
+
+## Printf Problem
+
+printf cannot use an async write to stdout call. Since printf is likely to call the write function multiple times, it could lead to garbled output.
+
+This brings up the idea of serializing requests and having some way to do that. An improved async printf would stack up the requests and then send them to be executed in order. This way it can all be async without the garbled output. Printf itself can also be serialized so if there is a pending write the function can simply wait for its turn.
+
+Async printf is not a bad idea at all. I am thinking about using thread pools and maybe having single threads perform multiple sequential jobs. stdout is very low priority and should not need to happen as soon as it is requested.
+
+I like the IO group idea. Let the user decide what needs to be prioritized.
+
+I also need the ability to chain IO requests. When it doubt, use a linked list I guess.
+
+# June 29 and 30
+
+Great stuff with the IO model. I think it has potential. I need to consider one thing though: swapping must bypass disk cache and file cache if using a swap file. Unix has O_SYNC for doing this. The IO manager may need to be adjusted to handle cache bypassing.
+
+## Swapping
+
+Do I really need it?
+
+Loaded question. Let's break it down.
+
+Memory allocators are capable of swapping on their own without virtual memory by paging. Early 16-bit Windows once did this.
+
+The problem is:
+
+The swap file or partition is not treated as a simple extention to the memory that contains arbitrary pages. It instead has a series of allocations fully copied into it. This would lead to fragmentation, although the large size of the swap makes that less of a prolem.
+
+The resulting problems are:
+- Higher disk IO traffic
+- No random page swap control
+- Heavy defragmentation
+
+Regardless of how I handle swapping, there is the problem of disk buffers used by DOS preventing the proper use of swapping. This may not be a major issue since very little conventional memory is used by DOS for swapping anyway. Users should be advise to reduce the disk buffer size.
+
+Anyway, using the memory allocator to handle VM is possible.
+
+The problem with this would be mostly the same as forcing entire page chains to be swapped as one unit, but the problem of fragmentation is more significant.
+
+
+
+## Boot Options
+
+This is actually really important and should have been thought of a long time ago. There is a need for boot options.
+
+I can use a command line for OS90.COM but that could get too long. A file is better.
+
+It will be just like CONFIG.SYS. Simple equal sign expressions. Everything excluding the space is part of the value.
+
+I will need to support having data types so that the conversion can be instant in case a configuration value is looked up multiple times (it should not though)
+
+```
+STR 8042.90
+STR DRV=PCI.90
+STR DRV=ATA.90
+STR DRV=FAT16.90
+STR DRV=DOS.90
+STR DRV=KBSWITCH.90
+
+STR EXECLN=SUBSYS/DOS INIT M=128
+STR EXECLN=SUBSYS/DOS RUN C:\COMMAND.COM
+```
+
+This configuration would simply boot into COMMAND.COM. KBSWITCH can be a driver that uses the keyboard to trap ALT-TAB and switch screens using the DOS subsystem.
+
+Reassignments are a bit complicated. I think I should change it. I can have DRIVERS.CFG which is a simple list of drivers and their command lines.
+
+Then there can be an OPTIONS.CFG file. Perhaps also a KEXEC.CFG.
+
+Parsing the options may be a bit tricky. I think I should make all options have 8-byte string labels for simplicity.
+
+## Initialization Order
+
+This is extremely important. I will have to update my current document.
+
+## Video Drivers and Page Hooking
+
+I need to be able to unmap regions of memory such as framebuffers so that a video driver can capture any writes to it.
+
+The current architecture does not seem to have a concept of "page hooking" or something. It does allow for bank switching, but nothing to capture a page that is not meant to be accessed.
+
+Well, there IS a page fault handler exception for each task. A video driver could hook it. This page fault handler of course will be very abstract like several other ones.
+
+> Do I need to use high-level exception hooking? I can simply have the FPU driver hook the right things and automatically use the i486 interface for the exceptions. If I can hook page faults, that would be a good thing. Page faults will generally be handled and consumed by the memory manager, but if it wants to, the pages can simply be passed on to a driver to deal with.
+
+I can add a PG_HOOK attribute.
+
+# July 1
+
+## Virtual Memory
+
+The swap file is not really a sort of extention to the memory that can be allocated or something. It is a place on the disk where pages go when they are expelled from the RAM.
+
+Non-present swapped out pages are always mapped and used in the page table entries. With that being said, I can use the address field of the PD to locate the missing page totally independently of the PBT or the address layout of the RAM.
+
+Basically, we allocate page slots on the swap using a simple bit array. Then I can write the data there. When a page fault happens, the swapped out page will cause a fault.
+
+> Maybe we should be able to know what processes own what memory. It seems useful for swapping.

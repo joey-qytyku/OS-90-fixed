@@ -23,7 +23,7 @@ OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.asm.o))
 
 EXEC := $(BINDIR)/OS90.DAT
 
-OPTS:= -Os -mtune=i386
+OPTS:= -Os -mtune=i386 -fconserve-stack
 DEBUG_OPTIONS := -DPRINTF_INCLUDE_CONFIG_H -Wextra -Werror=implicit-function-declaration
 
 # Add regparm?

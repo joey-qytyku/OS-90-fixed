@@ -15,7 +15,6 @@
 
 #define SUBSYS_BLOCK_SIZE 28
 
-typedef PVOID (*PAGE_GET)(VOID);
 typedef VOID (*KTHREAD_PROC)(PVOID);
 
 typedef BOOL (*T0_TASK_PREHOOK)(STDREGS*);
@@ -23,6 +22,8 @@ typedef VOID (*T0_TASK_POSTHOOK)(STDREGS*);
 
 // The task exit hook runs in T2, not T0.
 typedef VOID (*T2_TASK_EXITHOOK)(STDREGS*);
+
+typedef (*TASK_HND_EXCEPTION)(LONG, LONG)
 
 typedef struct Task_ {
         STDREGS regs;
@@ -32,6 +33,7 @@ typedef struct Task_ {
         SHORT   _counter;
         LONG    flags;
         LONG    preempt;
+        BYTE    subsystem[8];
 
         T0_TASK_PREHOOK pre;
         T0_TASK_POSTHOOK post;
@@ -98,12 +100,12 @@ static inline PTASK GET_CURRENT_TASK(VOID)
         return (PTASK)(e & (~4095));
 }
 
-VOID S_Terminate(PTASK pt)
-VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
+VOID  S_Terminate(PTASK pt);
+VOID  S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args);
 PTASK S_NewTask(VOID);
-VOID S_Yield(VOID)
-VOID S_Sched(PTASK pt)
-VOID S_Deactivate(PTASK pt)
-VOID S_SelfTerminate(VOID);
+VOID  S_Yield(VOID);
+VOID  S_Sched(PTASK pt);
+VOID  S_Deactivate(PTASK pt);
+VOID  S_SelfTerminate(VOID);
 
 #endif /* TASK_H */

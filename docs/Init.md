@@ -1,68 +1,55 @@
-This document is old but probably good information.
+# Initialization
 
-Now it is VERY old, but still relevant.
+OS/90 is a complex piece of software in which different components must be initialized at certain times to satisfy dependencies.
 
-# Subsystem Initialization
+Data structures that produce dependencies are mentioned here.
 
-The OS/90 kernel has the following subsystems:
-* IA32
-* Scheduler/V86/Sysentry
-* Memory Manager
-* PnP Manager
-* Driver loading
+An unordered list of dependencies:
+- Memory manager requires V86 to detect memory
+- SV86 requires a working IDT and GDT and should not run with IF=0
+- Scheduler needs a first process to execute (maybe live patch it?)
+- Interrupts require the real mode switcher
+- Memory manager and boot driver loader need configuration files
+- Config parsing requires V86 to access FS
+- Potentially more...
 
-IA32 does not need to be mentioned.
+These are the first steps. Interrupts will be fully disabled until the end.
+- i386
+- SV86
+- Init thread created
+- Scheduler
 
-This is the order of initialization:
-1. SchedulerInitPhase1
-2. PnP_InitPhase1
-3. MemoryInit
-4. SchedulerInitPhase2
-5. DriversInit
-6. PnP_InitPhase2
-7. SchedulerInitPhase3
+The init thread does the rest of the initialization. The state that the kernel is in prior is unschedulable and has a temporary context that is permanently destroyed by the scheduler. A new stack will be used. The init thread task block is reclaimable.
+- Config file parse
+- Memory init
+- Driver load and init code execution
+- Kernel exec string
+- Init thread terminates
 
-Some subsystem initialize internal functionality on their own, but that is not covered here.
+## i386 Init
 
-OS/90 does not have a FS subsystem and relies completely on the DOS interface for it. The filesystem only works after (4).
+This stage inserts IDT entries, fills the GDT and loads the GDTR, and prepares the LDT. The PIC is remapped to the designated base vector.
 
-## (1) SchedulerInitPhase1
+The real mode swapper code is also copied into the HMA.
 
-* This is the first phase of the scheduler and the first to initialize. It enables virtual 8086 mode, which is critical for enabling the other subsystems.
-* System entry is also safe after this point, but only by V86.
-* Interrupts remain OFF
-* Filesystem is not yet available and should not be used.
+## SV86
 
-## (2) MemoryInit
+SV86 does carry state and has dependencies for future use. This simply initialized the handler list to the default reflection stub handler that tells the V86 call interface to go to real mode.
 
-MemoryInit uses virtual 8086 mode to get the amount of RAM.
+There are doubts about its ability to work with interrupts disabled. It certainly cannot work with interrupts disbled with no active processes and the scheduler off.
 
-Virtual memory will be operational, but it will not be used during initialization. Memory can now be allocated.
+## Init thread created
 
-## (3) PnP_InitPhase1
+The task block for the init thread is created.
 
-* The PnP manager needs to access the PnP BIOS, hence why it needs (1). PnP_InitPhase1 will use the BIOS to detect hardware and reserve resources.
-* Interrupts are not yet enabled, but ready to be.
+This is a simple solution for the problem of what the scheduler should do if there are no tasks. When the task is created, a new thread procedure runs and the main function exits.
 
-## (4) SchedulerInitPhase2
+The original invocation of main is lost forever. The scheduler destroys the state on the first IRQ#0.
 
-SchedulerInitPhase2 depends on MemoryInit and PnP_Init because it needs to allocate memory for process control blocks and to dispatch interrupts through the PnP subsystem.
+## Memory Init
 
-This will access the filesystem using V86 in order to execute USER.EXE. The process is blocked for now.
+The memory manager has a large bit of state that needs ot be initialized. It also depends on SV86 which was initialized earlier.
 
-* Interrupts are enabled
-* USER.EXE is loaded and blocked since it is not ready yet
-* Scheduler is trying to run things
+By the end, the OS/90 heap manager and page allocator will both be ready to execute. Virtual memory is also ready but is not used by the kernel during bootstrap at all (and should not be).
 
-## (5) DriversInit
-
-* This step will load drivers into memory and run their initcode, and it requires a fully operational kernel.
-* Procedure parses configuration files.
-
-## (6) PnP_InitPhase2
-
-* The message dispatch kernel thread is created.
-
-## (7) SchedulerInitPhase3
-
-Drivers have set up their interrupt hook etc and can provide services to processes. USER.EXE is unblocked and the rest of the system initializes.
+Memory is finally

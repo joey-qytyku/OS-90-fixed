@@ -1,7 +1,7 @@
 #include <osk/sd/basicatomic.h>
 #include <osk/sd/sv86.h>
 
-#include <osk/mc/io.h>
+#include <osk/mc/pio.h>
 
 #include <osk/db/debug.h>
 
@@ -58,5 +58,5 @@ VOID M_Init(VOID)
         //
         PVOID kernel_phys_base = (*(PLONG)(page_dir[512] & 0xFFFFF000)) & 0xFFFFF000;
 
-        printf("Kernel load address: %p\n", kernel_phys_base);
+        debug_log("Kernel load address: %p\n", kernel_phys_base);
 }

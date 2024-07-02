@@ -2,6 +2,10 @@
 
 OS/90 is a work-in-progress 32-bit operating system designed to be binary compatible with MS-DOS. A UI is being worked on alongside the kernel.
 
+# Architecture Description
+
+OS/90 uses a kernel that is not OS-specific except for a few calls to the underlying DOS. All operations needed by operating systems are caught by the kernel as exceptions for emulation by a subsystem driver, which is also responsible for creating and terminating tasks in its domain.
+
 # Minimum Requirements
 
 OS/90 has no specific memory requirement, but may fail at any point if there is too little. 1MB is enough for very basic use, but at least 2MB is recommended.
@@ -14,9 +18,9 @@ A VGA adapter is required for the UI.
 
 OS/90 releases are ZIP files. The entire OS goes inside the `OS90` directory in the root.
 
-Installing the OS is done by creating an OS90 directory at the root of the boot medium and extractign the installation ZIP into it. Any additional packages for the OS will also be extracted somewhere in this directory.
+Installing the OS is done by creating an OS90 directory at the root of the boot medium and extracting the installation ZIP into it. Any additional packages for the OS will also be extracted somewhere in this directory.
 
-It is very unlikely that OS/90 install files will even not fit inside a floppy disk.
+It is very unlikely that OS/90 install files will not fit inside a floppy disk.
 
 ## Boot Media
 
@@ -28,13 +32,13 @@ OS/90 can be booted from a floppy disk or a hard disk.
 
 The kernel is monolithic and modular, with some inspiration from the exokernel in that there is a focus on "securely" arbitrating resources.
 
-Programs run inside shared address space virtual machines and various behavior. The kernel loads subsystem drivers which act as hypervisors or translation layers that allows programs to run using the native DOS interface.
+Programs run inside shared address space virtual machines. The kernel loads subsystem drivers which act as hypervisors or translation layers that allows programs to run using the native DOS interface.
 
 Any component of DOS or the BIOS can also be trapped to provide a 32-bit implementation. This is what makes OS/90 a true operating system.
 
 ## What does the name mean?
 
-The name was partially inspired by IBM OS/2, although OS/90 spits on the OS/2 orthodox layered design at every opportunity (seriously).
+The name was partially inspired by IBM OS/2, although OS/90 has nothing at all to do with OS/2..
 
 The 90 was chosen because OS/90 was meant to be for 90's era computers. This is no longer the case, so 90 means nothing specific. Targetting a decade was not a great idea because the category was too broad and I could not narrow down what was actually characteristic about 90's computing to make a single OS based on it.
 
@@ -56,13 +60,7 @@ The source code uses codepage 437 characters to make it viewable in DOS. Visual 
 
 ## Where can I find documentation for driver development?
 
-There is a full API handbook included with the source code.
-
-## What subsystems are planned?
-
-32-bit DPMI and DOS subsystem is a priority. ELKS linux programs may be supported at some point.
-
-A 32-bit linux compatiblity layer IS a possibility, but would take a long time to be fully operational.
+There is a full API handbook in the works. Some things are in the docs directory instead.
 
 ## What are the Licensing Terms?
 

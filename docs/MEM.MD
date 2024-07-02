@@ -40,16 +40,18 @@ A table called the PBT (physical block table) is allocated directly above the ke
 
 Conventional memory, the HMA, and the ISA memory hole are always unavailable.
 
+> NOTE: We can define a prev of zero to indicate not in use, since that would be invalid. The conventional memory PBT entries can be totally ignored.
+
 Each entry follows this structure:
 ```
 tpkstruct
 {
-        WORD    rel_index   :15;
-        WORD    f_inuse     :1;
+        WORD    rel_index;
+        short   next;
+        short   prev;
 
-        short    next;
-        short    prev;
-}MB,*P_MB;
+        // What else?
+}BTE,*P_BTE;
 ```
 This is not standard and can change.
 
@@ -58,7 +60,9 @@ This is not standard and can change.
 - f_phys_cont indicates that this block is part of a chain that is phsyically contiguous in memory
 - next,prev are linked list indices
 
-Each MB is eight bytes long.
+Next and prev being the exact same indicates a free entry since such a combination is impossible.
+
+Each BTE is eight bytes long.
 
 The relative index is needed for implementing virtual memory. Any block can be swapped out (except for first?), so it is necessary to remember the position so that the missing blocks can be replaced.
 

@@ -44,7 +44,7 @@ logo_exec:
         DD      0       ; There is no command line
         DD      0,0,0,0
 messages:
-.no_386:                  DB "OS/90 requires an i386 or better.",1013,36
+.no_386:                  DB "OS/90 requires an i386 or better.",10,13,36
 .protected_mode_software: DB "EMM386 or protected mode OS in use.",10,13,36
 .xms_not_present:         DB "XMS driver not present.",10,13,36
 .hma_not_available:       DB "HMA not available", 10,13,36

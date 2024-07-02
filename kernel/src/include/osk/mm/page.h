@@ -27,14 +27,41 @@
 // AVL is 3-bit. A number is used to indicate these mutually-exclusive
 // properties.
 
-// OS/90: Memory can be swapped
+//
+// Memory can be swapped. By default, memory is locked.
+// This is only applied to pages that are present and allocated.
+//
 #define PTE_TRANSIENT (0b001<<9)
 
-// OS/90: Page part of uncomitted block
-#define PTE_UCM       (0b010<<9)
+//
+// Page part of uncomitted block (Awaiting commit)
+// Actual page does not exist and cannot be applied to allocated page.
+// Doing so may cause an error.
+//
+#define PTE_AWC       (0b010<<9)
 
-// OS/90: Flag indicating page mapping free. Page is not present and accessing
-// is an error.
-#define PTE_UNUSED    (0b100<<9)
+//
+// Flag indicating page mapping free. Page is not present
+// and accessing is a fatal error for kernel and fault for user.
+//
+#define PTE_UNUSED    (0b011<<9)
+
+//
+// Page is hooked. This means that a page fault should be broadcasted to
+// the kernel-mode handler of the current task.
+//
+// This is a modifier to a non-present page. If the page is present, this
+// means nothing. It is used to implement IO memory region emulation,
+// especially for framebuffers.
+//
+#define PTE_HOOK      (0b100<<9)
+
+//
+// Page is transient (swappable) and is currently on the disk.
+// The address field of the PTE MUST be the page granular offset on the disk.
+//
+// USING THIS ANYWHERE OUTSIDE OF THE MEMORY MANAGER CODE IS ALWAYS WRONG.
+//
+#define PTE_TRANSIENT_OUT (0b101<<9)
 
 #endif /* PAGE_H */
