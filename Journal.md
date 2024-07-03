@@ -3621,3 +3621,7 @@ Non-present swapped out pages are always mapped and used in the page table entri
 Basically, we allocate page slots on the swap using a simple bit array. Then I can write the data there. When a page fault happens, the swapped out page will cause a fault.
 
 > Maybe we should be able to know what processes own what memory. It seems useful for swapping.
+> Also, it is important to have OOM killing. I may need to tell subsystems about this.
+
+> Filesystem with alphabetical ordering of directory contents.
+
