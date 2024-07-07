@@ -26,9 +26,17 @@ This region of memory is garaunteed to be page aligned since there will be no sp
 
 The DMR is used to multitask 16-bit DOS programs using isolated address spaces, with the rest of real mode memory being globally shared. The DMR is bank switched upon task entry with the program's memory.
 
-The contents of the physical DMR without mapping anything do actually exist and can be used to schedule programs.
+The contents of the physical DMR without mapping anything do actually exist and can be used for one program.
 
 If the program does not fit inside the DMR, there is no problem. Such programs are NON-CONFORMANT and have only one difference: they are loaded in global conventional memory instead of the DMR. They can actually be faster than DMR programs because they do not need to have the DMR mapped in.
+
+## Subprogram Extended Memory Swap
+
+Similar to what FreeDOS COMMAND.COM does, DSS swaps the DMR to extended memory when subprograms run. This allows programs like COMMAND.COM to have a very small conventional memory footprint and leave a lot of address space for other things. The VM remains the same and additional tasks are not created.
+
+Subprograms are infeasible using other means. Making them non-conformant to the DMR wastes address space. Allocating them inside the DMR either requires the user to reserve more space for the DMR or the fork may fail.
+
+The only problem is greatly increased extended memory use. A single DOS box will require 128K for the DMR (if not using physical), 8K for the VRAM, and possibly 2K for the VM block. 138K is a lot.
 
 ## Support for Virtual DOS Screens
 
@@ -45,8 +53,6 @@ When a program is spawned, OS/90 will capture the entire call and cause the task
 # Subsystem Block
 
 The subsystem block is a single pointer to a separately allocated piece of data large enough to contain the necessary information. It is no larger than 2048 bytes long.
-
-
 
 ```
 FAR_POINTER_16
@@ -65,10 +71,13 @@ typedef struct {
         BYTE            ee_class;
         BYTE            ee_action;
         FAR_PTR_16      disk_xfer_area;
-        SHORT           psp;
         PVOID           dmr; // NULL if using the "real" one
+        PVOID           subproc_dmr_copy_stack[8]; // No index, NULL indicates available
 }VDOS_BLOCK;
 ```
+The program segment prefix is not registered with DOS in any way (not that it would be, it is just a structure) and is created by the DOS subsystem. A maximum of eight subprogram nest levels are supported by using a stack.
+
+Executing subprograms can only be done using memory outside the DMR.
 
 # DPMI
 

@@ -52,4 +52,4 @@ The memory manager has a large bit of state that needs ot be initialized. It als
 
 By the end, the OS/90 heap manager and page allocator will both be ready to execute. Virtual memory is also ready but is not used by the kernel during bootstrap at all (and should not be).
 
-Memory is finally
+Memory is finally allocatable at this stage.

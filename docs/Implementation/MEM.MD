@@ -94,9 +94,7 @@ The kernel has a configurable option for the extended memory page frames to virt
 
 Preallocation means that the page tables themselves can be traversed to reserve and generate mappings.
 
-# Page Hooking?
+# Page Modifiers
 
-It would seem impossible for a single address space OS to be able to run DOS programs that directly access the video memory, but it is in fact possible.
-
-By checking the memory manager reentrancy lock, it is possible to call a remap procedure at the right time to "bank swap" a mapping dynamically. To avoid interference with OS/90 software directly accessing VGA, it is necessary to restore the original identity mapping.
-
+> Tag blocks that are cached for instant writeback?
+> TODO: document collateral paging, transfer content to MD.

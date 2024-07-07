@@ -1,0 +1,311 @@
+Introduction
+	This book documents the API provided by the OS/90 kernel and specifies a number of key interfaces, data structures, and behaviors that are expected from certain system components. For implementation details, consult some of the mardown documents, source code comments, or the journal in the project root directory.
+Why OS/90?
+	OS/90 was originally an OS designed for retro computers with i386 or better processors, but the 90 eventually lost its meaning as the focus shifted from the decade of computer hardware to the design of the OS itself and the principles underlying it. OS/90 is now a sort of paravirtualization software stack that is theoretically capable of running software for any 32-bit x86 operating system as well as various 16-bit systems. This it does with under 2MB of memory.
+	OS/90 is a rebellion. It spits on the ?layered design,? ACPI, and even the UNIX philosophy. It is a mutiny against decades-old tradition and technological modernity at the same time. On the other hand, it is not necessary to be part of my ?revolution? of sorts because OS/90 has some legitimate niche use cases.
+	OS/90 is viable for x86 embedded applications and allows for very direct control over hardware. The modular design means it can be adjusted to fit many different types of computers, including embedded systems. OS/90 is also good for
+Getting Started
+	The OS/90 SDK is essentially the entire source repository. Typing ?./Build.sh? will compile all drivers, kernel, and any userspace-related software; and run it inside of Bochs. The version of Bochs must have support for the port E9 hack and all the debugging features. DOSBox is also required for building because it is used to copy the generated files into the FAT filesystem.
+	The build system is configured for my cross-compiler and bootable disk image. Using a different disk image is a total pain. Getting the CHS parameters in DOSBox and in Bochs to both be correct is a challenge; possible, there is a discrepancy between the CHS parameters used by the Bochs BIOS and the fake geometry of a non-CHS disk.
+	The cross compiler must be specially build for generating kernel code and nothing else. Using the built-in system GCC will likely generate incorrect code. GCC is required for the kernel and probably is for drivers as well.
+	Just send me an email and I can send any necessary software, as the MS-DOS image contains proprietary software and cannot be copied publicly.
+Components
+The OS/90 kernel API has the following distinct components and uses a DOOM-style prefix to indicate its membership:
+    ? Scheduler (S_)
+    ? Memory manager (M_)
+    ? Driver loading and communication (D_)
+    ? SV86 (V_)
+    ? Early text IO (E_)
+    ? Debugging (none)
+    ? IO Manager (IO_)
+    ? Miscelaneous (Z_)
+Finding Help
+This handbook is the most authoritative and up-to-date documentation on the OS/90 kernel API. If there are any questions, email joey.qytyku@gmail.com for information.
+Application Binary Interface
+	The OS/90 kernel uses a 4-byte aligned stack, stdcall stack conventions, regparm for the first three arguments, and EBX and EBP are callee saved registers. When using stdcall, cdecl stack conventions are automatically used when functions are variadic. Register arguments are passed the following order: EAX, EDX, ECX. The rest go to the stack in the standard cdecl order. It was determined through experimentation that this configuration reduces code size and improves performance.
+	Other aspects of the ABI are reserved to the compiler to decide. The kernel will never use in a manner exposed to related software any interfaces that include anything that could lead to incompatibility between compiler versions or additional parameters beside the required ones (e.g. bit fields will never be used for a structure).
+	A few environment-related specifications exist. As mentioned later, kernel mode stacks are 2,048 bytes long and overflows could possibly cause fatal errors. Consider passing ?fconserve-stack? to reduce stack usage.
+
+Scheduler
+The scheduler is made up of the following components:
+    ? Task scheduling
+    ? Interrupt requests
+    ? Exception dispatching
+    ? Supervisor virtual 8086 mode (SV86)
+
+Context Types
+
+Understanding the OS/90 scheduler requires knowing the meaning of a context. In OS/90, a context is the machine state of a thread of execution which may be currently in execution, entered, exited, or switched to another. Contexts are described by types in OS/90 based on how the scheduler interacts with them.
+Functions provided by the kernel are specified to work in certain contexts.
+TI: Interrupt handler. Entered by external IRQ. Interrupts are OFF and only approved functions may be used, and those must be reentrant or CLI/STI guarded. Preemption off. May never give control to any code made for other contexts.
+T0: A voluntary interrupts disabled section entered from T1 or T2 by disabling interrupts. Preemption off.
+T1: Preemption is disabled but interrupts remain the same. Entered by
+T2: Preemption and interrupts are on. Mutexes are safe.
+There are exceptions to these rules. For example, IRQ#13 is more of a trap or system entry than an actual IRQ since it is a synchronous event caused only by user mode.
+TI, T0 and T1 are preemption-off contexts.
+T0, T1, and T2 are thread local contexts. This means that yielding to another task from an interrupts off section is perfectly possible. The preemption counter is local to each process, so yielding from a preemption off thread will cause. TI is not a schedulable context.
+Concurrency Safety Guidelines
+OS/90 has a fully preemptible kernel and almost everything is subject to the rules of concurrency.
+All memory pages are locked in OS/90 by default, especially with the kernel. Ensure that locked memory is used for kernel mode stacks and code, most importantly when dealing with interrupt service routines.
+IMPORTANT: If any API function takes a pointer, that memory address passed must be in locked memory. If a function returns a pointer, never perform any operation that changes the page attributes unless explicitly permitted. In short, don?t act goofy with pointers.
+TASK Structure
+In complete contradiction to common practice, OS/90 has a public task block structure with plenty of garauntees of proper behavior when doing so, but with some requirements. The TASK structure uses some fields internally and such fields may change in meaning. The only ones that C code should ever access are the ones without underscores in the names. Furthermore, a task cannot be executed unless it has been properly prepared by the scheduler.
+TASK structure fields that are defined never move, so all code that accesses the task structure is binary compatible.
+Task blocks never move and are implicitly 4KB in size, with 2K being reserved to the scheduler and the subsystem block. 2K is for the defined stack, but an overflow may not always be fatal.
+Task IDs exist as mere pointers, and functions that operate on tasks usually take a PTASK. The pointer is valid so long as the task is not terminated explicitly.
+Casting a PTASK to PSTDREGS is sufficient for accessing the registers in all circumstances.
+Scheduler Hooks
+Task Management
+The task management interface comprises of these callable procedures.
+Listing:
+    1. GET_CURRENT_TASK
+    2. VOID KTHREAD_PROC(PVOID args)
+    3. VOID S_Terminate(PTASK pt)
+    4. VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
+    5. PTASK S_NewTask(VOID);
+    6. VOID S_Yield(VOID)
+    7. VOID S_Sched(PTASK pt)
+    8. VOID S_Deactivate(PTASK pt)
+    9. VOID S_PreemptOff(VOID)
+    10. VOID S_PreemptOn(VOID)
+    11. VOID S_IntsOn(VOID)
+    12. VOID S_IntsOff(VOID);
+    13. BOOL S_TaskInKernel(PTASK pt)
+GET_CURRENT_TASK
+This is NOT a real kernel function, but a static inline. It gives the address of the task block of the currently running task.
+It is paramout to not change the stack in a kernel mode task whatsoever beyond what is given by the kernel. Doing so would make it impossible to find the current task. If more stack space is needed, disable preemption and change it only within that section.
+KTHREAD_PROC
+Exiting the thread and terminating it is done by simply returning. This will self terminate. If in deeper procedure levels, use S_SelfTerminate.
+S_ExecKernelThread
+Execute a thread of type KTHREAD_PROC. The scheduler will switch to it.
+S_Yield
+Use up all time slices and switch to next available task. This works with preemption off.
+S_Sched
+Place task in the scheduled task chain and switch to a specific task immediately. This works for tasks that are already scheduled.
+Internally works by removing that task from the list and re-inserting it directly after the current task, and follows this with a yield to switch to the task.
+S_Deactivate
+Prevents the task from running. Internally it chops out the task block from the linked list. NEVER CALL ON THE CURRENT TASK. Self-deactivation makes no sense because another task would have to reschedue it, which is pointless when that other task could also deal with deactivating it. Doing so would also make it impossible for the scheduler to know which task is next.
+S_PreemptOn,  S_PreemptOff
+Enable or disable preemption while the current task remains current. Count is maintained. This can be used to enter critical sections with only voluntary preemption.
+This was added in order to make contexts truly self-containing without limiting the capabilities of the scheduler.
+S_IntsOn,  S_IntsOff
+Tasks maintain an interrupt counter as with preemption. While interrupts can be enabled on disabled using the macros provided by basicatomic, this is the recommended function. It does not tell the compiler that the flags register was clobbered and does not require the use of automatic variables.
+S_TaskInKernel
+Returns 1 if the task is in kernel mode. Redundant for the current task because it obviously is in the kernel if it is calling this.
+S_Terminate
+Terminates any task and deallocates the task block.
+Virtual 8086 Mode
+OS/90 can make calls to DOS, BIOS, and 16-bit drivers using the INT interface, and permits drivers to capture requests to 16-bit software and implement feature in a concurrent 32-bit environment.
+SV86 is a non-preemptible context in which virtual 8086 mode is given special privileges to run as if it were true real mode. IO instructions execute directly and INT/IRET are emulated differently. It can recursively execute a virtual INT as with INTxH, and hooks apply each time.
+This has NOTHING to do with multitasking DOS programs and how they handle INT calls. The DOS subsystem, and any subsystem for that matter, has the full authority to decide if it will handle a ring-3 system entry by calling V86. This is a driver-level interface that allows for the reimplementation of real mode software in protected mode.
+Listing:
+    ? VOID V_INTxH(BYTE vector, PSTDREGS regs)
+    ? VOID V_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev)
+V86HND
+This function pointer type returns itself, or at least a type compatible with itself. It takes a PSTDREGS.
+CONTEXT: May be T012 upon invokation.
+V_HookINTxH
+CONTEXT: T012
+Changes the current SV86 handler for that vector and outputs it to [out_prev]. To chain properly, the new handler must call the one it replaced.
+Hooks should be applied when the driver is starting up to whatever vector it needs to control. It is not recommended to do this during runtime. V86 handlers also cannot be modified within a V86HND procedure.
+The general procedure of a hook procedure is to check the appropriate registers to figure out if the driver has ?jurisdiction? over this INT call; return the next handler address to pass to previous hook, return (PVOID)(1) to automatically reflect to real mode (not recommended) or return NULL to consume the INT and finish.
+The correct segment register set to use is the one with v86 prefixes, though it would not have mattered. Simply using the name without anything else will work too.
+V_INTxH
+CONTEXT: T012
+STACK SPACE: Significant, ~256 bytes
+	This is the general purpose V86 call interface. It calls a SV86 handler with hooks and returns nothing. The PSTDREGS argument is used as input and output, so save the input if it is still needed after execution.
+	If the stack pointer provided is ZERO (which is certainly invalid on 80x86), a stack will be provided automatically and is garaunteed to be 1024 bytes long. It is VERY important to set ESP to zero if this is desired. Using whatever garbage is in the stack from previous calls with the structure or anything else is likely to cause a fatal error. To not think about this, simply use INIT_V86R to initialize the structure.
+	The DOS subsystem has its own function for hooking user-level INT calls which should be used for implementing anything that is actually DOS-level
+FYI: floating point operations can at no point be done in a V86 handler. Period.
+V_SV86Call
+	Sometimes it is necessary to make direct calls to real mode without capturing. Subsequent calls to the INT instruction are not captured either.
+	This has limited applications. One example is a driver that uses an EMS card as a ramdisk that needs to call the DOS EMS driver.
+	The implementation of this will lead to execution in either in SV86 real mode or a preemption-off #GP exception handler. T2 is never entered, and therefore, the system can safely detach the V86 hook procedure for the requested INT in a T1 and call V_INTxH.
+Interrupt Requests
+Interrupt requests are owned by a single driver or by none to indicate reflection to real mode. Interrupts that are not used by 32-bit software are reflected by switching to actual real mode.
+Interrupt service routines are always passed a pointer to the interrupt frame.
+Listing:
+    ? VOID ISR(PSTDREGS regs, LONG error)
+    ? SHORT GetIrqMask(VOID)
+    ? ISR GetStage2ISR(VOID)
+    ? VOID SetStage2ISR(ISR)
+    ? VOID SetIrqOwnerDriverName(PBYTE name)
+GetStage2ISR,  SetStage2ISR
+	Get or set the high-level ISR. The ISR is NULL if there is no handler assigned. A masked IRQ is also evidence of the lack of a high-level handler.
+GetIrqMask
+	Returns a 16-bit mask value indicating which interrupts are off, beginning with IRQ#0 at bit position 0.
+SetIrqMask
+	Change the mask register.
+SetIrqOwnerDriverName
+	Use this before changing the ISR.
+Advanced Synchronization
+	OS/90 provides advanced features for syncrhonization in a way that favors power efficiency and maximizes system throughput. It is highly recommended that drivers use the improved atomic API rather than the macros in basicatomic.h.
+	The spinlock functions that do not use idling are safe to use in T1 because they yield to the next task.
+Listing:
+    ? VOID MutexLock(PLONG lock)
+    ? VOID MutexUnlock(PLONG lock)
+    ? VOID MutexLockWithIdle(PLONG lock)
+    ? VOID MutexUnlockWithIdle(PLONG lock)
+Memory Manager
+OS/90 handles memory using a page size of 4K. There are no plans to support transparent hugepages like on Linux, but such a feature is possible since all operations use bytes and are rounded to pages.
+The physical memory is mapped in a static array in the Physical Block Table, where each entry represents a page frame at a specific address.
+All memory is locked by default. Memory must specifically be marked as transient in order to be ellegible for swapping.
+The memory manager can be split into two fully independent components: chain management and page table/address space management. Swapping and some other tasks require the cooperation of both. OS/90 uses two locks and may hold one of the two or both. There is a page table lock, which must be held at any time the OS needs to change page tables, and there is a PBT lock that is acquired any time the PBT is modified.
+Address Spaces Explained
+OS/90 uses a higher-half kernel with a fixed load address and position-independent physical address, but it is not the common C000_0000 address used by most kernels because OS/90 has a special region of the address space called the Raw Memory Region, and it needs to represent the entire range of RAM starting from address zero to the highest addressable RAM byte.
+The OS/90 kernel is mapped to 8000_0000. It has 4MB of address space reserved for it. The RMR begins at
+The conventional memory is identity mapped but the DOS subsystem allocates space in it at a page boundary to use for swapping DOS tasks.
+Page Modifiers
+Using the three available bits on page table (not directory) entries, the kernel defines modifier attributes that can affect the behavior of the page. See mm/page.h for full documentation.
+Chain Management
+The OS/90 memory manager uses a FAT-style linked list table to allocate pages. An allocation is called a chain, and a chain ID is the index to the first block in the chain. Chain IDs are used throughout the chain allocation API.
+The very last entry in a chain holds a count of how many uncommitted pages are to be mapped when mapping takes place. These do NOT get memory block entries.
+Modifications to chains do NOT change mappings whatsoever.
+Listing:
+    ? LONG M_Alloc(LONG bytes_commit, LONG bytes_uncommit)
+    ? VOID M_Free(LONG chain)
+    ? SIGLONG M_ResizeWithCommit(LONG chain, SIGLONG delta_bytes)
+    ? SIGLONG M_ExtendUncommit(LONG bytes)
+M_Alloc
+Allocates a chain with `bytes_commit` bytes rounded to a page count and specifies the very last entry the number of uncommitted blocks that must later be mapped.
+`bytes_uncommit` is the number of bytes rounded to a page count that come directly above the committed region after allocation. Note that this happens after the committed pages are allocated.
+Consider this example: M_Alloc(1, 1, NULL). The committed pages are allocated first in the chain, and then the uncommitted pages are memorized.  4096 bytes are committed and 4096 bytes are not.
+`bytes_commit` may never be zero.
+M_ResizeWithCommit
+Extends the chain and cuts into the uncommitted region if necessary. Does NOT remap.
+Memory Mapping (TODO)
+OS/90 preallocates all page tables of the virtual address space and never extends it. OS/90 does NOT support mapping to specific addresses in the address space but is able to simulate such an effect with real mode-addressable memory.
+Remapping memory takes a subchain range to perform the mapping on so that dynamic structures can be efficient. It is not necessary to change the base address being used.
+Listing:
+    ? PVOID M_MapAny(LONG chain, LONG attr)
+    ? SIGLONG M_ChainRemap(PVOID baseaddr, LONG chain, LONG start, LONG len, LONG attr)
+    ? VOID M_MapPhysToVirt(PVOID phys, PVOID virt, LONG bytes)
+    ? VOID M_IdMap(PVOID phys, LONG bytes)
+    ? PVOID M_ReserveAllocRegion(LONG bytes)
+    ? SIGLONG M_ReleaseAllocRegion(LONG bytes)
+    ? VOID M_UpdateAttr(PVOID addr, LONG bytes)
+M_MapAny
+Maps a block of memory to any virtual address. Generates uncommitted pages as necessary. Only the necessary number of page are reserved, so remapping is necessary if the chain grows in size.
+M_ChainRemap
+Remap a chain to the exact same location but with a different size. If there is a collision with in-use virtual addresses this function will do nothing and fail.
+The base address MUST be the same as the one returned by PCMap.
+M_MapPhysToVirt
+Map a physical address range to a virtual one.
+Heap Allocation
+There are many situations in which kernel mode software needs to dynamically allocate memory that is not in page multiples. OS/90 has a handle-based memory allocation system for the kernel that is portable to the userspace. It is inspired by the classic MacOS memory allocator. The exact implementation is documented separately.
+There exists a global heap for all drivers, but new ones can be created.
+Listing:
+    1. PVOID M_GlobalAlloc(LONG bytes)
+    2. M_GlobalFree(PVOID h)
+    3. M_GlobalLock(PVOID h)
+M_GlobalAlloc
+DO NOT BE DECIEVED. The void pointer return value is NOT a simple pointer to memory. ?void *? in C has a special meaning as a ?generic pointer,? which means that it can be casted to any pointer type whatsoever with no warnings or errors (C++ does not like this though). Accessing the memory allocated by this function is done by storing the return value into a DOUBLE POINTER, which is in fact perfectly legal. ?void *? does not point to a specific type and cannot be dereferenced on its own, so it makes sense if it can be casted to a dereferenceable pointer of any type.
+To allocate 100 bytes of 16-bit values: PSHORT *mem = M_GlobalAlloc(100);
+In C, subcripts have a higher precedence than pointers. To access an allocated region as an array of data, parentheses must be placed around the dereferenced pointer, and the brackets go after the group. This gets the pointer first and then gets the appropriate value.
+Example: (*mem)[9] = 4;
+Virtual Memory
+OS/90 supports uncommitted memory, though the implementation is quite transparent and is as simple as using a page table modifier. Swapping will be the main focus here. It is done using swap files and may later support swap partitions. Swap file are not orthogonal extentions to the memory and allocating space in it cannot be done using page frame functions.
+The page list structure contains a local index to itself on the chain. This is done so that pages can be evicted from memory and be retrieved in the right place by analyzing the ?delta? between entries. This also works for the very last entry, in which the final PBT entry has a way of knowing how many pages to replace (think about this, it may not be possible).
+A page attribute which is reserved only for kernel use called PTE_TRANSIENT_OUT (using this anywhere outside the kernel is always wrong.) indicates a virtual page that is considered swappable and is also currently swapped out and on the disk. The address field is a file page-granular offset to the swap space, allowing for simple retrieval.
+Any page on a chain can be evicted (except for first and last) rather than entire chains at once. This avoids the overburdening of the swap and excessive disk traffic.
+With all the implementation details aside, here is the listing:
+    1. 
+    2. 
+Input and Output Manager (IOM)
+The IO manager is quite complicated and requires code samples to understand. Refer to IO.MD.
+Kernel Filesystem
+The KFS is a read-write filesytem kept in memory that serves as both a global system environment and a UNIX-style device filesystem. The KFS differs from UNIX because it is oriented around ?executing? special files as programs and parsing the arguments.
+Handles and IO Commands
+The KFS uses 32-bit handles for each file. IO requests are sent using the IOCOM_MJ_FS command set. Seeking is not supported.
+    1. IOCOM_MI_FS_READ
+    2. IOCOM_MI_FS_WRITE
+    3. IOCOM_MI_FS_DELETE
+    4. IOCOM_MI_FS_OPEN
+    5. IOCOM_MI_FS_CLOSE
+    6. IOCOM_MI_FS_DRAIN
+    7. IOCOM_MI_FS_EXEC
+       Open and close occur when the handle is created or destroyed and serve as a constructor and destructor respectively.
+       Drain is supposed to write back buffers.
+       EXEC implements the functionality for executing a virtual file.
+For Subsystems
+>>> Can features be fully moved to the KFS?
+The KFS must be accessible, preferably from the command line, through tasks running under the subsystem. Any special files intended to be executable must end with EXE regardless of the subsystem.
+Inside of SUBSYS a directory must be created that contains the name of the driver with its real 8-character name.
+Inside the folder of the driver, the following pseudo-executables must be created:
+    1. RUN.EXE (Run a program using path)
+    2. LIST.EXE (Output list of running tasks and their PIDs, with machine friendly option)
+    3. EVENT.EXE (Send generic driver event by number, 0 is simple exit)
+    4. TASK.EXE (Operate on process using subsystem-given task ID)
+RUN.EXE takes a path that must be parsed by the subsystem sending the request into a DOS-compatible path. Then it can be sent to the kernel to be dispatched by the target subsystem that is to execute the program. The path must be in single quotes.
+Additional arguments are not defined. anything that comes after the path quotes is an additonal argument.
+LIST.EXE outputs to virtual standard output a CRLF and ASCII formatted table of active tasks. If given the option ?-M?, it will return a consistent machine-readable output that is an array of PROC_LIST_STRUC.
+EVENT.EXE is the usual mechanism for sending events to drivers. Subsystems are required to support exiting properly.
+TASK.EXE is used to manage tasks. It should be avoided except when there is an issue with whatever the subsystem provides for this purpose.
+Translation Helper Services
+OS/90 provides an API for simplifying common operations used by 32-bit kernel mode software when providing services to 16-bit software.
+Segmentation Handling
+Listing:
+    ? PVOID TranslateSegOffToLinear(PSTDREGS regs, LONG seg_index, LONG offset)
+    ? PVOID TranslateSegOffToLinearPM(LONG selector, LONG offset)
+    ? BOOL PMValidateSegOff(SHORT selector, LONG offset)
+    ? SHORT AllocateLDT(SHORT entries)
+    ? VOID FreeLDT(SHORT base, SHORT num)
+    ? VOID CreateDescriptor(WORD selector, PVOID base, LONG size, BYTE access, BYTE xaccess)
+TranslateSegOffToLinear
+Returns a linear pointer to a segment:offset pair. Works with V86 and protected mode by autodetecting based on `regs`. `offset` is the offset value to the segment and can be pulled from the registers.
+`seg_index` is the segment requested as a simple index: XLAT_DS, XLAT_CS, etc. These correspond with sreg values in x86 instruction encoding.
+If the address is invalid in protected mode and would cause a fault, the return value is NULL.
+For PM-only or flat model subsystems this function is excessive.
+TranslateSegOffToLinearPM
+This function is similar to the above one but only works for protected mode and is generally faster. It takes a SELECTOR rather than a special index.
+PMValidateSegOff
+Validate a segment and offset pair to ensure bounds and detect ring violations.
+AllocateLDT (, FreeLDT)
+Allocate local descriptor table entires. The first 16 are reserved for DPMI. Returns the base index, NOT the selector.
+OS/90 has one local descriptor table for the entire system.
+CreateDescriptor
+Create a segment descriptor at the specified selector with the passed attributes.
+This CAN work on the GDT but that sort of behavior is dangerous.
+Bus Drivers
+The concept of a ?bus? is very important to any driver architecture. The devices enumerated by PNP BIOS or ACPI?s DSDT are on the mainboard. Plug-and-play ISA, PCI, USB, PnP COM (yes it exists), VLB, etc. are all buses, and generally have a way of assigning resources like IO ports and memory mapped IO regions to them. There is also some isolation between bus types in the hardware, but an OS can decide to abstract bus differences and create an abstract device tree like Windows NT.
+OS/90 is more similar to Linux with regard to bus drivers. Each bus implements its own interface for detecting and configuring subordinate devices.
+Buses that will or already do receive full support include:
+    1. PnP BIOS Devices
+    2. PCI
+ISA plug-and-play is a very ugly bus to work with, but is widely supported. If there is interest in this bus, I may consider supporting it.
+Debugging
+
+Drivers
+Unifying Interface
+OS/90 drivers are identified by a file name. They can have no more than 8 characters in their names minus the three character extension, and VFAT long file names are not permitted.
+Drivers support a powerful feature named ?features.? This allows for drivers to dynamically detect things like PnP BIOS support or other things without having to call a specific procedure, and without adding any additional bloat if these features are not present. The return value is a pointer to a call table structure.
+Features are stored as strings that are no larger than 16 characters including space-padding for fast comparisons.
+It is possible to scan for multiple features to reduce the number of iterations through the list.
+The kernel implements a feature for the CPU type. It can be ?i486?, ?Pentium?, ?Pentium Pro?, and lder CPUs are also implemented to indicate compatibility.
+Listing:
+    1. VOID GetMultipleFeatures(PVOID *out, PBYTE strtab)
+    2. PVOID GetFeature(PBYTE name)
+    3. LONG GetFeatureClassByteCount()
+    4. VOID GetFeaturesByClass
+>>> Add a feature scanner structure for classes? ?Next? function call?
+List of common features:
+    1. ?:Kernel16=DOS?: The underlying operating system is DOS compatible.
+    2. ?:Kernel16=ELKS?: 16-bit software is ELKS compatible.
+    3. ?SSS:DOS?: Standard DOS subsystem is supported.
+    4. ?BUS:PCI?: Standard OS/90 PCI driver is supported
+    5. ?DEV:8042?: Standard keyboard and mouse IO driver supported.
+    6. ?CPU:i386?, ?CPU:i486?, ?CPU:Pentium?, ?CPU:Pentium Pro?
+
+OS/90 drivers must also implement an IO class. The classes are as listed:
+ioclass.h contains all of them. A range of IO classes from 0x8000-0xFFFF is reserved for custom use.
+Building Drivers
+A single header <osk/api.h> includes everything relevant to the kernel API and is the only header needed to access it.
+Driver executables are build by compiling any files that make up a driver and merging the object files into one. The resulting objects are then converted to a driver executable by running
+execgen.py -lib <name> -import <libs>
+to convert the object to an OS/90 library. Drivers are essentially shared libraries.
+It was previously specified that drivers share a global symbol namespace. This is no longer the case. Drivers can import libraries at load time, with the kernel API being one of them. The resulting driver binary must therefore specify any libraries by name when generating the executable. Note that if the libraries requested are not found at load time, the program will terminate.
+The use of the macro OS_PUBLIC in Type.h for any functions that need to be exported by the final driver library along with the command line argument `-fvisiblity=hidden` for GCC are recommended to avoid exporting unnecessary symbols. The linker should be passed `--strip-all`.
+A linker script is provided for drivers and should be used.
+What Drivers Do
+OS/90 drivers can implement subsystems to provide translation layers for different 32-bit operating systems as well as add support for devices.
+The DOS/DPMI subsystem code is the reference implementation for any kind of subsystem.

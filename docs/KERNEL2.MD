@@ -1,3 +1,5 @@
+This document is VERY old.
+
 # Introduction
 
 OS/90 features a preemptible, reentrant, multitasking kernel capable of emulating any 32-bit operating system.
