@@ -177,13 +177,13 @@ Memory Mapping (TODO)
 OS/90 preallocates all page tables of the virtual address space and never extends it. OS/90 does NOT support mapping to specific addresses in the address space but is able to simulate such an effect with real mode-addressable memory.
 Remapping memory takes a subchain range to perform the mapping on so that dynamic structures can be efficient. It is not necessary to change the base address being used.
 Listing:
-    ? PVOID M_MapAny(LONG chain, LONG attr)
-    ? SIGLONG M_ChainRemap(PVOID baseaddr, LONG chain, LONG start, LONG len, LONG attr)
-    ? VOID M_MapPhysToVirt(PVOID phys, PVOID virt, LONG bytes)
-    ? VOID M_IdMap(PVOID phys, LONG bytes)
-    ? PVOID M_ReserveAllocRegion(LONG bytes)
-    ? SIGLONG M_ReleaseAllocRegion(LONG bytes)
-    ? VOID M_UpdateAttr(PVOID addr, LONG bytes)
+- PVOID M_MapAny(LONG chain, LONG attr)
+- SIGLONG M_ChainRemap(PVOID baseaddr, LONG chain, LONG start, LONG len, LONG attr)
+- VOID M_MapPhysToVirt(PVOID phys, PVOID virt, LONG bytes)
+- VOID M_IdMap(PVOID phys, LONG bytes)
+- PVOID M_ReserveAllocRegion(LONG bytes)
+- SIGLONG M_ReleaseAllocRegion(LONG bytes)
+- VOID M_UpdateAttr(PVOID addr, LONG bytes)
 M_MapAny
 Maps a block of memory to any virtual address. Generates uncommitted pages as necessary. Only the necessary number of page are reserved, so remapping is necessary if the chain grows in size.
 M_ChainRemap

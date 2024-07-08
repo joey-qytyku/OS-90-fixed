@@ -16,6 +16,7 @@
 
 ;-------------------------------------------------------------------------------
 ; This is a procedure that is called by an IRQ handler, but by address rather
+; than symbol.
 ;
 ; Interrupts are assumed to be off here.
 ; EDX is the interrupt vector to invoke.
@@ -119,4 +120,4 @@ SAVE_IDTR:
         DW      0,0,0,0
 RM_IDTR:
         DW      1024,0,0,0
-; Wrong order!
+; Wrong order?

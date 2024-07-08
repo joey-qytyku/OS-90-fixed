@@ -1,24 +1,22 @@
-/*
-  ษออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออป
-  บ                  Copyright (C) 2023-2028, Joey Qytyku                    บ
-  ฬออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออน
-  บ This file is part of OS/90 and is published under the GNU General Public บ
-  บ   License version 2. A copy of this license should be included with the  บ
-  บ     source code and can be found at <https://www.gnu.org/licenses/>.     บ
-  ศออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออผ
-*/
+/////////////////////////////////////////////////////////////////////////////
+//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                                                                         //
+// This file is part of OS/90.                                             //
+//                                                                         //
+// OS/90 is free software. You may distribute and/or modify it under       //
+// the terms of the GNU General Public License as published by the         //
+// Free Software Foundation, either version two of the license or a later  //
+// version if you chose.                                                   //
+//                                                                         //
+// A copy of this license should be included with OS/90.                   //
+// If not, it can be found at <https://www.gnu.org/licenses/>              //
+/////////////////////////////////////////////////////////////////////////////
 
 #ifndef BASICATOMIC_H
 #define BASICATOMIC_H
 
-#define STI()                                         \
-        {                                             \
-                __asm__ volatile("sti" ::: "memory"); \
-        }
-#define CLI()                                         \
-        {                                             \
-                __asm__ volatile("cli" ::: "memory"); \
-        }
+#define STI() { ASM("sti" ::: "memory"); }
+#define CLI() { ASM("cli" ::: "memory"); }
 
 typedef struct { LONG _; } ATOMIC32;
 
@@ -35,14 +33,13 @@ typedef struct { LONG _; } ATOMIC32;
 __attribute__((always_inline))
 static inline VOID RELEASE_MUTEX(ATOMIC32 *m)
 {
-        __asm__ volatile(
-            "btrl $0,%0" : "=m"(*m)::"memory");
+        ASM("btrl $0,%0" : "=m"(*m)::"memory");
 }
 
 __attribute__((always_inline))
 static inline VOID ACQUIRE_MUTEX(ATOMIC32 *m)
 {
-        __asm__ volatile(
+        ASM(
             "spin%=:\n\t"
             "btsl $0,%0\n\t"
             "jc spin%="
@@ -55,7 +52,7 @@ __attribute__((always_inline))
 static inline BOOL MUTEX_WAS_LOCKED(ATOMIC32 *m)
 {
         BOOL ret;
-        __asm__ volatile(
+        ASM(
             "cmpl $0, %1"
             : "=@ccz"(ret)
             : "m"(*m)
@@ -67,7 +64,7 @@ __attribute__((always_inline))
 static inline LONG SAVE_FLAGS(VOID)
 {
         LONG ret;
-        __asm__ volatile(
+        ASM(
             "pushf\n\t"
             "pop %0"
             : "=rm"(ret)
@@ -79,7 +76,7 @@ static inline LONG SAVE_FLAGS(VOID)
 __attribute__((always_inline))
 static inline VOID SET_FLAGS(LONG flags)
 {
-        __asm__ volatile(
+        ASM(
             "pushl %0\n"
             "popf"
             :
@@ -90,7 +87,7 @@ static inline VOID SET_FLAGS(LONG flags)
 __attribute__((always_inline))
 static inline VOID ATOMIC32_FENCED_STORE(ATOMIC32 *address, LONG value)
 {
-        __asm__ volatile(
+        ASM(
             "movl %1,%0"
             : "=m"(*address)
             : "n"(value)
@@ -101,7 +98,7 @@ __attribute__((always_inline))
 static inline LONG ATOMIC32_FENCED_LOAD(ATOMIC32 *address)
 {
         LONG ret;
-        __asm__ volatile(
+        ASM(
             "movl %1,%0"
             : "=r"(ret)
             : "m"(*address)
@@ -112,20 +109,20 @@ static inline LONG ATOMIC32_FENCED_LOAD(ATOMIC32 *address)
 __attribute__((always_inline))
 static inline VOID ATOMIC32_FENCED_DEC(ATOMIC32 *address)
 {
-        __asm__ volatile("decl %0" : "=m"(*address) : "m"(*address) : "memory");
+        ASM("decl %0" : "=m"(*address) : "m"(*address) : "memory");
 }
 
 __attribute__((always_inline))
 static inline VOID ATOMIC32_FENCED_INC(ATOMIC32 *address)
 {
-        __asm__ volatile("incl %0" : "=m"(*address) : "m"(*address) : "memory");
+        ASM("incl %0" : "=m"(*address) : "m"(*address) : "memory");
 }
 
 __attribute__((always_inline))
 static inline BOOL ATOMIC32_FENCED_COMPARE32(ATOMIC32 *address, LONG imm)
 {
         BOOL ret;
-        __asm__ volatile(
+        ASM(
             "cmpl %1, %2"
             : "=@ccz"(ret)
             : "i"(imm), "m"(*address)

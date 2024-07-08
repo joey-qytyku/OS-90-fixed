@@ -21,12 +21,9 @@
 #define PDE_SHIFT 22
 #define PTE_SHIFT 12
 
-// What?
-#define PDE_MASK 0b1111111111
-#define PTE_MASK 0b1111111111
-
 #define PAGE_SIZE (4096)
 
+#define PG_G     (1<<8) /* Page is global, CPU avoids TLB flush */
 #define PG_D     (1<<6) /* Page is dirty, was accessed */
 #define PG_A     (1<<5) /* The page table/dir was used */
 #define PG_PCD   (1<<4) /* Page cache disable */
@@ -35,30 +32,30 @@
 #define PG_RW    (1<<1) /* Read/write */
 #define PG_P     (1<<0) /* Present */
 
-// The unused bits are used for OS/90 to implement uncommitted memory and
-// locking. These only apply to page table entries.
+//
+// PG_G is only supported on Pentium and better.
+//---
+// Writethough caching means that the caches can be used for this page,
+// but the CPU will not perform any work until it is copied back to
+// memory.
 
 // AVL is 3-bit. A number is used to indicate these mutually-exclusive
 // properties.
 
 //
+// If the value is zero, the page is unused and accessing is illegal.
+//
 // Memory can be swapped. By default, memory is locked.
 // This is only applied to pages that are present and allocated.
 //
-#define PTE_TRANSIENT (0b001<<9)
+#define PTE_TRANSIENT (1<<9)
 
 //
-// Page part of uncomitted block (Awaiting commit)
+// Page part of uncommitted block (Awaiting commit)
 // Actual page does not exist and cannot be applied to allocated page.
 // Doing so may cause an error.
 //
-#define PTE_AWC       (0b010<<9)
-
-//
-// Flag indicating page mapping free. Page is not present
-// and accessing is a fatal error for kernel and fault for user.
-//
-#define PTE_UNUSED    (0b011<<9)
+#define PTE_AWC       (2<<9)
 
 //
 // Page is hooked. This means that a page fault should be broadcasted to
@@ -68,7 +65,7 @@
 // means nothing. It is used to implement IO memory region emulation,
 // especially for framebuffers.
 //
-#define PTE_HOOK      (0b100<<9)
+#define PTE_HOOK      (3<<9)
 
 //
 // Page is transient (swappable) and is currently on the disk.
@@ -76,6 +73,14 @@
 //
 // USING THIS ANYWHERE OUTSIDE OF THE MEMORY MANAGER CODE IS ALWAYS WRONG.
 //
-#define PTE_TRANSIENT_OUT (0b101<<9)
+#define PTE_TRANSIENT_OUT (4<<9)
+
+//
+// Collateral page. This page is elligible to be freed after calling
+// a designated procedure if a chain allocation or resize cannot be comleted.
+//
+// There are two levels.
+//
+#define PTE_COLAT       (5<<9)
 
 #endif /* PAGE_H */

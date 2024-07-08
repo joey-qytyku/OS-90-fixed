@@ -3625,3 +3625,66 @@ Basically, we allocate page slots on the swap using a simple bit array. Then I c
 
 > Filesystem with alphabetical ordering of directory contents.
 
+# July 7
+
+## Memory Manager Ideas
+
+I am specifying the MM API and I came up with a potential change to the memory block structure.
+
+First of all, I will rename it from MB. The reason is that MB is defined as a macro. I will rename it to a MCB or something, since it will work like that soon.
+
+MCBs are now 64-bit. They have the 16-bit back and front links, as well as a 32-bit handler procedure for collateral and hooked pages. That leaves me with one 16-bit field that is not being used.
+
+My idea is to use the 16-bit field to store the number of contiguous frames after the current one. The rest of the MCBs can be zeroed or all-1'ed out to indicate they are not being used.
+
+This CAN work with my idea of paging, but it would require cutting the blocks. This can be done, but the added complexity may not be worth it.
+
+I need to find something else to do with the 16-bit field left over. Based on my calculations, it will occupy the same number of pages no matter if I keep it or remove it and go with a 48-bit MCB.
+
+I CAN store the intended page attributes of the block. This can totally work, but it would be a bit iffy with virtual memory. The present bit obviously cannot be respected and there will be some other implied semantics. With that being said, it can totally be a good idea since there is persistence with the page attributes even if things happen to the mappings.
+
+This means that mappings only need to be updated with a simply a chain ID, pointer, and count to remap those blocks to the address space.
+
+### Handling of Accessed
+
+I need to remember to keep track of the accessed bit. It could be useful for keeping track of page statistics.
+
+That is actually a decent alternative to the current use of the 16-bit value. Maybe I can squeeze it in with a bit field. I only need 12 bits to represent the page bits,  and even then, I do not need all of them so I can probably reduce this.
+
+The only issue is how that is actually supposed to be handled. Any demand pagable memory must keep this count updated.
+
+There is no hardware mechanism for keeping an access count. The bit must be manually changed if it is used for collecting statistics.
+
+I just looked it up. The accessed bit only indicates if the page tables were used to access it. The dirty bit indicates if it was written to. The dirty bit is intended to be used for demand paging because any pages that are dirty may need to be written back.
+
+In the entire time I have been thinking about the virtual memory design, I never thought about the dirty bit. It is not actually needed. If the system memory is under pressure, it will simply swap some random pages out and leave a record to get it back.
+
+It does have some utility for situations in which something in the memory must be at some point expelled to the disk only if it was written to. For example, a memory mapped file. A good chuck of the file will be in the memory, and some of the pages will actually reference sectors on the disk.
+
+OS/90 can support these by adding even more page modifiers. For example, a modifier that indicates a random sector on the disk, with the size of the sector being basically transparent. For disk cache pages, another modifier can be used.
+
+I only have two page mods left. I can get rid of the swap ones in favor of disk transfer pages.
+
+I also need to consider how the current IO model is supposed to work with all this. The swap file (or partition later on) will be on the boot drive, which is something that must be figured out. DOS keeps track of the current drive so it should be possible to get the one that was used to boot with SV86.
+
+> Maybe use a linked list for IO requests like DOS SYS drivers do. IDK when in doubt, always use a linked list.
+
+### RMR Reconsidered
+
+The reason I added the RMR was:
+- to support dynamic arrays without having to use address space
+- modify page table structures allocated in memory without using strange hacks
+
+This is no longer needed. All memory control structures are now contained inside the kernel address space. There is no need for the RMR, and the original idea of the linked list array can be done without it.
+
+# June 8
+
+## IO Model
+
+I am starting to think that my KFS idea may have been too complicated.
+
+It also appears that thread pooling is impractical because that would take up too much memory for the process blocks. Creating a task is not that slow anyway.
+
+## Swapping
+
+First of all, I do not need a special page mod for disk transfers. This can be implemented by a disk driver, which can use hooked pages and replace the address with the remap function
