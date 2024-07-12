@@ -68,10 +68,11 @@ SEEK_END	EQU	4202h
 
 SETBLOCK        EQU     4Ah
 ALLOC           EQU     48h
+
         ORG	100h
         jmp	Main
 
-Weclome:        DB      "Starting OS/90.     Copyright (C) 2023-2028 Joey Qytyku",10,13
+Weclome:        DB      "Starting OS/90.     Copyright (C) 2023-2024 Joey Qytyku",10,13
 times 14        DB      X2LN
 DB      LNE
 
@@ -286,7 +287,6 @@ LoadKernel:
         ERROR   MoveError
 .copy_success:
         pop     bx
-
 
         ;Add 4096 to the extended move offset
         add     dword [XMM.desoff],4096

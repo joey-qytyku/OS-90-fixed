@@ -3681,10 +3681,232 @@ This is no longer needed. All memory control structures are now contained inside
 
 ## IO Model
 
-I am starting to think that my KFS idea may have been too complicated.
-
-It also appears that thread pooling is impractical because that would take up too much memory for the process blocks. Creating a task is not that slow anyway.
+I am starting to think that my KFS idea may have been too complicated. It also appears that thread pooling is impractical because that would take up too much memory for the process blocks. Creating a task is not that slow anyway.
 
 ## Swapping
 
-First of all, I do not need a special page mod for disk transfers. This can be implemented by a disk driver, which can use hooked pages and replace the address with the remap function
+First of all, I do not need a special page mod for disk transfers. This can be implemented by a disk driver, which can use hooked pages and replace the address with the remap function.
+
+## TODO
+
+## Scheduler Ideas
+
+I think I should change the time slice system. A more intuitive way to handle scheduling is to use percentages.
+
+We can keep track of the total number of time slices issued, and the maximum can be 1000 miliseconds for one second. It is not hard to do this.
+
+To give more time for one process, we must take from another. A "time pool" called the system idle process can give up time.
+
+The problem is of course that only 1000 tasks can exist, but I remember having under 500 or so active threads on my Linux system. Should not be a problem.
+
+Anyway, this is a WAY better idea that using time slices alone. Changing the time slice of one task cannot be done correctly if without regard for other tasks.
+
+Each task will get at LEAST 1 MS. Once all time slices are being used, the CPU is at "100% usage"
+
+# July 9
+
+## IO Model
+
+No KFS. Way too complicated and very little benefit. I think having shared memory pages with userspace where configuration options can be exposed is a better idea.
+
+The current IO model is far too complicated. It is designed around the whole asyncrhonous printf example, which is pointless. There is no real improvement to system responsiveness by making printf threaded since printing more than 80 characters with it is usually wrong (unless using a file perhaps, which is soemhting else).
+
+If I want to make something BETTER than other operating systems, I have to do things differently. It is also important to note that OS/90 is for single processor CPUs. The job of scheduling and the IO manager as well is to make sure that the CPU is always doing useful work, basically to keep the "flow" of data running while also improving the "smoothness" of the system.
+
+The question of doing the work now or later or in bits and pieces is one of responsiveness as viewed by the user.
+
+> Use an IO stack? Linked list? Both?
+
+> Another thing about IO: Some IO does not need to be asynchronous simply because it has no chance of starving the system resources and does not depend on any other IO. Printf into a file is a different story, but the data is going to a buffer first. The system will already multithread this with no problems, and the buffer must be generated first before writing.
+
+## TODO
+
+I will start copying and pasting my TODOs.
+
+- Driver global and local event handling (including termination of early boot services, keyboard may need that)
+- How do we access task blocks? The RMR is very wasteful, but using a window would not be great either.
+- Implement a fully working iterative non-recursive binary search. Ordered arrays can use this. Binary search does not need to look for a single specific value. Binary search can also use comparisons to find the place to insert a value. I may need to expand stack space for it to work and disable preemption.
+
+# July 10
+
+## Crazy Idea
+
+Can I make OS/90 capable of running Win386 VXDs?
+
+Using a compatibility layer could be possible but there is a lot of potential for instability and it could even be impossible to do. Without a full listing of the API, it is not possible to know.
+
+> I can use virtual machines and trap any hardware access.
+
+I think Wine implements some parts of the VxD API. Will check it out.
+
+dosemu also does.
+
+https://gitlab.winehq.org/wine/wine/-/blob/master/dlls/krnl386.exe16/vxd.c
+
+It actually does not look that hard! But I may need to use some sort of device stack to make it stable, combined with a user mode VM... if I need it of course.
+
+I will need to look at some of the ASM headers in the DDK to make this fully work.
+
+Actually, these are only a tiny subset of the actual VxD API. The real referrence is VDAG31.TXT. It is a very long document. Some of the calls are not that bad and mirror what I currently have.
+
+To save time, I could try to find a way to emulate the entire VMM inside a virtual machine. I can use segmentation to control the address space and run it in user mode (since kernel does not use segments).
+
+
+I will start copying and pasting my TODOs.
+
+- Driver global and local event handling (including termination of early boot services, keyboard may need that)
+- How do we access task blocks? The RMR is very wasteful, but using a window would not be great either.
+
+> Note on DMA: The scheduler should prefer CPU-bound tasks rather than IO bound tasks when a DMA transfer is taking place. The kernel does not perform scheduling, so subsystems need to control it instead. How can I make it so they can cooperate?
+
+# July 11
+
+## More Crazy Ideas
+
+A VxD compatibility layer would be quite challenging. While OS/90 has many of the same features, it will have to "fool" the VxD on many occasions.
+
+There are a total of 209 API calls. Some of these are internally used and others could in theory do nothing at all because OS/90 just does not work the same way.
+
+My main concern is how we would translate the memory manager calls. That would be very difficult because OS/90 and VMM32 do TOTALLY different things with memory management. VMM also allows for direct modification of page bits, which obviously cannot be allowed.
+
+I can also use a full virtual machine to run the VxD. i386 does not have nested paging, so the MMU has to be simulated using the host paging.
+
+## Why Single Address Space?
+
+Multiple address spaces would actually cause very few issues for the implementation of mapping functions.
+
+The only issue is that it becomes necessary to allocate page tables very carefully. The non-presence of page directory entries could be used to implement dynamic table allocation.
+
+## 1MB Region Mapping
+
+I can permit interrupt service routines to directly change the page tables with a special function. This is fine as long as some kind of lock is used.
+
+## Switching to Digital Mars
+
+DMC has a advantages over GCC:
+- Potentially better code generation for old CPUs
+- Better inline assembly that is not a pain to use (beside register clobbers)
+- Support for segmentation (if I actually need that)
+
+There are some difficulties with getting it to work with a 32-bit flat model. The default memory model is Windows NT, which is flat and 32-bit.
+
+The memory model seems to determine what type of code is generated. DOSX can be used to compile to an object file. The linker needs special parameters to generate a flat binary.
+
+So it looks like the command for the linker is:
+```
+optlink /BINARY:80000000 [object]
+```
+
+BINARY is intended to generate .SYS files for DOS which do not have a PSP. It gives a bunch of errors when I try to link but the .SYS file is generated. This .SYS file is also about 16K in size, which is strange. Must be because I picked DOSX as the link option.  
+
+No, DOSX do not work at all and says that 100h cannot be initialized. NT prints out all the errors and adds bloat to the code.
+
+I just looked into it and apparently DMC was apparently written by one single person, the only example besides HolyC by Terry A. Davis. It makes so much sense for an OS written by one person to use it!
+
+## The Actual Transistion
+
+All of the compiler-specific things are in Type.h. This file has been around since the begining (hence my refusal to lower-case it) and is very gcc-specific.
+
+First of all, the memory fence. I no longer use fences for variable accesses. I use basicatomic fenced move operations, and I can switch over to ASM statements for it too.
+
+Second, the likely and unlikely branch things. The compiler has no way of knowing what branches are more likely and applies very basic heuristics if any to determine which one is the not-taken case and therefore faster. I would like to have this for the more algorithm-intensive sections. For now define it to do nothing special.
+
+Third, the types. These may need to be adjusted since the ABI may be slightly different. Not hard to do; they have a table for size types.
+
+#4, the string op macros. It is actually faster on the i386 and the i486 to use a subroutine for faster string ops. Using stack conventions reduces the register pressure for the compiler and a simple calculation can be done to maximize movsd iterations.
+
+Example code:
+```
+; In C: void memcpy(void *dest, void *src, unsigned int count)
+; OS/90 will use stdcall. Same order as cdecl, but callee clean.
+;
+    align 64
+memcpy:
+    push    esi
+    push    edi
+    cld
+
+    mov     edi,[esp+8+(8)]
+    mov     esi,[esp+8+(12)]
+    mov     edx,[esp+8+(16)]
+
+    cmp     edx,32
+    jbe     .small_block
+
+    mov     ecx,edx
+    shr     ecx,2
+    rep     movsd
+
+    ; Copy remaining bytes
+    mov     ecx,edx
+    and     ecx,11b
+    rep     movsb
+    jmp     .end
+
+.small_block:
+    mov     ecx,edx
+    rep     movsb
+.end:
+    pop     edi
+    pop     esi
+    ret     12
+```
+
+It is a win-win despite the seemingly slower initialization. The memory transfers for the string ops take up most of the CPU time and the code will run much faster on many systems.
+
+Calling it can be smaller due to the push byte operation for the size of the operation if it us <=255.
+
+# June 12
+
+FOUND IT. I need to use the `-NL` option so that libraries are not imported. The linker does some strange things however. It still generates an MZ file, although the code is there and is correct. I provided the BINARY option.
+
+Wow, the code size results were very close. 2755 for DMC and 2743 for GCC. And GCC was on `-Os` while DMC was optimizing for speed!
+
+DMC goes down to 2208 when optimizing for size, a difference of 547. I am sure that DMC uses much more aggressive size optimizations, but that makes it totally viable now.
+
+I will optimize for speed when compiling the kernel, but drivers can be size optimized.
+
+## Toolchain Setup
+
+I was able to invoke the linker with the BINARY option and the NL DMC option make the linking possible. The output is in MZ format, but the code seems correctly generated, except for the base address which is still base zero.
+
+Okay, it seems there is no way to do it with the linker. I should generate a symbol list with the compiler instead. Then I can use a python script to perform relocations. Should be foolproof.
+
+Not really. Not all relocations work using symbols only. There are functions that are not named and are local to each module, and they also need to be relocated. Variables must be relocated too.
+
+I guess I should look into the open watcom linker. It is able to set the base address and uses simple command line arguments. I need to pass "-L" to make this work. OWL generates ELF executables too so I can put it through an extra layer of processing if I need to, but it probably should handle flat binaries fine.
+
+This is one example of how it can be done:
+```
+ name kernel.bin                  # name of resulting binary
+ output raw                       # type of binary (ELF, PE, MZ, PharLap, ...)
+    offset=0x100000               # skip first meg; base address of binary
+ file startup.obj                 # objects to link - this one has to be first
+ file fdc.obj
+ file gui.obj
+ file idt.obj
+ # add more obj files here
+ order                            # in which order should segments be put into binary
+    clname CODE offset=0x100000   # offset for reference fixups
+    clname DATA
+```
+
+BSS is not included here since it is uninitialized. OS/90 requires it to be zeroed, so I need a way of somehow creating the necessary symbol. Alternatively, I can simply zero out the extended memory, but this would take too much time.
+
+Section alignment is not really that important, but I do need to have a large enough alignment that the ALIGNs in the code are valid.
+
+Page alignment is not a requirement. The only things that need to be page aligned are the page tables and the page directory, which are allocated sbrk-style after boot by the memory manager. Actually, the page directory is already is the HMA and there is only a need for one. We can leave that.
+
+It seems that DMC does not allow for arbitrary alignment. However, it DOES allow for structure packing to be changed and this does mean alignment. If the members are aligned, surely the whole structure also is. I tried to align by 4096 and it did not work, so it must be 1,2,4,8.
+
+Also, I now see the linker producing a .SYS file containing the correct code. Strange. It still has the wrong base address, so the linker is still not usable.
+
+The plan:
+- Build watcom linker
+- Configure linker options for 1024-byte section align
+- Migrate `Type.h`.
+- Purge most basicatomic features except for the basic loads and stores. Consider removing those too.
+- Add alignment garauntee structure types.
+- Change asm statements to DMC format
+- Update makefile to use different options and generate+link OMF files
+- Update documentation to highlight all changes.

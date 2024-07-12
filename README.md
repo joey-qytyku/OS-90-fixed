@@ -38,7 +38,7 @@ Any component of DOS or the BIOS can also be trapped to provide a 32-bit impleme
 
 ## What does the name mean?
 
-The name was partially inspired by IBM OS/2, although OS/90 has nothing at all to do with OS/2..
+The name was partially inspired by IBM OS/2, although OS/90 has nothing at all to do with OS/2.
 
 The 90 was chosen because OS/90 was meant to be for 90's era computers. This is no longer the case, so 90 means nothing specific. Targetting a decade was not a great idea because the category was too broad and I could not narrow down what was actually characteristic about 90's computing to make a single OS based on it.
 
@@ -60,7 +60,7 @@ The source code uses codepage 437 characters to make it viewable in DOS. Visual 
 
 ## Where can I find documentation for driver development?
 
-There is a full API handbook in the works. Some things are in the docs directory instead.
+There is a full API handbook in the `docs` folder.
 
 ## What are the Licensing Terms?
 

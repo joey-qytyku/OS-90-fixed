@@ -134,8 +134,6 @@ enum {
 
 #define ALIGN(x) __attribute__((aligned(x)))
 
-#define FENCE() __asm__ volatile ("":::"memory")
-
 #define NULL ((PVOID)0UL)
 
 #define ASM(x) __asm__ volatile (x)

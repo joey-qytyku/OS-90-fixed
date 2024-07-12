@@ -46,10 +46,26 @@ This is a simple solution for the problem of what the scheduler should do if the
 
 The original invocation of main is lost forever. The scheduler destroys the state on the first IRQ#0.
 
+Preemption and interrupts are enabled. The kernel init thread gets a time slice of 1000, using 100% of the CPU to start up. The idle thread is also created and ready to execute.
+
 ## Memory Init
 
+> The exact procedure is explained in greater detail in the code.
+
 The memory manager has a large bit of state that needs ot be initialized. It also depends on SV86 which was initialized earlier.
+
+The page directory is kept in the HMA. Cache is enabled for the first 640K and the HMA, but not the UMA. The page directory table remains identity mapped as usual. The HMA uses ring-0 privileges so that V86 programs do not damage it.
+
+An address space is reconstructed for the kernel with cache enabled, all pages locked, and ring-0 with no write protection.
 
 By the end, the OS/90 heap manager and page allocator will both be ready to execute. Virtual memory is also ready but is not used by the kernel during bootstrap at all (and should not be).
 
 Memory is finally allocatable at this stage.
+
+## Driver Load
+
+Drivers are loaded into the allocatable region and their entry points are executed.
+
+## INIT Termination
+
+The INIT thread cannot continue to execute since it uses 100% of the CPU. It is scheduled for termination.

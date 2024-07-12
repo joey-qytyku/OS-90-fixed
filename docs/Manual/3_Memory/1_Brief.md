@@ -6,3 +6,4 @@ The physical memory is mapped in a static array in the Physical Block Table, whe
 
 All memory is locked by default. Memory must specifically be marked as transient in order to be ellegible for swapping.
 
+OS/90 is built on the idea of "unused RAM is wasted RAM" and the memory manager reflects this intent.

@@ -12,12 +12,12 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include <osk/sd/basicatomic.h>
-#include <osk/sd/sv86.h>
+#include <OSK/SD/basicatomic.h>
+#include <OSK/SD/sv86.h>
 
-#include <osk/mc/pio.h>
+#include <OSK/MC/pio.h>
 
-#include <osk/db/debug.h>
+#include <OSK/DB/debug.h>
 
 static SHORT GetCmosBytePair(SHORT base)
 {

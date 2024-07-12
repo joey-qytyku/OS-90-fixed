@@ -12,17 +12,28 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#ifndef DRIVERS_H
+#define DRIVERS_H
 
-
-/*
- * startup stub is essentially:
- * jmp [0x8000_0006] ; 6 bytes
- * DD _start         ; 4 bytes
-*/
-
-// This structure is 4K in size and at the beginning of the kernel address
-// space.
-struct _systab {
-    char _startup_stub[16];
+enum {
+        GD_INIT,
+        GD_UNLOAD,
+        GD_ENTER_SYSTEM_IDLE,
+        GD_SYSTEM_POWEROFF,
+        GD_FLUSH_BUFFERS,
+        GD_LAPTOP_LID_CLOSE,
+        GD_LAPTOP_LID_OPEN,
+        GD_EXIT_EARLY_BOOT,
+        GD_DRV_ENABLE,
+        GD_DRV_DISABLE,
+        GD_DOCK,
+        GD_UNDOCK
 };
+
+typedef struct VOID (DRIVER_ENTRY*)(PSTR cmdline);
+typedef struct VOID (GENERAL_DISPATCH*)(LONG code, LONG arg);
+
+typedef struct {
+};
+
+#endif /* DRIVERS_H */
