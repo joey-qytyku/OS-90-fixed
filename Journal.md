@@ -3910,3 +3910,11 @@ The plan:
 - Change asm statements to DMC format
 - Update makefile to use different options and generate+link OMF files
 - Update documentation to highlight all changes.
+
+# July 13
+
+I now have the watcom linker executable and the DLL it requires. WSL is able to run it. The location is `/mnt/c/WATCOM/binnt/wlink.exe`.
+
+The linker options will be tough to set up. I think I should just generate an ELF file. The WLINK documentation is extremely long and 95% of it is useless.
+
+Wait, maybe I should get the compiler working first? Until then, I have nothing to actually build. Work on the build system.
