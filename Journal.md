@@ -3941,3 +3941,13 @@ NASM is giving me strange errors about an unrecognized segment value. Think I sh
 
 
 REMEMBER THAT MASM TREATS SYMBOL REFERENCES AS MEMORY ACCESSES WITHOUT THE OFFSET KEYWORD!
+
+# July 14
+
+## Source Tree and Build System
+
+To simplify the build system I unfoldered everything and added section prefixes to order the files alphabetically. This is actually easier to read on the explorer panel.
+
+The build system will be even simpler now. I no longer need a makefile. A simple build script can do it all. There is no need to create a source tree folder structure in the build directory or to hash the names of the files and use the same directory.
+
+The assembler apparently can also assemble using a wildcard too.

@@ -1,0 +1,52 @@
+s_sv86.asm(22) : Error A2106: Cannot open file: "OSK/ASM/structs.inc" [ENOENT]
+s_sv86.asm(28) : Error A2084: Colon is expected
+s_sv86.asm(29) : Error A2084: Colon is expected
+s_sv86.asm(35) : Error A2210: Syntax error: global
+s_sv86.asm(36) : Error A2210: Syntax error: global
+s_sv86.asm(37) : Error A2210: Syntax error: global
+s_sv86.asm(40) : Error A2210: Syntax error: section
+s_sv86.asm(53) : Error A2082: Must be in segment block
+s_sv86.asm(54) : Error A2082: Must be in segment block
+s_sv86.asm(56) : Error A2082: Must be in segment block
+s_sv86.asm(57) : Error A2082: Must be in segment block
+s_sv86.asm(58) : Error A2082: Must be in segment block
+s_sv86.asm(60) : Error A2082: Must be in segment block
+s_sv86.asm(61) : Error A2082: Must be in segment block
+s_sv86.asm(63) : Error A2082: Must be in segment block
+s_sv86.asm(67) : Error A2082: Must be in segment block
+s_sv86.asm(69) : Error A2082: Must be in segment block
+s_sv86.asm(75) : Error A2082: Must be in segment block
+s_sv86.asm(76) : Error A2082: Must be in segment block
+s_sv86.asm(83) : Error A2082: Must be in segment block
+s_sv86.asm(84) : Error A2082: Must be in segment block
+s_sv86.asm(85) : Error A2082: Must be in segment block
+s_sv86.asm(87) : Error A2082: Must be in segment block
+s_sv86.asm(88) : Error A2210: Syntax error: .
+s_sv86.asm(97) : Error A2082: Must be in segment block
+s_sv86.asm(98) : Error A2082: Must be in segment block
+s_sv86.asm(99) : Error A2082: Must be in segment block
+s_sv86.asm(100) : Error A2082: Must be in segment block
+s_sv86.asm(106) : Error A2082: Must be in segment block
+s_sv86.asm(107) : Error A2082: Must be in segment block
+s_sv86.asm(113) : Error A2082: Must be in segment block
+s_sv86.asm(114) : Error A2082: Must be in segment block
+s_sv86.asm(120) : Error A2082: Must be in segment block
+s_sv86.asm(121) : Error A2082: Must be in segment block
+s_sv86.asm(122) : Error A2082: Must be in segment block
+s_sv86.asm(123) : Error A2082: Must be in segment block
+s_sv86.asm(125) : Error A2210: Syntax error: .
+s_sv86.asm(130) : Error A2082: Must be in segment block
+s_sv86.asm(131) : Error A2082: Must be in segment block
+s_sv86.asm(136) : Error A2082: Must be in segment block
+s_sv86.asm(137) : Error A2082: Must be in segment block
+s_sv86.asm(138) : Error A2082: Must be in segment block
+s_sv86.asm(139) : Error A2082: Must be in segment block
+s_sv86.asm(145) : Error A2082: Must be in segment block
+s_sv86.asm(146) : Error A2082: Must be in segment block
+s_sv86.asm(155) : Error A2082: Must be in segment block
+s_sv86.asm(156) : Error A2082: Must be in segment block
+s_sv86.asm(157) : Error A2082: Must be in segment block
+s_sv86.asm(158) : Error A2082: Must be in segment block
+s_sv86.asm(159) : Error A2082: Must be in segment block
+s_sv86.asm(160) : Error A2082: Must be in segment block
+s_sv86.asm(160) : Fatal error A1113: Too many errors
