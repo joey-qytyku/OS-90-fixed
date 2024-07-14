@@ -38,7 +38,9 @@ The low-level handlers simply jump to the middle part unless they are
 
 %endif
 
-        %include "osk/ll/hmadef.inc"
+        include OSK/LL/hmadef.inc
+
+        .CODE
 
         global IDT, IDT_INFO
         global GetInService
@@ -54,7 +56,6 @@ The low-level handlers simply jump to the middle part unless they are
         global ISR_7, ISR_15, ISR_REST
         extern SystemEntryPoint
 
-        section .text
 
 %macro Save 0
 
@@ -91,7 +92,7 @@ The low-level handlers simply jump to the middle part unless they are
         pop     GS
 
 %endmacro
-        global  Sd_SystemEntryPoint
+        global  SystemEntryPoint
 
         align   32
 EXC_0:  push    0
@@ -420,7 +421,6 @@ S_Yield:
         sti
         ret
 
-        section .data
 stage2_isr_list:
         DD      IRQ0
         DD      0,0,0,0,0
@@ -431,7 +431,7 @@ IDT_INFO:
         DW      2048
         DD      IDT
 
-        section .bss
+        section 'BSS' CLASS=BSS
 
         align   16
 IDT:

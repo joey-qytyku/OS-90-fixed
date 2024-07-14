@@ -12,15 +12,9 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-%include "osk/ll/hmadef.inc"
-
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-;                                D E F I N E S
-
-%define ACCESS_RIGHTS(present, ring, type) (present<<7 | ring<<6 | type)
-
-;                           E N D   D E F I N E S
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+        include OSK/LL/hmadef.inc
+        .386p
+        model   flat, stdcall
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ;                               E Q U A T E S
@@ -60,6 +54,14 @@ TYPE_CODE       EQU     0x1B
 TYPE_LDT        EQU     0x2
 TYPE_TSS        EQU     0x9
 
+RING0 EQU 0
+RING3 EQU 3
+PRESENT EQU 1
+
+ACCESS_RIGHTS MACRO present, ring, type
+        (present<<7 | ring<<6 | type)
+ENDM
+
 IRQ_BASE        EQU     0A0h
 ICW1            EQU     1<<4
 LEVEL_TRIGGER   EQU     1<<3
@@ -67,36 +69,34 @@ ICW1_ICW4       EQU     1
 ICW4_8086       EQU     1
 ICW4_SLAVE      EQU     1<<3
 
+
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ;                               I M P O R T S
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
-        extern IDT,IDT_INFO
-        extern GetIrqMask, SetIrqMask
-        extern EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7,EXC_8,EXC_9,EXC_10,EXC_11,EXC_12,EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
+        EXTERNDEF IDT:ABS, IDT_INFO:ABS
+
+        EXTERN GetIrqMask:PROC, SetIrqMask:PROC
+
+        EXTERNDEF EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7,EXC_8,EXC_9,EXC_10,EXC_11,EXC_12,EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ;                               E X P O R T S
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
-        global i386GetDescriptorAddress
-        global i386SetDescriptorAddress
-        global i386SetDescriptorLimit
-        global TSS, LDT
+        PUBLIC i386GetDescriptorAddress
+        PUBLIC i386SetDescriptorAddress
+        PUBLIC i386SetDescriptorLimit
+        PUBLIC TSS, LDT
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .bss
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-
+        .BSS
 LDT:
-        RESQ    LDT_SIZE
+        RESB    LDT_SIZE * 8
 
 TSS:
         RESB    104+8192
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .data
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+        .DATA
 
         align 16
 GDT:
@@ -167,10 +167,7 @@ i386MonitorRing3IO:
         mov     word [TSS+100],0FFFFh
         ret
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .text
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-
+        .CODE
 ;-------------------------------------------------------------------------------
 ; Arguments on stdcall stack:
 ;       PVOID   address
@@ -261,7 +258,7 @@ SetIntVector:
         pop     ebx
         ret     12
 
-%macro ConfPIC 0
+ConfPIC MACRO
         ;---------------------------
         ; C o n f i g u r e  P I C
         ;---------------------------
@@ -301,11 +298,11 @@ SetIntVector:
 
         ; Rewrite mask register
         pop     eax
-        call    SetIrqMask
+        invoke  SetIrqMask, eax
 
-%endmacro
+ENDM
 
-%macro SetupLDTD_LDTR 0
+SetupLDTD_LDTR MACRO
         ;---------------------------
         ; Create LDT descriptor
         ;---------------------------
@@ -320,9 +317,9 @@ SetIntVector:
         mov     ax,GDT_LDT<<3
         lldt    ax
 
-%endmacro
+ENDM
 
-%macro SetupTSSD_IOPB 0
+SetupTSSD_IOPB MACRO
         mov     word[TSS+100],104
 
         ;----------------------------------
@@ -334,17 +331,17 @@ SetIntVector:
 
         mov     ax,GDT_TSSD<<3
         ltr     ax
-%endmacro
+ENDM
 
-%macro ZeroBSS 0
+ZeroBSS MACRO
         cld
         xor     eax,eax
         mov     ecx,BSS_SIZE
         mov     edi,END_CODE
         rep     stosb
-%endmacro
+ENDM
 
-%macro SetupSegments 0
+SetupSegments MACRO
         lgdt    [GdtInfo]
         mov     ax,2<<3
         mov     ds,ax
@@ -354,9 +351,9 @@ SetIntVector:
         mov     gs,ax
         jmp     8h:%%Cont
 %%Cont:
-%endmacro
+ENDM
 
-extern ISR_REST, ISR_7, ISR_15
+EXTERNDEF ISR_REST, ISR_7, ISR_15
 
 ;
 ; ESI = List of vectors
@@ -381,7 +378,7 @@ CopyVectors:
 
         ret
 
-%macro InsertVectors 0
+InsertVectors MACRO
 
         ; Insert exception vectors
         mov     esi,IDT_EXC_COPY
@@ -402,22 +399,21 @@ CopyVectors:
         mov     edi,IDT+(0A0h*8)
         mov     ecx,16
         call    CopyVectors
-%%DONE1:
+DONE1:
 
         lidt    [IDT_INFO]
+ENDM
 
-%endmacro
 
+SetupRMCA MACRO
 
-%macro SetupRMCA 0
-
-        mov     esi,RMCA_COPY
-        mov     edi,SWBASE
-        mov     ecx,RMCA_COPY_END - RMCA_COPY
+        mov     esi,OFFSET RMCA_COPY
+        mov     edi,OFFSET SWBASE
+        mov     ecx,OFFSET (RMCA_COPY_END - RMCA_COPY)
         cld
         rep     movsb
 
-%endmacro
+ENDM
 
 IDT_EXC_COPY:
 DD EXC_0, EXC_1, EXC_2, EXC_3, EXC_4, EXC_5, EXC_6, EXC_7, EXC_8
@@ -429,7 +425,7 @@ IDT_IRQ_COPY:
 DD ISR_7
 
 RMCA_COPY:
-        incbin  "blobs/switch.bin"
+        incbin  "BLOBS/switch.bin"
 RMCA_COPY_END:
 
 DD ISR_REST
@@ -438,12 +434,12 @@ DD ISR_REST
 DD ISR_15
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .init
+                                section 'INIT'
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
-        extern END_CODE
-        extern BSS_SIZE
-        extern KernelMain
+        EXTERNDEF END_CODE
+        EXTERNDEF BSS_SIZE
+        EXTERN KernelMain:PROC
 
 Begin:
         ZeroBSS

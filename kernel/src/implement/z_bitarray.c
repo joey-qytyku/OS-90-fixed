@@ -46,7 +46,6 @@ void enable_bit_array_range(LONG *array, LONG base_inx, LONG count)
         enable_bit_array_entry(array, base_inx+i);
 }
 
-// __attribute__((hot))
 LONG alloc_bits(
     LONG*       array,
     LONG        bound,

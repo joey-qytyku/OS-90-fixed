@@ -12,35 +12,14 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-struc STDREGS
 
-._EAX    RESD 1
-._EBX    RESD 1
-._ECX    RESD 1
-._EDX:   RESD 1
+;
+; TODO: UPDATE FOR NEW CALLING CONVENTIONS!!!!
+;
+;
+;
 
-._ESI    RESD 1
-._EDI    RESD 1
-._EBP    RESD 1
-
-._pm_ES  RESD 1
-._pm_DS  RESD 1
-._pm_FS  RESD 1
-._pm_GS: RESD 1
-
-._EIP:   RESD 1
-._CS     RESD 1
-._EFLAGS RESD 1
-._ESP    RESD 1
-._SS     RESD 1
-
-._v86_ES RESD 1
-._v86_DS RESD 1
-._v86_FS RESD 1
-._v86_GS RESD 1
-.size:
-
-endstruc
+include OSK/ASM/structs.inc
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ;                                I m p o r t s
@@ -58,7 +37,7 @@ endstruc
         global g_sv86
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .text
+                                section 'CODE' CLASS=CODE
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 
 
@@ -247,14 +226,14 @@ InitV86:
         ret
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .data
+                                section 'DATA'
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
         align 4
 g_sv86 DD 0
 
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section .bss
+                                section 'BSS'
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
         align   64
 v86_table:
-        times 256 RESD 1
+        times 256 DD ?

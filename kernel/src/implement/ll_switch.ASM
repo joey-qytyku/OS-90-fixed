@@ -12,11 +12,13 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-        %include "osk/ll/hmadef.inc"
+        %include "OSK/LL/hmadef.inc"
+
+; THIS FILE MUST BE BUILT WITH NASM
 
 ;-------------------------------------------------------------------------------
 ; This is a procedure that is called by an IRQ handler, but by address rather
-; than symbol.
+; than symbol. A 16-bit selector is used.
 ;
 ; Interrupts are assumed to be off here.
 ; EDX is the interrupt vector to invoke.

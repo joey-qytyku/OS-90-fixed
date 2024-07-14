@@ -1,13 +1,14 @@
 #
-# I used chatgpt to generate this makefile a while ago, but I have changed most things.
+# Hash function used to generate unique number for each file name.
 #
+define hash
+$(shell echo -n $1 | md5sum | cut -d' ' -f1)
+endef
 
-TOOLCHAIN := ~/opt/cross1/bin
-
-CC := $(TOOLCHAIN)/i386-linux-gcc
+CC := ~/tch90/dm/bin/dmc.exe
 
 # Assembler
-AS := nasm
+AS := ~/tch90/uasm
 
 SRCDIR := src/implement
 OBJDIR := build/obj
@@ -15,7 +16,7 @@ BINDIR := build
 
 BLOBDIR := src/include/blobs
 
-SOURCES := $(shell find $(SRCDIR) -type f -name "*.c")
+CSOURCES := $(shell find $(SRCDIR) -type f -name "*.c")
 ASSEMBLY := $(shell find $(SRCDIR) -type f -name "*.asm")
 
 OBJS := $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(SOURCES:.c=.c.o))
@@ -23,44 +24,30 @@ OBJS += $(patsubst $(SRCDIR)/%,$(OBJDIR)/%,$(ASSEMBLY:.asm=.asm.o))
 
 EXEC := $(BINDIR)/OS90.DAT
 
-OPTS:= -Os -mtune=i386 -fconserve-stack
-DEBUG_OPTIONS := -DPRINTF_INCLUDE_CONFIG_H -Wextra -Werror=implicit-function-declaration
-
-# Add regparm?
-ABI := -fcall-used-esi -fcall-used-edi -mgeneral-regs-only -mpreferred-stack-boundary=2 -mregparm=3 -mrtd
-
-ARCH := -march=i386
-
-CENV := -nostdlib -nostartfiles -nodefaultlibs -ffreestanding
-
 INCLUDES := -include src/include/Type.h -I src/include/
 
-CFLAGS := $(OPTS) $(ABI) $(ARCH) $(INCLUDES) $(DEBUG_OPTIONS) $(CENV)
+CFLAGS := -c -mn -o -DPRINTF_INCLUDE_CONFIG_H
 
-AFLAGS := -f elf32 -Ox -i src/include/
+AFLAGS :=
 
-LD := $(TOOLCHAIN)/i386-linux-ld
+LDCMD := /mnt/c/WATCOM/WLINK.EXE @wlink.lnk
 
 .PHONY: all
 all: switch $(EXEC)
 
 $(EXEC): $(OBJS)
-	@mkdir -p $(BINDIR)
-	@$(LD) --trace --oformat binary -T LinkScripts/Kernel.ld $^ -o $@
-	@$(LD) -T LinkScripts/Kernel.ld $^ -o sizetest.o
+	@$(LDCMD) $<
 
-$(OBJDIR)/%.c.o: $(SRCDIR)/%.c
+$(OBJDIR)/%.c.o: $(CSOURCES)
 	@mkdir -p $(dir $@)
 	@echo [CC] $<
-	@$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CFLAGS) $< -o$(call hash, $@).obj
 
 $(OBJDIR)/%.asm.o: $(SRCDIR)/%.asm
-	@mkdir -p $(dir $@)
-	@echo [AS] $<
-	@$(AS) $(AFLAGS) $< -o $@
+	@$(AS) $(AFLAGS) $< -o $(call hash, $@)
 
 switch:
-	$(AS) -i src/include -fbin src/implement/ll/switch.ASM -o src/include/blobs/switch.bin
+	nasm -i src/include -fbin src/implement/LL/switch.ASM -o src/include/BLOBS/switch.bin
 
 clean:
 	rm -rf $(BINDIR)/* $(OBJDIR)/*

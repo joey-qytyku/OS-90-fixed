@@ -15,3 +15,10 @@
 #define PRINTF_DISABLE_SUPPORT_FLOAT
 #define PRINTF_DISABLE_SUPPORT_EXPONENTIAL
 #define PRINTF_DISABLE_SUPPORT_LONG_LONG
+
+// Move elsewhere
+static void _putchar(char c)
+{
+    outb(0xE9, c);
+}
+

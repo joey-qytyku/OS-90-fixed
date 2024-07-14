@@ -43,8 +43,8 @@ PLIST_ITEM GetInsertionPoint(PLIST_ITEM ll_root, unsigned int value, unsigned in
         PLIST_ITEM bottom_root = FindIndexDescending(ll_root, top_size-1);
         PLIST_ITEM top_root    = ll_root;
 
-        printf("bs: %i ts: %i val: %i\n", bottom_size, top_size, ll_root->value);
-        printf("brv: %i trv: %i \n-------------\n", bottom_root->value, top_root->value);
+        // printf("bs: %i ts: %i val: %i\n", bottom_size, top_size, ll_root->value);
+        // printf("brv: %i trv: %i \n-------------\n", bottom_root->value, top_root->value);
 
         // If the value being inserted is larger than the bottom half, we
         // are sure that the bottom does not need to be searched at all.

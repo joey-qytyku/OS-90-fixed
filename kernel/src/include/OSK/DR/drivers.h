@@ -15,25 +15,40 @@
 #ifndef DRIVERS_H
 #define DRIVERS_H
 
+/*
+General events are situations that do not have very defined behavior
+unless otherwise stated. Behaviors resulting from the calls are
+up to the driver. They just have a certain code reserved for them so that
+the OS is not incomplete and can properly handle advanced events without
+having to provide a specification.
+
+Any part of the kernel may send such an event. Every driver will recieve
+general events.
+*/
+
 enum {
-        GD_INIT,
-        GD_UNLOAD,
-        GD_ENTER_SYSTEM_IDLE,
-        GD_SYSTEM_POWEROFF,
-        GD_FLUSH_BUFFERS,
-        GD_LAPTOP_LID_CLOSE,
-        GD_LAPTOP_LID_OPEN,
-        GD_EXIT_EARLY_BOOT,
-        GD_DRV_ENABLE,
-        GD_DRV_DISABLE,
-        GD_DOCK,
-        GD_UNDOCK
+        GE_INIT = 0,
+        GE_UNLOAD,
+        GE_DRV_ENABLE,
+        GE_DRV_DISABLE,
+
+        // Rest are optional
+
+        GE_ENTER_SYSTEM_IDLE = 0x7000,
+        GE_SYSTEM_POWEROFF,
+        GE_FLUSH_BUFFERS,
+        GE_LAPTOP_LID_CLOSE,
+        GE_LAPTOP_LID_OPEN,
+        GE_EXIT_EARLY_BOOT,
+        GE_DOCK,
+        GE_UNDOCK,
+        GE_MEMORY_LOW,          /* Sent when approx. 90% of mem is in use */
+        GE_SWAP_LOW,            /* Same but for swap */
+        GE_SUBSYS_WANTS_DEV,    /* For VMs to work. For example, a VM needs to passthrough the PS/2 keyboard */
+        GE_SUBSYS_RELEASE_DEV,
 };
 
 typedef struct VOID (DRIVER_ENTRY*)(PSTR cmdline);
-typedef struct VOID (GENERAL_DISPATCH*)(LONG code, LONG arg);
-
-typedef struct {
-};
+typedef struct STAT (GENERAL_DISPATCH*)(LONG code, LONG arg);
 
 #endif /* DRIVERS_H */
