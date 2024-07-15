@@ -101,8 +101,7 @@ preempt:                The preemption counter was once a global atomic variable
 
 static inline PTASK GET_CURRENT_TASK(VOID)
 {
-        register LONG e asm("esp");
-        return (PTASK)(e & (~4095));
+        return (PTASK)(_ESP & (~4095));
 }
 
 VOID  S_Terminate(PTASK pt);

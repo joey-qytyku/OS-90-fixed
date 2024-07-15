@@ -12,12 +12,11 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include <osk/sd/basicatomic.h>
-#include <osk/sd/stdregs.h>
-#include <osk/sd/sv86.h>
-#include <osk/sd/int.h>
+#include <OSK/SD/stdregs.h>
+#include <OSK/SD/sv86.h>
+#include <OSK/SD/int.h>
 
-#include <osk/db/debug.h>
+#include <OSK/DB/debug.h>
 
 extern VOID M_Init(VOID);
 

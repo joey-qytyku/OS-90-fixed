@@ -12,9 +12,8 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include <osk/sd/basicatomic.h>
-#include <osk/sd/task.h>
-#include <osk/sd/int.h>
+#include <OSK/SD/task.h>
+#include <OSK/SD/int.h>
 
 #define NUM_EXCEPTIONS 21
 
@@ -54,5 +53,5 @@ VOID SystemEntryPoint(LONG index, LONG error_code, PSTDREGS trapframe)
         // Maybe the current interrupt state should be updated to reflect the previous one
         // at the opportune time?
 
-        SET_FLAGS(trapframe->EFLAGS);
+        // SET_FLAGS(trapframe->EFLAGS);
 }

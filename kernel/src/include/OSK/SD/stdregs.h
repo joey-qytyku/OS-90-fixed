@@ -12,8 +12,6 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-// #include <Type.h>
-
 #ifndef STDREGS_H
 #define STDREGS_H
 

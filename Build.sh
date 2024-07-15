@@ -11,8 +11,7 @@ cd ..
 echo "==|   BUILDING KERNEL   |=="
 
 cd kernel
-make clean
-make all
+./Build.sh
 cd ..
 
 dosbox -conf runconf/dosbox.conf

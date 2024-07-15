@@ -30,23 +30,7 @@ typedef struct { LONG _; } ATOMIC32;
 // This causes GCC to think that we are trying to access the pointer argument
 // itself and uses the stack pointer as an address.
 
-__attribute__((always_inline))
-static inline VOID RELEASE_MUTEX(ATOMIC32 *m)
-{
-        ASM("btrl $0,%0" : "=m"(*m)::"memory");
-}
 
-__attribute__((always_inline))
-static inline VOID ACQUIRE_MUTEX(ATOMIC32 *m)
-{
-        ASM(
-            "spin%=:\n\t"
-            "btsl $0,%0\n\t"
-            "jc spin%="
-            : "=m"(*m)
-            : "m"(*m)
-            : "memory");
-}
 
 __attribute__((always_inline))
 static inline BOOL MUTEX_WAS_LOCKED(ATOMIC32 *m)

@@ -16,6 +16,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
+
 // RED     "\x1b[31m"   GREEN   "\x1b[32m"
 // YELLOW  "\x1b[33m"   BLUE    "\x1b[34m"
 // MAGENTA "\x1b[35m"   CYAN    "\x1b[36m"
@@ -35,17 +36,6 @@ if (!(exp))                                                             \
         ASM("cli; hlt":::"memory");                                     \
         FENCE()                                                         \
 }
-
-//
-// ALWAYS use this instead of printf. This will memory fence and block
-// interrupts, ensuring no garbled output.
-//
-#define kdebug_log(fmt, ...)                                                                    \
-{                                                                                               \
-        ASM("pushf; cli":::"memory");                                                           \
-        printf(COLOR_STR( "%s:%i\t" fmt),  __FILE__, __LINE__ __VA_OPT__(,) __VA_ARGS__);       \
-        ASM("popf":::"memory");                                                                 \
-}                                                                                               \
 
 #define not_null(exp) { assert((exp) != NULL); }
 

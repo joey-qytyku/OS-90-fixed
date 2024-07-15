@@ -33,14 +33,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <osk/db/printf.h>
-
+#include <OSK/DB/printf.h>
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
 // default: undefined
 #ifdef PRINTF_INCLUDE_CONFIG_H
-#include <OSK/printf_config.h>
+#include <OSK/DB/printf_config.h>
 #endif
 
 // 'ntoa' conversion buffer size, this must be big enough to hold one converted
@@ -902,12 +901,12 @@ int vsnprintf_(char* buffer, size_t count, const char* format, va_list va)
 }
 
 
-int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...)
-{
-  va_list va;
-  va_start(va, format);
-  const out_fct_wrap_type out_fct_wrap = { out, arg };
-  const int ret = _vsnprintf(_out_fct, (char*)(uintptr_t)&out_fct_wrap, (size_t)-1, format, va);
-  va_end(va);
-  return ret;
-}
+// int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...)
+// {
+//   va_list va;
+//   va_start(va, format);
+//   const out_fct_wrap_type out_fct_wrap = { out, arg };
+//   const int ret = _vsnprintf(_out_fct, (char*)(uintptr_t)&out_fct_wrap, (size_t)-1, format, va);
+//   va_end(va);
+//   return ret;
+// }

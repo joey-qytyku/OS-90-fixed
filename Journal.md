@@ -3951,3 +3951,41 @@ To simplify the build system I unfoldered everything and added section prefixes 
 The build system will be even simpler now. I no longer need a makefile. A simple build script can do it all. There is no need to create a source tree folder structure in the build directory or to hash the names of the files and use the same directory.
 
 The assembler apparently can also assemble using a wildcard too.
+
+Wildcards did not work, but using a list of things to compile did. I now have a problem where DMC refuses to detect my include path, even if I change the INI. I will give it one more try.
+
+Okay, I think things are working now. I just need to modify the code to get it to work.
+
+Also, I found out something interesting about DMC. It has register variables! They are just variable names with underscore prefixes. This makes it possible to call assembly procedures without having to use a specific ABI. Maybe I can try to make a DOS program that prints hello world using that.
+
+The compiler could not find a library but it did generate the right code.
+
+## Ideas
+
+During a DMA transfer, code that heavily uses tight loops should be prefered as it will allow the memory bus and the cache to be used without interference.
+
+I think I need a notion of global scheduler states that determine what types of threads should be prefered at a given point in time.
+
+## ABI Notes From DM Website
+
+```
+For 32-bit memory models
+Functions can change the values in the EAX, ECX, EDX, ESI, EDI registers.
+
+Functions must preserve the values in the EBX, ESI, EDI, EBP, ESP, SS, CS, DS registers (plus ES and GS for the NT memory model).
+
+Always set the direction flag to forward.
+
+To maximize speed on 32-bit buses, make sure data aligns along 32-Function return values
+
+    For 16-bit models. If the return value for a function is short (a char, int, or near pointer) store it in the AX register, as in the previous example, expon2. If the return value is long, store the high word in the DX register and the low word in AX. To return a longer value, store the value in memory and return a pointer to the value.
+    For 32-bit models. Return near pointers, ints, unsigned ints, chars, shorts, longs and unsigned longs in EAX. 32-bit models return far pointers in EDX, EAX, where EDX contains the segment and EAX contains the offset.
+    When C linkage is in effect. Floats are returned in EAX and doubles in EDX, EAX, where EDX contains the most significant 32 bits and EAX the least significant.
+    When C++ linkage is in effect. The compiler creates a temporary copy on the stack and returns a pointer to it. 
+```
+
+## RMCS Fix
+
+MASM and UASM cannot embed binaries. This is a significant drawback. The best way around it is to use the bootloader to do it! It can embed the binary because it is written in NASM and so is the RMCS.
+
+The booloader only needs a few fixes now to add this. I can keep all of the original code.

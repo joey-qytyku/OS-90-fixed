@@ -18,6 +18,7 @@
 #include <OSK/MC/pio.h>
 
 #include <OSK/DB/debug.h>
+//INCLUDE="%@P%\..\include";"%@P%\..\mfc\include";%INCLUDE%;"%@P%\..\..\..\OS-90-fixed\kernel\src\include"
 
 static SHORT GetCmosBytePair(SHORT base)
 {

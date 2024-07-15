@@ -1,4 +1,0 @@
-m_memlib.asm(2) : Warning A4095: Multiple .MODEL directives, .MODEL ignored
-m_memlib.asm(2) : Error A2132: Incompatible CPU mode for 64-bit segment
-m_memlib.asm(2) : Error A2132: Incompatible CPU mode for 64-bit segment
-m_memlib.asm(6) : Error A2132: Incompatible CPU mode for 64-bit segment
