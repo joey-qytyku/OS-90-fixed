@@ -1,0 +1,7 @@
+src/implement/s_int.asm(365) : Error A2056: Symbol already defined: CONT
+src/implement/s_int.asm(371) : Error A2266: Syntax error in expression
+src/implement/s_int.asm(409) : Error A2266: Syntax error in expression
+src/implement/s_int.asm(435) : Error A2184: Use of register assumed to ERROR
+src/implement/s_int.asm(438) : Error A2210: Syntax error: preempt_count
+src/implement/s_int.asm(440) : Error A2210: Syntax error: system_uptime
+src/implement/s_int.asm(442) : Error A2210: Syntax error: actual_irq

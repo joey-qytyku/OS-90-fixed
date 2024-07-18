@@ -1,18 +1,18 @@
-/////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
-//                                                                         //
-// This file is part of OS/90.                                             //
-//                                                                         //
-// OS/90 is free software. You may distribute and/or modify it under       //
-// the terms of the GNU General Public License as published by the         //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.                                                   //
-//                                                                         //
-// A copy of this license should be included with OS/90.                   //
-// If not, it can be found at <https://www.gnu.org/licenses/>              //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+		      Copyright (C) 2022-2024, Joey Qytyku
 
-#include <osk/db/printf.h>
+  This file is part of OS/90.
+
+  OS/90 is free software. You may distribute and/or modify it under
+  the terms of the GNU General Public License as published by the
+  Free Software Foundation, either version two of the license or a later
+  version if you choose.
+
+  A copy of this license should be included with OS/90.
+  If not, it can be found at <https://www.gnu.org/licenses/>
+*******************************************************************************/
+
+#include <OSK/DB/printf.h>
 
 void _putchar(char c);
 
@@ -45,11 +45,11 @@ char *blkdev[E_BLKDEV_NUM_ERRS__] =
 // };
 
 char *memdev[E_MEM_NUM_ERRS__] = {
-        [EOK]           = eok,
-        [EFAIL]         = efail,
-        [E_MEM_OUT]     = "No page frames available",
-        [E_MEM_NOMAP]   = "No more virtual address space",
-        [E_MEM_NOSWP]   = "Memory evicted or swapped in cannot be due to no swap"
+	[EOK]           = eok,
+	[EFAIL]         = efail,
+	[E_MEM_OUT]     = "No page frames available",
+	[E_MEM_NOMAP]   = "No more virtual address space",
+	[E_MEM_NOSWP]   = "Memory evicted or swapped in cannot be due to no swap"
 };
 
 VOID PrintError()

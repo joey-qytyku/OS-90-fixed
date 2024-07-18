@@ -13,24 +13,31 @@
 11. VOID S_IntsOn(VOID)
 12. VOID S_IntsOff(VOID);
 13. BOOL S_TaskInKernel(PTASK pt)
-14. STAT S_IssueTimeSlice(PTASK to, PTASK time_provider, SHORT slices);
-15. STAT S_RemoveTimeSlice(PTASK from, SHORT count)
+14. STAT S_IssueTimeSlices(PTASK to, PTASK time_provider, SHORT slices);
+15. STAT S_RemoveTimeSlices(PTASK from, SHORT count)
 16. LONG S_GetLoadAverage(VOID);
 17. VOID HookIdle(IDLE newidle, PIDLE ptr_oldidle);
+18. PTASK MapTaskBlock(PTASK task);
+
+## Task Block Structure
+
+Every task has a semi-opaque 4096-byte structure called a task block (TASK in C code). Because it contains a kernel mode stack, it is possible to find
+
+Task blocks never move upon allocation because they are 4K (smallest memory unit). Upon creation, task blocks are permanently stuck to the virtual address where they are mapped and are in locked memory.
 
 ## GET_CURRENT_TASK
 
 This is NOT a real kernel function, but a static inline. It gives the address of the task block of the currently running task.
 
-It is paramout to not change the stack in a kernel mode task whatsoever beyond what is given by the kernel. Doing so would make it impossible to find the current task. If more stack space is needed, disable preemption and change it only within that section.
+It is paramout to not change the stack in a kernel mode task whatsoever beyond what is given by the kernel. Doing so would make it impossible to find the current task. If more stack space is needed, disable interrupts and change it only within that section.
 
 ## KTHREAD_PROC
 
-Exiting the thread and terminating it is done by simply returning. This will self terminate. If in deeper procedure levels, use
+Exiting the thread and terminating it is done by simply returning. This will self terminate. If in deeper procedure levels, use S_SelfTerminate.
 
 ## S_SelfTerminate
 
-Recommended function for terminating the active thread.
+Recommended function for terminating the active thread. This is useful for managing KTHREADS as it does not need a task handle.
 
 ## S_ExecKernelThread
 
@@ -44,7 +51,9 @@ Use up all time slices and switch to next available task. This works with preemp
 
 Place task in the scheduled task chain and switch to a specific task immediately. This works for tasks that are already scheduled.
 Internally works by removing that task from the list and re-inserting it directly after the current task, and follows this with a yield to switch to the task.
-S_Deactivate
+
+## S_Deactivate
+
 Prevents the task from running. Internally it chops out the task block from the linked list. NEVER CALL ON THE CURRENT TASK. Self-deactivation makes no sense because another task would have to reschedue it, which is pointless when that other task could also deal with deactivating it. Doing so would also make it impossible for the scheduler to know which task is next.
 
 ## S_PreemptOn, S_PreemptOff
@@ -89,6 +98,12 @@ Subsystems can use this for advanced scheduling.
 This allows for adding extra things to the idle task. For example: setting some other low-power state. By default, the idle thread simply runs a set of HLT instructions (many of them are used to avoid branch predictor pollution).
 
 > APM may have an idling feature that could be used.
+
+## MapTaskBlock
+
+Task blocks are allocated as single pages in physical memory. To make them actually accessible, they must be mapped. The current task block is always mapped to a reserved region in the HMA address space, which can be done directly from an interrupt service routine.
+
+NEVER ACCESS A TASK BLOCK WITHOUT MAPPING IT FIRST. NEVER PASS A MAPPED TASK BLOCK TO A SCHEDULER TASK.
 
 ## Other TASK Topics
 

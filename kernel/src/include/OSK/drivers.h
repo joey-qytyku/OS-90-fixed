@@ -27,25 +27,25 @@ general events.
 */
 
 enum {
-        GE_INIT = 0,
-        GE_UNLOAD,
-        GE_DRV_ENABLE,
-        GE_DRV_DISABLE,
+	GE_INIT = 0,
+	GE_UNLOAD,
+	GE_DRV_ENABLE,
+	GE_DRV_DISABLE,
 
-        // Rest are optional
+	// Rest are optional
 
-        GE_ENTER_SYSTEM_IDLE = 0x7000,
-        GE_SYSTEM_POWEROFF,
-        GE_FLUSH_BUFFERS,
-        GE_LAPTOP_LID_CLOSE,
-        GE_LAPTOP_LID_OPEN,
-        GE_EXIT_EARLY_BOOT,
-        GE_DOCK,
-        GE_UNDOCK,
-        GE_MEMORY_LOW,          /* Sent when approx. 90% of mem is in use */
-        GE_SWAP_LOW,            /* Same but for swap */
-        GE_SUBSYS_WANTS_DEV,    /* For VMs to work. For example, a VM needs to passthrough the PS/2 keyboard */
-        GE_SUBSYS_RELEASE_DEV,
+	GE_ENTER_SYSTEM_IDLE = 0x7000,
+	GE_SYSTEM_POWEROFF,
+	GE_FLUSH_BUFFERS,
+	GE_LAPTOP_LID_CLOSE,
+	GE_LAPTOP_LID_OPEN,
+	GE_EXIT_EARLY_BOOT,
+	GE_DOCK,
+	GE_UNDOCK,
+	GE_MEMORY_LOW,          /* Sent when approx. 90% of mem is in use */
+	GE_SWAP_LOW,            /* Same but for swap */
+	GE_SUBSYS_WANTS_DEV,    /* For VMs to work. For example, a VM needs to passthrough the PS/2 keyboard */
+	GE_SUBSYS_RELEASE_DEV,
 };
 
 typedef struct VOID (DRIVER_ENTRY*)(PSTR cmdline);

@@ -12,52 +12,49 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-%if 0
+; This file handles IRQs and dispatching system events.
 
-This file handles IRQs and dispatching system events.
+; OS/90 does not use software interrupts directly. Every IDT entry is set to
+; ring-0 in order to make ring-3 emulation of all events possible by causing
+; a fault every time an INT call or anything like that happens.
 
-OS/90 does not use software interrupts directly. Every IDT entry is set to
-ring-0 in order to make ring-3 emulation of all events possible by causing
-a fault every time an INT call or anything like that happens.
+; Actual exceptions are different and are not actually called by software, but
+; the CPU and can work with ring-0.
 
-Actual exceptions are different and are not actually called by software, but
-the CPU and can work with ring-0.
+; Exceptions are used to emulate everything, if it originates from ring-3,
+; a chain of handlers is used.
 
-Exceptions are used to emulate everything, if it originates from ring-3,
-a chain of handlers is used.
+; ---
 
----
+; IRQs start at vector 0xA0. They are completely reserved vectors that
+; may not be used for anything ever.
 
-IRQs start at vector 0xA0. They are completely reserved vectors that
-may not be used for anything ever.
-
-The low-level handlers simply jump to the middle part unless they are
-7 or 15, in which case they write those values.
+; The low-level handlers simply jump to the middle part unless they are
+; 7 or 15, in which case they write those values.
 
 
 
-%endif
+        .386p
+        .MODEL  flat, stdcall
 
         include OSK/LL/hmadef.inc
 
-        .CODE
+        PUBLIC IDT, IDT_INFO
+        PUBLIC GetInService
+        PUBLIC GetIrqMask
+        PUBLIC SetIrqMask
+        PUBLIC GetStage2ISR
+        PUBLIC SetStage2ISR
 
-        global IDT, IDT_INFO
-        global GetInService
-        global GetIrqMask
-        global SetIrqMask
-        global GetStage2ISR
-        global SetStage2ISR
+        PUBLIC EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7
+        PUBLIC EXC_8,EXC_9,EXC_10,EXC_11,EXC_12
+        PUBLIC EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
 
-        global EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7
-        global EXC_8,EXC_9,EXC_10,EXC_11,EXC_12
-        global EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
-
-        global ISR_7, ISR_15, ISR_REST
-        extern SystemEntryPoint
+        PUBLIC ISR_7, ISR_15, ISR_REST
+        EXTERNDEF SystemEntryPoint:ABS
 
 
-%macro Save 0
+Save    MACRO
 
         push    GS
         push    FS
@@ -73,9 +70,9 @@ The low-level handlers simply jump to the middle part unless they are
         push    EBX
         push    EAX
 
-%endmacro
+        ENDM
 
-%macro Restore 0
+Restore MACRO
 
         pop     EAX
         pop     EBX
@@ -91,8 +88,9 @@ The low-level handlers simply jump to the middle part unless they are
         pop     FS
         pop     GS
 
-%endmacro
-        global  SystemEntryPoint
+        ENDM
+
+        .CODE
 
         align   32
 EXC_0:  push    0
@@ -105,7 +103,7 @@ EXC_6:  push    6
 EXC_7:  push    7
 
 EXC_8:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR [ss:EXC_CODE]
         push    8 ;;
         jmp     EXC_CONT
 
@@ -113,27 +111,27 @@ EXC_9:  push    9
         jmp     EXC_CONT
 
 EXC_10:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR [ss:EXC_CODE]
         push    10 ;;
         jmp     EXC_CONT
 
 EXC_11:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR ss:EXC_CODE
         push    11 ;;
         jmp     EXC_CONT
 
 EXC_12:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR ss:EXC_CODE
         push    12 ;;
         jmp     EXC_CONT
 
 EXC_13:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR ss:EXC_CODE
         push    13 ;;
         jmp     EXC_CONT
 
 EXC_14: ; THIS IS BEING CALLED FOR SOME REASON, nah.
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR ss:EXC_CODE
         push    14 ;;
         jmp     EXC_CONT
 
@@ -144,7 +142,7 @@ EXC_16: push    16
         jmp     EXC_CONT
 
 EXC_17:
-        pop     dword [ss:EXC_CODE]
+        pop     DWORD PTR ss:EXC_CODE
         push    17 ;;
         jmp     EXC_CONT
 
@@ -168,16 +166,16 @@ EXC_CONT:
         Restore
         iret
 
-EXC_CODE: DD 0
+EXC_CODE DD 0
 
         align   32
 ISR_15:
-        mov     BYTE [SS:actual_irq],15
+        mov     BYTE PTR ss:actual_irq,15
         jmp     ISR_REST
 
         align   32
 ISR_7:
-        mov     BYTE [SS:actual_irq],7
+        mov     BYTE PTR ss:actual_irq,7
         jmp     ISR_REST
         align   32
 ISR_REST:
@@ -198,7 +196,7 @@ ISR_REST:
         test    eax,eax
         jnz     .SPUR
 
-.CONT:
+CONT::
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; This was not a spurious interrupt.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
@@ -211,8 +209,8 @@ ISR_REST:
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; If the interrupt has no 32-bit handler, reflect to DOS/BIOS
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        cmp     dword [stage2_isr_list+eax*4],0
-        jz      .REFLECT
+        cmp     DWORD PTR [stage2_isr_list+eax*4],0
+        jz      REFLECT
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Call interrupt handler and send appropriate EOI. Handlers take the
@@ -226,38 +224,38 @@ ISR_REST:
 
         ; Are the first 3 bits 0? If so it must be on the slave PIC.
         test    bl,7
-        jz      .EOI_BOTH
+        jz      EOI_BOTH
 
-.REFLECT:
+REFLECT::
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Call the reflection entry point in HMA and exit without EOI.
         ; The real mode ISR will send EOI.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         xchg    bx,bx
         mov     edx,eax
-        call    38h:0
+        DB      9Ah,0,0,0,0,38h,00
         jmp     .NO_EOI
 
-.SPUR:
+SPUR::
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; actual_irq contains the IRQ index since ISR is zero.
         ; If the spurious IRQ came slave, both get the EOI.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        cmp     byte [actual_irq],15
+        cmp     BYTE PTR actual_irq,15
         jnz     .NO_EOI
 
         align   16
-.EOI_BOTH:
+EOI_BOTH::
         mov     al,20h
         out     0A0h,al
 
         align   16
-.EOI_MASTER:
+EOI_MASTER::
         mov     al,20h
         out     20h,al
 
         align   16
-.NO_EOI:
+NO_EOI::
         Restore
         iret
 
@@ -318,11 +316,11 @@ GetInService:
 
 GetStage2ISR:
         ; Does not need to disable interrupts because it is atomic
-        mov eax,[stage2_isr_list+eax*4]
+        mov     eax,[stage2_isr_list+eax*4]
         ret
 
 SetStage2ISR:
-        mov [stage2_isr_list+eax*4],eax
+        mov     [stage2_isr_list+eax*4],eax
         ret
 
         align   64
@@ -336,27 +334,27 @@ IRQ0:
         xchg    bx,bx
 
         xor     ebx,ebx
-        add     dword [system_uptime],1
-        adc     dword [system_uptime+4],ebx
+        add     DWORD PTR [system_uptime],1
+        adc     DWORD PTR [system_uptime+4],ebx
 
-        cmp     [preempt_count],ebx
-        jnz     .SKIP
+        cmp     preempt_count,ebx
+        jnz     SKIP
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Get the TASK structure.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         mov     ebx,esp
-        and     ebx,~4095
+        and     ebx,not 4095
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Decrement the scheduler counter in the task.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        dec     word [ebx+80+8]
+        dec     WORD PTR [ebx+80+8]
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; If not zero, continue with switching tasks.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
-        jnz     .CONT
+        jnz     CONT
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Reset the counter to its time slice.
@@ -364,13 +362,13 @@ IRQ0:
         mov     ecx,[ebx+80+12]
         mov     [ebx+80+8],ecx
 
-.CONT:
+CONT:
         ; Copy stdregs of the next task and exit the ISR.
 
         ; If the next task is in V86 mode, we will copy the full 80 bytes
         ; Otherwise, we will copy only 64 bytes.
         xor     eax,eax
-        test    byte [ebx+(13*4)+4],(1<<2)      ; ZF = 0 if not V86, 1 if V86
+        test    byte [ebx+(13*4)+4],(100b)      ; ZF = 0 if not V86, 1 if V86
         setz    al                      ; AL = ZF
         shl     eax,4                   ; AL<<4 = 16 or 0
         add     eax,64-4                ; Offset approprately for backward copy
@@ -390,7 +388,7 @@ IRQ0:
         ;; Task state segment?
         ;;
 
-.SKIP:
+SKIP:
         ret
 
 ;
@@ -407,15 +405,15 @@ S_Yield:
 
         cli
         mov     eax,esp
-        and     eax,~4095
+        and     eax,not 4095
         mov     word [eax+80+8],0
 
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
         ; Decrement the system uptime counter to compensate.
         ;ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ
 
-        sub     dword [system_uptime],1
-        sbb     dword [system_uptime+4],0
+        sub     DWORD PTR [system_uptime],1
+        sbb     DWORD PTR [system_uptime+4],0
 
         int     0A0h
         sti
@@ -431,12 +429,11 @@ IDT_INFO:
         DW      2048
         DD      IDT
 
-        section 'BSS' CLASS=BSS
+        .DATA?
 
         align   16
 IDT:
-        RESB    2048
-
+        DB      2048 DUP(?)
 
 preempt_count RESD 0
 
@@ -444,3 +441,5 @@ system_uptime RESQ 0
 
 actual_irq RESB 0
         ; TODO
+
+END

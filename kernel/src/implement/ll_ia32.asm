@@ -12,37 +12,24 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-        include OSK/LL/hmadef.inc
-        .386p
-        model   flat, stdcall
+	.386p
+	.model  flat, stdcall
+	include OSK/LL/hmadef.inc
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+;---------------------------------------------------------------------------
 ;                               E Q U A T E S
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+;---------------------------------------------------------------------------
+
+LDT_SIZE EQU 512
 
 GDT_NULL        EQU     0
 GDT_KCODE       EQU     1
 GDT_KDATA       EQU     2
-GDT_UCODE       EQU     3
-GDT_UDATA       EQU     4
-GDT_TSSD        EQU     5
-GDT_LDT         EQU     6
-GDT_SWCS        EQU     7 ;;;
-GDT_SWDS        EQU     8
-GDT_ENTRIES     EQU     9
-
-;---------------------------------------------------------------------------
-; Real mode CS and DS segments are used for switching to physical real mode.
-;
-;---------------------------------------------------------------------------
-
-
-; We are not wasting 64K for LDT entries that will never be used except in
-; bizzare circumstances. 64K is a TON of memory that could be
-; utilized much more wisely.
-
-; This value must be consistent with the one in IA32/Segment.h
-LDT_SIZE        EQU     64
+GDT_TSSD        EQU     3
+GDT_LDT         EQU     4
+GDT_SWCS        EQU     5
+GDT_SWDS        EQU     6
+GDT_ENTRIES     EQU     7
 
 ; The data/stack segment enables the BIG bit
 ; so that Plug-and-play BIOS recognizes it as
@@ -56,405 +43,355 @@ TYPE_TSS        EQU     0x9
 
 RING0 EQU 0
 RING3 EQU 3
-PRESENT EQU 1
+PRES  EQU 1
 
-ACCESS_RIGHTS MACRO present, ring, type
-        (present<<7 | ring<<6 | type)
+GRAN  EQU 80h
+SEG32 EQU 40h
+
+ACCESS MACRO present, ring, type
+EXITM <((present shl 7) or (ring shl 6) or type)>
+ENDM
+
+; Base address is not relocatable, so it must be manually
+; written with code.
+DESC MACRO limit, acc, extacc
+	DW      (limit) and 0FFFFh
+	DW      0
+	DW      0
+	DB      (acc)
+	DB      (extacc) or ((limit) shr 16)
+	DB      0
 ENDM
 
 IRQ_BASE        EQU     0A0h
-ICW1            EQU     1<<4
-LEVEL_TRIGGER   EQU     1<<3
+ICW1            EQU     1 shl 4
+LEVEL_TRIGGER   EQU     1 shl 3
 ICW1_ICW4       EQU     1
 ICW4_8086       EQU     1
-ICW4_SLAVE      EQU     1<<3
+ICW4_SLAVE      EQU     1 shl 3
 
-
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+;---------------------------------------------------------------------------
 ;                               I M P O R T S
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+;---------------------------------------------------------------------------
 
-        EXTERNDEF IDT:ABS, IDT_INFO:ABS
+	EXTERNDEF IDT:ABS, IDT_INFO:FWORD
 
-        EXTERN GetIrqMask:PROC, SetIrqMask:PROC
+	EXTERN GetIrqMask:PROC, SetIrqMask:PROC
 
-        EXTERNDEF EXC_0,EXC_1,EXC_2,EXC_3,EXC_4,EXC_5,EXC_6,EXC_7,EXC_8,EXC_9,EXC_10,EXC_11,EXC_12,EXC_13,EXC_14,EXC_15,EXC_16,EXC_17,EXC_18,EXC_19
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+FOR i, <0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19>
+	EXTERNDEF EXC_&i :ABS
+ENDM
+
+;---------------------------------------------------------------------------
 ;                               E X P O R T S
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+;---------------------------------------------------------------------------
 
-        PUBLIC i386GetDescriptorAddress
-        PUBLIC i386SetDescriptorAddress
-        PUBLIC i386SetDescriptorLimit
-        PUBLIC TSS, LDT
+	PUBLIC i386GetDescriptorAddress
+	PUBLIC i386SetDescriptorAddress
+	PUBLIC i386SetDescriptorLimit
+	PUBLIC TSS, LDT
 
-        .BSS
-LDT:
-        RESB    LDT_SIZE * 8
+	.DATA?
+LDT     DD      LDT_SIZE * 8 DUP(?)
+TSS     DD      104+8192 DUP(?)
 
-TSS:
-        RESB    104+8192
+	.DATA
 
-        .DATA
+	align 16
+GDT     LABEL PTR
+	DD      0,0
+	DESC    0FFFFFh,        ACCESS(1,0,TYPE_CODE), <SEG32 or GRAN>
+	DESC    0FFFFFh,        ACCESS(1,0,TYPE_DATA), <SEG32 or GRAN>
+	DESC    103,            ACCESS(1,0,TYPE_TSS),  <0>
+	DESC    LDT_SIZE*8-1,   ACCESS(1,0,TYPE_LDT),  <0>
+	DESC    512,            ACCESS(1,0,TYPE_CODE), <0>
+	DESC    512,            ACCESS(1,0,TYPE_DATA), <0>
+EGDT    LABEL PTR
 
-        align 16
-GDT:
-.null_segment:
-        DD      0,0
-.kcode:
-        DW      0FFFFh  ; Limit 0:15
-        DW      0       ; Base 0:15
-        DB      0       ; Base 16:23
-        DB      ACCESS_RIGHTS(1,0,TYPE_CODE)
-        DB      0CFh
-        DB      0
-.kdata:
-        DW      0FFFFh
-        DB      0,0,0
-        DB      ACCESS_RIGHTS(1,0,TYPE_DATA)
-        DB      0CFh
-        DB      0
-.ucode:
-        DW      0FFFFh
-        DB      0,0,0
-        DB      ACCESS_RIGHTS(1,3,TYPE_CODE)
-        DB      0CFh
-        DB      0
-.udata:
-        DW      0FFFFh
-        DB      0,0,0
-        DB      ACCESS_RIGHTS(1,3,TYPE_DATA)
-        DB      0CFh
-        DB      0
-.tss:
-        DW      0FFFFh
-        DB      0,0,0
-        DB      ACCESS_RIGHTS(1,0,TYPE_TSS)
-        DB      0CFh
-        DB      0
-.ldt:
-        DW      103
-        DB      0,0,0
-        DB      ACCESS_RIGHTS(1,0,TYPE_LDT)
-        DB      0,0
-.swcs:
-        DW      0FFFFh
-        DW      SWBASE & 0FFFFh
-        DB      SWBASE >> 16
-        DB      ACCESS_RIGHTS(1,0,TYPE_CODE)
-        DB      0
-        DB      0
+GdtInfo LABEL FWORD
+	DW      EGDT-GDT-1
+	DD      GDT
 
-.swds:
-        DW      0FFFFh
-        DW      SWBASE & 0FFFFh
-        DB      SWBASE >> 16
-        DB      ACCESS_RIGHTS(1,0,TYPE_DATA)
-        DB      0
-        DB      0
-
-GdtInfo:
-        DW      (GDT_ENTRIES*8)-1
-        DD      GDT
-
-
-i386AllowRing3IO:
-        mov     word [TSS+100],104
-        ret
-
-i386MonitorRing3IO:
-        mov     word [TSS+100],0FFFFh
-        ret
-
-        .CODE
-;-------------------------------------------------------------------------------
+	.CODE
+;---------------------------------------------------------------------------
 ; Arguments on stdcall stack:
 ;       PVOID   address
 ;
 i386GetDescriptorAddress:
-        push    EBX
-        ; Descriptors are perfectly valid offsets to the LDT when the DPL
-        ; and GDT/LDT bits are masked off.
+	push    EBX
+	; Descriptors are perfectly valid offsets to the LDT when the DPL
+	; and GDT/LDT bits are masked off.
 
-        mov     EBX,[ESP+4]
+	mov     EBX,[ESP+4]
 
-        ; EBX is now the address of our descriptor
+	; EBX is now the address of our descriptor
 
-        ; Let us put the segment descriptor address confusion to rest
-        ; The first address field is 16-bit.
-        ; It is equal to TheFullAddress & 0xFFFF. Nuff said.
-        ;
-        ; The last two fields are BYTEs. To make the high address word
-        ; we left shift by 8 the 31..24 field
-        ; then we OR it with the 23..16
-        mov     EAX,[EBX+2]
-        movzx   ECX,BYTE [EBX+3]
-        movzx   EDX,BYTE [EBX+7]        ; 31..24
-        shl     EDX,8
-        or      ECX,EDX
-        or      EAX,ECX
+	; Let us put the segment descriptor address confusion to rest
+	; The first address field is 16-bit.
+	; It is equal to TheFullAddress & 0xFFFF. Nuff said.
+	;
+	; The last two fields are BYTEs. To make the high address word
+	; we left shift by 8 the 31..24 field
+	; then we OR it with the 23..16
+	mov     EAX,[EBX+2]
+	movzx   ECX,BYTE PTR [EBX+3]
+	movzx   EDX,BYTE PTR [EBX+7]        ; 31..24
+	shl     EDX,8
+	or      ECX,EDX
+	or      EAX,ECX
 
-        ;EAX now contains the address, we are done.
-        pop     EBX
-        ret     4
+	;EAX now contains the address, we are done.
+	pop     EBX
+	ret     4
 
 i386SetDescriptorAddress: ;(VOID *gdt_entry, DWORD address)
-        push    ebp
-        mov     ebp,esp
+	push    ebp
+	mov     ebp,esp
 
-        push    ebx
+	push    ebx
 
-        mov     ebx,[ebp+8]
+	mov     ebx,[ebp+8]
 
-        movzx   eax, word [ebp+12]
-        mov     [ebx+2],ax
+	movzx   eax, WORD PTR [ebp+12]
+	mov     [ebx+2],ax
 
-        movzx   eax,BYTE [ebp+12+2]
-        mov     [ebx+4],al
+	movzx   eax,BYTE PTR [ebp+12+2]
+	mov     [ebx+4],al
 
-        movzx   eax,BYTE [ebp+12+3]
-        mov     [ebx+7],al
+	movzx   eax,BYTE PTR [ebp+12+3]
+	mov     [ebx+7],al
 
-        pop     ebx
+	pop     ebx
 
-        pop     ebp
-        ret     8
+	pop     ebp
+	ret     8
 
 
 i386SetDescriptorLimit:
-        push    ebx
+	push    ebx
 
-        mov     esi, [esp+4]
-        mov     dx, [esp+8]
+	mov     esi, [esp+4]
+	mov     dx, [esp+8]
 
-        mov     word [esi],dx
-        mov     word [esi+6],dx
+	mov     WORD PTR [esi],dx
+	mov     WORD PTR [esi+6],dx
 
-        mov     ah,BYTE [esi+6]
-        shl     ax, 8
-        mov     BYTE [esi+2], ah
+	mov     ah,BYTE PTR [esi+6]
+	shl     ax, 8
+	mov     BYTE PTR [esi+2], ah
 
-        pop     ebx
-        ret     8
+	pop     ebx
+	ret     8
 
 SetIntVector:
-        push    ebx
+	push    ebx
 
-        mov     edx,[esp+12+4]    ; Base address to insert
-        movzx   eax,BYTE[esp+8+4] ; Info
-        mov     ebx,[esp+4+4]     ; Index of descriptor
+	mov     edx,[esp+12+4]    ; Base address to insert
+	movzx   eax,BYTE PTR [esp+8+4] ; Info
+	mov     ebx,[esp+4+4]     ; Index of descriptor
 
-        ; EBX is not the address yet, only index. Calculate.
-        lea     ebx,[ebx*8+IDT]
+	; EBX is not the address yet, only index. Calculate.
+	lea     ebx,[ebx*8+IDT]
 
-        mov     BYTE[ebx+5],al
-        mov     BYTE[ebx+4],0
-        mov     [ebx+2],cs
-        mov     [ebx+0],dx ;
-        shr     edx,16
-        mov     [ebx+6],dx ;
+	mov     BYTE PTR [ebx+5],al
+	mov     BYTE PTR [ebx+4],0
+	mov     [ebx+2],cs
+	mov     [ebx+0],dx
+	shr     edx,16
+	mov     [ebx+6],dx
 
-        pop     ebx
-        ret     12
+	pop     ebx
+	ret     12
 
 ConfPIC MACRO
-        ;---------------------------
-        ; C o n f i g u r e  P I C
-        ;---------------------------
 
-        ;
-        ; Reconfiguring the PICs will destroy the mask registers.
-        ;
-        call    GetIrqMask
-        push    eax
-        ; Different bits tell OCWs and ICWs appart in CMD port
-        ; Industry standard architecture uses edge triggered interrupts
-        ; 8-BYTE interrupt vectors are default (ICW[:2] = 0)
-        ; which is correct for protected mode.
+	;
+	; Reconfiguring the PICs will destroy the mask registers.
+	;
+	call    GetIrqMask
+	push    eax
+	; Different bits tell OCWs and ICWs appart in CMD port
+	; Industry standard architecture uses edge triggered interrupts
+	; 8-BYTE interrupt vectors are default (ICW[:2] = 0)
+	; which is correct for protected mode.
 
-        ;ICW1 to both PIC's
-        mov     AL,ICW1 | ICW1_ICW4
-        out     20h,AL
-        out     0A0h,AL
+	;ICW1 to both PIC's
+	mov     AL,(ICW1 or ICW1_ICW4) ;;;;
+	out     20h,al
+	out     0A0h,al
 
-        ;Set base interrupt vectors
-        mov     AL,IRQ_BASE
-        out     21h,AL
-        mov     AL,IRQ_BASE+8
-        out     0A1h,AL
+	;Set base interrupt vectors
+	mov     al,IRQ_BASE
+	out     21h,al
+	mov     al,IRQ_BASE+8
+	out     0A1h,al
 
-        ;ICW3, set cascade
-        mov     AL,4        ; For master it is a bit mask
-        out     21h,AL
-        mov     AL,2        ; For slave it is an INDEX
-        out     0A1h,AL
+	;ICW3, set cascade
+	mov     AL,4        ; For master it is a bit mask
+	out     21h,AL
+	mov     AL,2        ; For slave it is an INDEX
+	out     0A1h,AL
 
-        ;Send ICW4
-        mov     AL,ICW4_8086
-        out     21h,AL
-        mov     AL,ICW4_8086|ICW4_SLAVE ; Assert PIC2 is slave
-        out     0A1h,AL
+	;Send ICW4
+	mov     AL,ICW4_8086
+	out     21h,AL
+	mov     AL,ICW4_8086 or ICW4_SLAVE ; Assert PIC2 is slave
+	out     0A1h,AL
 
-        ; Rewrite mask register
-        pop     eax
-        invoke  SetIrqMask, eax
+	; Rewrite mask register with mask on stack
+	call    SetIrqMask
 
 ENDM
 
 SetupLDTD_LDTR MACRO
-        ;---------------------------
-        ; Create LDT descriptor
-        ;---------------------------
+	;---------------------------
+	; Create LDT descriptor
+	;---------------------------
 
-        push    LDT
-        push    GDT + 8*GDT_LDT
-        call    i386SetDescriptorAddress
+	push    OFFSET LDT
+	push    OFFSET GDT + 8*GDT_LDT
+	call    i386SetDescriptorAddress
 
-        ;---------------------------
-        ; Set LDTR
-        ;---------------------------
-        mov     ax,GDT_LDT<<3
-        lldt    ax
+	;---------------------------
+	; Set LDTR
+	;---------------------------
+	mov     ax,GDT_LDT shl 3
+	lldt    ax
 
 ENDM
 
 SetupTSSD_IOPB MACRO
-        mov     word[TSS+100],104
+	mov     WORD PTR [TSS+100],104
 
-        ;----------------------------------
-        ; Insert address to TSS descriptor
-        ;----------------------------------
-        push    TSS
-        push    GDT + 8*GDT_TSSD
-        call    i386SetDescriptorAddress
+	;----------------------------------
+	; Insert address to TSS descriptor
+	;----------------------------------
+	push    OFFSET TSS
+	push    OFFSET GDT + 8*GDT_TSSD
+	call    i386SetDescriptorAddress
 
-        mov     ax,GDT_TSSD<<3
-        ltr     ax
+	mov     ax,GDT_TSSD shl 3
+	ltr     ax
 ENDM
 
 ZeroBSS MACRO
-        cld
-        xor     eax,eax
-        mov     ecx,BSS_SIZE
-        mov     edi,END_CODE
-        rep     stosb
+	cld
+	xor     eax,eax
+	mov     ecx,OFFSET BSS_SIZE
+	mov     edi,OFFSET END_CODE
+	rep     stosb
 ENDM
 
 SetupSegments MACRO
-        lgdt    [GdtInfo]
-        mov     ax,2<<3
-        mov     ds,ax
-        mov     es,ax
-        mov     ss,ax
-        mov     fs,ax
-        mov     gs,ax
-        jmp     8h:%%Cont
-%%Cont:
+	lgdt    FWORD PTR GdtInfo
+	mov     ax,2 shl 3
+	mov     ds,ax
+	mov     es,ax
+	mov     ss,ax
+	mov     fs,ax
+	mov     gs,ax
+
+	DB      0EAh            ; Far JMP
+	DD      OFFSET Cont
+	DW      8h
+Cont:
 ENDM
 
-EXTERNDEF ISR_REST, ISR_7, ISR_15
+EXTERNDEF ISR_REST:ABS, ISR_7:ABS, ISR_15:ABS
 
 ;
 ; ESI = List of vectors
 ; EDI = IDT base address to start coping to
 ; ECX = Number of entries to copy
 ;
-CopyVectors:
-.L:
-        movzx   eax, word [esi]
-        mov     [edi],ax ;;;
+CopyVectors PROC
+_L:
+	movzx   eax, WORD PTR [esi]
+	mov     [edi],ax ;;;
 
-        movzx   eax, word [esi+2]
-        mov     [edi+6],ax
+	movzx   eax, WORD PTR [esi+2]
+	mov     [edi+6],ax
 
-        mov     byte [edi+5],8Eh
-        mov     [edi+2],cs
+	mov     BYTE PTR [edi+5],8Eh
+	mov     [edi+2],cs
 
-        add     esi,4
-        add     edi,8
-        dec     ecx
-        jnz     .L
+	add     esi,4
+	add     edi,8
+	dec     ecx
+	jnz     _L
 
-        ret
+	ret
+CopyVectors ENDP
 
 InsertVectors MACRO
 
-        ; Insert exception vectors
-        mov     esi,IDT_EXC_COPY
-        mov     edi,IDT
-        mov     ecx,19
-        call    CopyVectors
+	; Insert exception vectors
+	mov     esi,OFFSET IDT_COPY
+	mov     edi,OFFSET IDT
+	mov     ecx,19
+	call    CopyVectors
 
-        ; Insert IRQ vectors
+	; Insert IRQ vectors
 
-        mov     ecx,16
-.L:
-        push    ISR_REST
-        loop    .L
+	mov     ecx,16
+_L:
+	push    OFFSET ISR_REST
+	loop    SHORT _L
 
-        mov     dword [esp+7*4],ISR_7
-        mov     dword [esp+15*4],ISR_15
-        mov     esi,esp
-        mov     edi,IDT+(0A0h*8)
-        mov     ecx,16
-        call    CopyVectors
+	mov     DWORD PTR [esp+7*4],ISR_7
+	mov     DWORD PTR [esp+15*4],ISR_15
+	mov     esi,esp
+	mov     edi,OFFSET(IDT)+(0A0h*8)
+	mov     ecx,16
+	call    CopyVectors
 DONE1:
 
-        lidt    [IDT_INFO]
+	lidt    FWORD PTR IDT_INFO
 ENDM
 
 
 SetupRMCA MACRO
 
-        mov     esi,OFFSET RMCA_COPY
-        mov     edi,OFFSET SWBASE
-        mov     ecx,OFFSET (RMCA_COPY_END - RMCA_COPY)
-        cld
-        rep     movsb
+	mov     esi,OFFSET RMCA_COPY
+	mov     edi,OFFSET SWBASE
+	mov     ecx, (OFFSET RMCA_COPY_END - OFFSET RMCA_COPY) / 4
+	cld
+	rep     movsd
 
 ENDM
 
-IDT_EXC_COPY:
-DD EXC_0, EXC_1, EXC_2, EXC_3, EXC_4, EXC_5, EXC_6, EXC_7, EXC_8
-DD EXC_9, EXC_10, EXC_11, EXC_12, EXC_13, EXC_14, EXC_15
-DD EXC_16, EXC_17, EXC_18, EXC_19
+RMCA_COPY LABEL PTR
+	incbin <BLOBS/switch.bin>
+	align   4
+RMCA_COPY_END LABEL PTR
 
-; Remove and replace with a loop. Waste of space.
-IDT_IRQ_COPY:
-DD ISR_7
+IDT_COPY:
+DD 0, 1, 2, 3, 4, 5, 6, 7, 8
+DD 9, 10, 11, 12, 13, 14, 15
+DD 16, 17, 18, 19
 
-RMCA_COPY:
-        incbin  "BLOBS/switch.bin"
-RMCA_COPY_END:
+_INIT   SEGMENT
 
-DD ISR_REST
-DD ISR_REST
-DD ISR_REST
-DD ISR_15
-
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-                                section 'INIT'
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
-
-        EXTERNDEF END_CODE
-        EXTERNDEF BSS_SIZE
-        EXTERN KernelMain:PROC
+	EXTERNDEF       END_CODE:ABS
+	EXTERNDEF       BSS_SIZE:ABS
+	EXTERN          KernelMain:PROC
 
 Begin:
-        ZeroBSS
-        SetupSegments
-        ConfPIC
+	ZeroBSS
+	SetupSegments
+	ConfPIC
 
-        SetupLDTD_LDTR
-        SetupTSSD_IOPB
-        InsertVectors
-        SetupRMCA
+	SetupLDTD_LDTR
+	SetupTSSD_IOPB
+	InsertVectors
+	SetupRMCA
 
-        mov     esp,100000h+65520
-        call    KernelMain
+	mov     esp,100000h+65520
+	call    KernelMain
 
-        jmp $
+	jmp $
 
-;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
+_INIT   ENDS
 
+END

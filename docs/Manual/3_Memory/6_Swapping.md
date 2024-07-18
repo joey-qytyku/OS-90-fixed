@@ -1,9 +1,9 @@
 # Virtual Memory
 
-The memory manager provides functions related to the management of swap files, demand paging candidacy hints, and other features.
+OS/90 swaps only when it is unabled to complete a memory allocation request and commit the expected number of pages. An out of memory handler stack is used.
 
-## Swap Files
+> I should add a way to monitor chain allocation from a driver. This could allow me to write an independent but efficient swapper.
 
-OS/90 has disk-mapped paging, allowing for pages in virtual memory to map to a sector or group of sectors on the disk. This is controlled by the disk driver primarily.
-
-
+```
+MMCall(MM_ALLOC, 1000)
+```

@@ -6,6 +6,7 @@ output OS90.DAT
 option offset=0x80000000
 
 # Define the segments with 1024-byte alignment
+segment _TEXT USE32 CLASS 'CODE'
 segment _TEXT USE32 CLASS 'CODE' align=1024
 segment _DATA USE32 CLASS 'DATA' align=1024
 segment _BSS  USE32 CLASS 'BSS'  align=1024

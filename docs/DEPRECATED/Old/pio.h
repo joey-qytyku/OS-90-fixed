@@ -15,7 +15,7 @@
 #ifndef IO_H
 #define IO_H
 
-force_inline static inline void rep_insb(void* mem, LONG count, SHORT port)
+static inline void rep_insb(void* mem, LONG count, SHORT port)
 {
     __asm__ volatile(
         "cld\n"
@@ -26,7 +26,7 @@ force_inline static inline void rep_insb(void* mem, LONG count, SHORT port)
     );
 }
 
-force_inline static inline void rep_outsb(void *mem, LONG count, SHORT port)
+static inline void rep_outsb(void *mem, LONG count, SHORT port)
 {
     __asm__ volatile(
         "cld\n"
@@ -37,7 +37,7 @@ force_inline static inline void rep_outsb(void *mem, LONG count, SHORT port)
     );
 }
 
-force_inline static inline void rep_insw(void *mem, LONG count, SHORT port)
+static inline void rep_insw(void *mem, LONG count, SHORT port)
 {
     __asm__ volatile(
         "cld\n"
@@ -48,7 +48,7 @@ force_inline static inline void rep_insw(void *mem, LONG count, SHORT port)
     );
 }
 
-force_inline static inline void rep_outsw(void *mem, LONG count, SHORT port)
+static inline void rep_outsw(void *mem, LONG count, SHORT port)
 {
     __asm__ volatile(
         "cld\n"
@@ -60,7 +60,7 @@ force_inline static inline void rep_outsw(void *mem, LONG count, SHORT port)
 }
 
 #define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\
-force_inline static inline _TYPE in##_ASM_TYPE_PREFIX(SHORT port)\
+static inline _TYPE in##_ASM_TYPE_PREFIX(SHORT port)\
 {\
     _TYPE ret;\
     __asm__ volatile ("in" #_ASM_TYPE_PREFIX " %1, %0" :"=a"(ret) :"Nd"(port):"memory");\
@@ -69,17 +69,9 @@ force_inline static inline _TYPE in##_ASM_TYPE_PREFIX(SHORT port)\
 
 
 #define _MAKE_PORT_OUT(_ASM_TYPE_PREFIX, _TYPE)\
-force_inline static inline void out##_ASM_TYPE_PREFIX (SHORT port, _TYPE val)\
+static inline void out##_ASM_TYPE_PREFIX (SHORT port, _TYPE val)\
 {\
     __asm__ volatile ("out" #_ASM_TYPE_PREFIX " %0, %1": :"a"(val), "Nd"(port):"memory");\
-}
-
-#define MAKE_MMIO_READ_FUNC(_TYPE)\
-force_inline static inline _TYPE ReadIOMem ##_TYPE (PVOID addr)\
-{\
-    FENCE; /*Fence both sides*/ \
-    volatile P##_TYPE r = addr;\
-    return *r;\
 }
 
 _MAKE_PORT_OUT(b, BYTE);
@@ -90,7 +82,7 @@ _MAKE_PORT_IN(b, BYTE);
 _MAKE_PORT_IN(w, SHORT);
 _MAKE_PORT_IN(l, LONG);
 
-force_inline static inline void delay_outb(SHORT port, BYTE val)
+static inline void delay_outb(SHORT port, BYTE val)
 {
     outb(port, val);
     outb(0x80, 0); // Output to unused port for delay

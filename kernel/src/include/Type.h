@@ -1,16 +1,16 @@
-/////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
-//                                                                         //
-// This file is part of OS/90.                                             //
-//                                                                         //
-// OS/90 is free software. You may distribute and/or modify it under       //
-// the terms of the GNU General Public License as published by the         //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.                                                   //
-//                                                                         //
-// A copy of this license should be included with OS/90.                   //
-// If not, it can be found at <https://www.gnu.org/licenses/>              //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+		      Copyright (C) 2022-2024, Joey Qytyku
+
+  This file is part of OS/90.
+
+  OS/90 is free software. You may distribute and/or modify it under
+  the terms of the GNU General Public License as published by the
+  Free Software Foundation, either version two of the license or a later
+  version if you choose.
+
+  A copy of this license should be included with OS/90.
+  If not, it can be found at <https://www.gnu.org/licenses/>
+*******************************************************************************/
 
 #ifndef TYPE_H
 #define TYPE_H
@@ -66,14 +66,14 @@
 // More advanced codes must be obtained in other ways.
 //
 enum {
-        E_BLKDEV_XFER_ERROR=2,  /* Generic code for transfer failed */
-        E_BLKDEV_MEDIA_REMOVED, /* Media was detached unexpectedly */
-        E_BLKDEV_NO_MEDIA,      /* Drive selected has no media attached */
-        E_BLKDEV_BAD_BLOCK,     /* The block selected is damaged */
-        E_BLKDEV_INVALID_BLOCK, /* Block selected to access is invalid */
-        E_BLKDEV_EQUIP_FAIL,    /* Some kind of very bad error, maybe broken hardware */
-        E_BLKDEV_OTHER_ERROR,   /* Anything else. */
-        E_BLKDEV_NUM_ERRS__     /* Do not use */
+	E_BLKDEV_XFER_ERROR=2,  /* Generic code for transfer failed */
+	E_BLKDEV_MEDIA_REMOVED, /* Media was detached unexpectedly */
+	E_BLKDEV_NO_MEDIA,      /* Drive selected has no media attached */
+	E_BLKDEV_BAD_BLOCK,     /* The block selected is damaged */
+	E_BLKDEV_INVALID_BLOCK, /* Block selected to access is invalid */
+	E_BLKDEV_EQUIP_FAIL,    /* Some kind of very bad error, maybe broken hardware */
+	E_BLKDEV_OTHER_ERROR,   /* Anything else. */
+	E_BLKDEV_NUM_ERRS__     /* Do not use */
 };
 
 //
@@ -82,17 +82,17 @@ enum {
 // subsystem-specific filesystem semantics are not included.
 //
 enum {
-        E_FS_NOT_FOUND=2,
-        E_FS_HANDLE_NOT_OPENED,
-        E_FS_MEDIA_UNFORMATTED,  /* A FS was initialized on unformatted drive */
-        E_FS_DAMAGED_PBR         /* Data that hold FS information is broken */
+	E_FS_NOT_FOUND=2,
+	E_FS_HANDLE_NOT_OPENED,
+	E_FS_MEDIA_UNFORMATTED,  /* A FS was initialized on unformatted drive */
+	E_FS_DAMAGED_PBR         /* Data that hold FS information is broken */
 };
 
 enum {
-        E_MEM_OUT=2,    /* No page frames available */
-        E_MEM_NOMAP,    /* No more virtual address space*/
-        E_MEM_NOSWP,    /* Memory evicted or swapped in cannot be due to no swap */
-        E_MEM_NUM_ERRS__
+	E_MEM_OUT=2,    /* No page frames available */
+	E_MEM_NOMAP,    /* No more virtual address space*/
+	E_MEM_NOSWP,    /* Memory evicted or swapped in cannot be due to no swap */
+	E_MEM_NUM_ERRS__
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -100,16 +100,13 @@ enum {
 /////////////////////////////////////////////////////////////////////////////
 
 // We need to start using this for some ASM functions
-#define STACK_PARAMS __attribute__(( regparm(0) ))
+#define STACK_PARAMS /*TODO*/
 
 #define NORETURN _Noreturn
 
 ////////////////////////////////////////////////////
 // F u n c t i o n   R e l a t e d   M a c r o s  //
 ////////////////////////////////////////////////////
-
-#define noinline        __attribute__((noinline))
-#define force_inline    __attribute__((always_inline))
 
 // TODO
 #define kernel_export
@@ -132,11 +129,7 @@ enum {
 // M i s c e l a n e o u s   M a c r o s //
 ///////////////////////////////////////////
 
-#define ALIGN(x) __attribute__((aligned(x)))
-
 #define NULL ((PVOID)0UL)
-
-#define ASM(x) __asm__ volatile (x)
 
 /////////////////////////////////////
 // T y p e   D e f i n i t i o n s //
@@ -172,13 +165,5 @@ typedef const BYTE *PCSTR;
 /////////////////////////////
 // G C C   B u i l t i n s //
 /////////////////////////////
-
-#define likely(x)   __builtin_expect((x),1)
-#define unlikely(x) __builtin_expect((x),0)
-
-#define memcpy(d, s, c) __builtin_memcpy((d), (s), (c));
-#define memmove(d, s, c) __builtin_memmove((d), (s), (c));
-#define strcmp(s1, s2) __builtin_strcmp((s1), (s2));
-#define memset(a, val, count) __builtin_memset((a),(val),(count))
 
 #endif /* TYPE_H */

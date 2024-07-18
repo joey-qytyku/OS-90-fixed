@@ -1,5 +1,5 @@
 /*******************************************************************************
-		      Copyright (C) 2022-2024, Joey Qytyku
+                      Copyright (C) 2022-2024, Joey Qytyku
 
   This file is part of OS/90.
 
@@ -12,35 +12,14 @@
   If not, it can be found at <https://www.gnu.org/licenses/>
 *******************************************************************************/
 
-#include <Type.h>
+#ifndef I386_H
+#define I386_H
 
-#include <OSK/SD/stdregs.h>
-#include <OSK/SD/sv86.h>
+STACK_PARAMS PVOID i386GetDescriptorAddress(PVOID descptr);
+STACK_PARAMS VOID  i386SetDescriptorAddress(PVOID descptr, LONG newaddr);
+STACK_PARAMS VOID  i386SetDescriptorLimit(PVOID descptr, LONG lim);
 
-// Any non-alphanumeric byte is incorrect.
-BYTE EarlyGetChar(BOOL req_enter)
-{
-	STDREGS r = V86R_INIT;
-	r.AH = 0;
-	V_INTxH(0x16, &r);
-	return r.AL;
-}
+STACK_PARAMS VOID i386AllowRing3IO(VOID);
+STACK_PARAMS VOID i386MonitorRing3IO(VOID);
 
-VOID EarlyGetString(BYTE *buff, SHORT size)
-{
-	STDREGS r = V86R_INIT;
-	r.AH = 0;
-
-	SHORT buffpos = 0;
-
-	while (1)
-	{
-		V_INTxH(0x16, &r);
-
-		if (r.AX == 0x1C0D) // Key == ENTER
-			break;
-
-		buff[buffpos] = r.AL;
-		buffpos++;
-	}
-}
+#endif /* I386_H */

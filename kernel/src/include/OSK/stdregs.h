@@ -1,16 +1,16 @@
-/////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
-//                                                                         //
-// This file is part of OS/90.                                             //
-//                                                                         //
-// OS/90 is free software. You may distribute and/or modify it under       //
-// the terms of the GNU General Public License as published by the         //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.                                                   //
-//                                                                         //
-// A copy of this license should be included with OS/90.                   //
-// If not, it can be found at <https://www.gnu.org/licenses/>              //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+		      Copyright (C) 2022-2024, Joey Qytyku
+
+  This file is part of OS/90.
+
+  OS/90 is free software. You may distribute and/or modify it under
+  the terms of the GNU General Public License as published by the
+  Free Software Foundation, either version two of the license or a later
+  version if you choose.
+
+  A copy of this license should be included with OS/90.
+  If not, it can be found at <https://www.gnu.org/licenses/>
+*******************************************************************************/
 
 #ifndef STDREGS_H
 #define STDREGS_H
@@ -33,19 +33,19 @@ must define AH and AL in byte-swapped order.
 // Create a register that has a 32-bit/16-bit/8-bit high or low version
 #define _DWB_R(n)\
 union {\
-        LONG E##n##X;\
-        union {\
-                BYTE n##L;\
-                struct { BYTE :8; BYTE n##H; };\
-        };\
-        SHORT n##X;\
+	LONG E##n##X;\
+	union {\
+		BYTE n##L;\
+		struct { BYTE :8; BYTE n##H; };\
+	};\
+	SHORT n##X;\
 }
 
 // Create a register that can be 16-bit or 32-bit.
 #define _DW_R(n)\
 union {\
-        LONG E##n;\
-        SHORT n;\
+	LONG E##n;\
+	SHORT n;\
 }
 
 /*******************************************************************************
@@ -69,30 +69,30 @@ accessed using the ES,DS,FS,GS,CS names since the v86 ones are a bit of an
 implementation detail.
 *******************************************************************************/
 typedef struct {
-        _DWB_R(A);
-        _DWB_R(B);
-        _DWB_R(C);
-        _DWB_R(D);
+	_DWB_R(A);
+	_DWB_R(B);
+	_DWB_R(C);
+	_DWB_R(D);
 
-        _DW_R(SI);
-        _DW_R(DI);
-        _DW_R(BP);
+	_DW_R(SI);
+	_DW_R(DI);
+	_DW_R(BP);
 
-        LONG   pm_ES;
-        LONG   pm_DS;
-        LONG   pm_FS;
-        LONG   pm_GS;
-        _DW_R(IP);
+	LONG   pm_ES;
+	LONG   pm_DS;
+	LONG   pm_FS;
+	LONG   pm_GS;
+	_DW_R(IP);
 
-        LONG   CS;
-        _DW_R(FLAGS);
-        _DW_R(SP);
-        LONG   SS;
+	LONG   CS;
+	_DW_R(FLAGS);
+	_DW_R(SP);
+	LONG   SS;
 
-        union {LONG v86_ES; LONG ES;};
-        union {LONG v86_DS; LONG DS;};
-        union {LONG v86_FS; LONG FS;};
-        union {LONG v86_GS; LONG GS;};
+	union {LONG v86_ES; LONG ES;};
+	union {LONG v86_DS; LONG DS;};
+	union {LONG v86_FS; LONG FS;};
+	union {LONG v86_GS; LONG GS;};
 }STDREGS, *PSTDREGS;
 
 #undef _DW_R

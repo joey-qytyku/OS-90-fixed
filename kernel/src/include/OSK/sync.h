@@ -1,5 +1,5 @@
 /*******************************************************************************
-		      Copyright (C) 2022-2024, Joey Qytyku
+                      Copyright (C) 2022-2024, Joey Qytyku
 
   This file is part of OS/90.
 
@@ -12,35 +12,17 @@
   If not, it can be found at <https://www.gnu.org/licenses/>
 *******************************************************************************/
 
-#include <Type.h>
+//
+// Enhanced mutex will yield to a process with the PTASK stored inside it.
+// This allows for a rapid response to a change in the lock state.
+//
+// An 8-byte structure is used.
+//
+typedef struct {
+        LONG a, b;
+}ENHMTX,*PENHMTX;
 
-#include <OSK/SD/stdregs.h>
-#include <OSK/SD/sv86.h>
+VOID AcquireEnhMutex(PENHMTX m);
 
-// Any non-alphanumeric byte is incorrect.
-BYTE EarlyGetChar(BOOL req_enter)
-{
-	STDREGS r = V86R_INIT;
-	r.AH = 0;
-	V_INTxH(0x16, &r);
-	return r.AL;
-}
+VOID ReleaseEnhMutex(PENHMTX m);
 
-VOID EarlyGetString(BYTE *buff, SHORT size)
-{
-	STDREGS r = V86R_INIT;
-	r.AH = 0;
-
-	SHORT buffpos = 0;
-
-	while (1)
-	{
-		V_INTxH(0x16, &r);
-
-		if (r.AX == 0x1C0D) // Key == ENTER
-			break;
-
-		buff[buffpos] = r.AL;
-		buffpos++;
-	}
-}

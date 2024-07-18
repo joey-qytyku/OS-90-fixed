@@ -1,3 +1,6 @@
+> Can the spare word contain the size of the whole chain for fast access?
+> I though it contained the page attributes?
+
 # Chain Management
 
 The OS/90 memory manager uses a FAT-style linked list table to allocate pages. An allocation is called a chain, and a chain ID is the index to the first block in the chain. Chain IDs are used throughout the chain allocation API.
@@ -11,6 +14,7 @@ Each page frame represented in the table has a persistent page bit state, which 
 - STAT M_Free(LONG chain)
 - STAT M_ResizeWithCommit(LONG chain, SIGLONG delta_bytes)
 - STAT M_ExtendUncommit(LONG chain, LONG bytes)
+- LONG M_GetChainSize()
 
 > TODO: Features to detect memory available, that way allocations can be respectful to the caches.
 

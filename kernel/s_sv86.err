@@ -1,0 +1,4 @@
+src/implement/s_sv86.asm(85) : Error A2183: Instruction operand must have size
+src/implement/s_sv86.asm(144) : Error A2102: Symbol not defined : _EFLAGS
+src/implement/s_sv86.asm(145) : Error A2102: Symbol not defined : _EFLAGS
+src/implement/s_sv86.asm(237) : Error A2185: Instructions and initialized data not supported in BSS segments

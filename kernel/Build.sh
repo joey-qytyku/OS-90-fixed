@@ -16,7 +16,7 @@ ASRC=$(find src -type f -name "*.asm")
 
 # DMC supports compiling multiple objects with one single command line
 
-~/tch90/dm/bin/dmc.exe -o -Isrc/include -Hsrc/include/Type.h -mn $CSRC
 ~/tch90/uasm -zcw -zze -WX -Fw=/dev/null $ASRC
+~/tch90/dm/bin/dmc.exe -o -HIType.h -mn $CSRC
 
 mv *.obj build

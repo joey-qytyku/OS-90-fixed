@@ -1,77 +1,100 @@
-/////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
-//                                                                         //
-// This file is part of OS/90.                                             //
-//                                                                         //
-// OS/90 is free software. You may distribute and/or modify it under       //
-// the terms of the GNU General Public License as published by the         //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.                                                   //
-//                                                                         //
-// A copy of this license should be included with OS/90.                   //
-// If not, it can be found at <https://www.gnu.org/licenses/>              //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+		      Copyright (C) 2022-2024, Joey Qytyku
 
-#include <OSK/SD/basicatomic.h>
+  This file is part of OS/90.
+
+  OS/90 is free software. You may distribute and/or modify it under
+  the terms of the GNU General Public License as published by the
+  Free Software Foundation, either version two of the license or a later
+  version if you choose.
+
+  A copy of this license should be included with OS/90.
+  If not, it can be found at <https://www.gnu.org/licenses/>
+*******************************************************************************/
+
 #include <OSK/SD/sv86.h>
 
-#include <OSK/MC/pio.h>
+// #include <OSK/MC/pio.h>
 
 #include <OSK/DB/debug.h>
-//INCLUDE="%@P%\..\include";"%@P%\..\mfc\include";%INCLUDE%;"%@P%\..\..\..\OS-90-fixed\kernel\src\include"
+#include <OSK/s_sync.h>
 
-static SHORT GetCmosBytePair(SHORT base)
+MM_STRUCT g_mm;
+
+PVOID M_VaDeref(PVOID address)
 {
-        BYTE b1, b2;
+	// Convert address to integer
+	LONG va = (LONG)address;
 
-        PREEMPT_INC();
+	// This whole thing explained:
+	// - Inside we take the page directory entry of the va.
+	//   - To do this, shift out the offset and the page table index
+	//     so that the result is the correct index.
+	// - Then the PDE has its bits masked out.
+	// - The PDE is now a valid pointer to a page table
+	// - PDE is converted to pointer and dereferenced
+	// - Result is the PTE
+	// - PTE is masked too
+	// - Convert result to pointer and return.
 
-        BYTE old = inb(0x70);
-
-        outb(0x70, base+1);
-        b1 = inb(0x71);
-
-        outb(0x70, base);
-        b2 = inb(0x71);
-
-        outb(0x70, old);
-
-        PREEMPT_DEC();
-        return (b1 << 8) | b2;
+	return (PLONG)(*((PLONG)( pdir_ptr[va>>PDE_SHIFT] & PAGE_MAP_MASK)) & PAGE_MAP_MASK);
 }
 
-LONG g_extended_pages;
-
-LONG GetExtendedMemPages()
+static LONG __declspec(naked) GetCmosBytePair(BYTE base)
 {
-        SHORT size_simple = GetCmosBytePair(0x17) >> 2;
+	_asm {
+		in      al,70h
+		mov     cl,al   ; CL = Old index register
 
-        if (size_simple == 0xFFFF) {
-                // In this case, the system has more than 64MB of memory.
-                // Only a BIOS function can figure this out.
-                static STDREGS regs;
-        }
+		mov     al,base
+		out     70h,al
 
-        return g_extended_pages;
+		in      al,71h  ; Read low order byte
+		mov     ah,al   ; Move it asside
+
+		mov     al,base
+		inc     al
+		out     70h,al
+		in      al,71h
+
+		xchg    ah,al
+		movzx   eax,ax
+		push    eax
+		mov     al,cl
+		out     70h,al
+		pop     eax
+		ret
+	}
 }
+#pragma noreturn(GetCmosBytePair)
 
-extern int END_BSS;
+extern int _bss_end;
+
+
+// Memory detection:
+//
+// OS/90 does not need to detect memory at all since HIMEM already did.
+//
+static LONG GetPageFrames(VOID)
+{
+	// LONG kernel_phys_end = M_VaDeref((LONG)0x80000000) + (LONG)&_bss_end;
+
+	LONG ext_kilos = GetCmosBytePair(0x30);
+
+
+	if (ext_kilos == 0xFFFF) {
+		STDREGS r;
+		r.AX = 0xE801;
+		r.ESP = 0;
+		V_INTxH(0x15, &r);
+		ext_kilos += r.BX * 64;
+	}
+
+}
 
 VOID M_Init(VOID)
 {
-        // Remember to include memory hole in PBT
+	// Remember to include memory hole in PBT
+	g_mm.page_frames_registered = GetExtendedMemPages();
 
-        g_extended_pages = GetExtendedMemPages();
-
-        PLONG page_dir;
-
-        __asm__ volatile ("movl %%cr3,%0":"=r"(page_dir)::"memory");
-        page_dir = (PLONG)( ((LONG)page_dir) & 0xFFFFF000 );
-
-        //
-        // Find where the kernel was loaded and its size in pages
-        //
-        PVOID kernel_phys_base = (*(PLONG)(page_dir[512] & 0xFFFFF000)) & 0xFFFFF000;
-
-        debug_log("Kernel load address: %p\n", kernel_phys_base);
 }

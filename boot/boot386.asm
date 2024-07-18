@@ -5,49 +5,14 @@ BOOT386, the OS/90 bootloader written by Joey Qytyku
 This program is released to the public domain, feel free to
 use and modify it to load other kernels.
 
-- HISTORY -
-
-22 April 2022:
-        Added in and fixed Enable-A20 code
-23 April 2022:
-        Converted to NASM code
-20 April 2022:
-        Switched to XMS and .COM program
-        Removed enable A20 code, XMS used instead
-        Updated file macros
-
-1 May 2022:
-        Updated enter protected mode routine
-        Fully removed A20 code
-7 May 2022:
-        Fixed A20 handling code
-        Added page table copies
-        HMA cannot longer be shared
-        Removed old error messages
-11 May 2022
-        Fixed many bugs
-        Changed debugging macros
-        Added in some file load code
-13/14 May 2022
-        Added loader code
-        Fixed bug with XMS calls
-        It appears to be loading into memory
-        Fixed GDT limit
-
-        The first two bytes seem to repeat in the kernel
-
-21 May 2022
-        This code is working and kernel loads
-        It was a linker error, fixed approx. 2 weeks ago
-
-7 Feb 2024
-        Been a very long time since I changed this file. I am changing the
-        load VMA to 8000_0000.
-
-        I really like this code and do not want to change it, not even to simply
-        improve the organization.
-
 %endif
+
+;-------------------------------------------------------------------------------
+; How to use for your own kernel:
+; - Change
+;
+;
+;
 
 ;-----------------------------
 ; Equates

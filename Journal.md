@@ -3797,7 +3797,7 @@ So it looks like the command for the linker is:
 optlink /BINARY:80000000 [object]
 ```
 
-BINARY is intended to generate .SYS files for DOS which do not have a PSP. It gives a bunch of errors when I try to link but the .SYS file is generated. This .SYS file is also about 16K in size, which is strange. Must be because I picked DOSX as the link option.  
+BINARY is intended to generate .SYS files for DOS which do not have a PSP. It gives a bunch of errors when I try to link but the .SYS file is generated. This .SYS file is also about 16K in size, which is strange. Must be because I picked DOSX as the link option.
 
 No, DOSX do not work at all and says that 100h cannot be initialized. NT prints out all the errors and adds bloat to the code.
 
@@ -3981,7 +3981,7 @@ To maximize speed on 32-bit buses, make sure data aligns along 32-Function retur
     For 16-bit models. If the return value for a function is short (a char, int, or near pointer) store it in the AX register, as in the previous example, expon2. If the return value is long, store the high word in the DX register and the low word in AX. To return a longer value, store the value in memory and return a pointer to the value.
     For 32-bit models. Return near pointers, ints, unsigned ints, chars, shorts, longs and unsigned longs in EAX. 32-bit models return far pointers in EDX, EAX, where EDX contains the segment and EAX contains the offset.
     When C linkage is in effect. Floats are returned in EAX and doubles in EDX, EAX, where EDX contains the most significant 32 bits and EAX the least significant.
-    When C++ linkage is in effect. The compiler creates a temporary copy on the stack and returns a pointer to it. 
+    When C++ linkage is in effect. The compiler creates a temporary copy on the stack and returns a pointer to it.
 ```
 
 ## RMCS Fix
@@ -3989,3 +3989,60 @@ To maximize speed on 32-bit buses, make sure data aligns along 32-Function retur
 MASM and UASM cannot embed binaries. This is a significant drawback. The best way around it is to use the bootloader to do it! It can embed the binary because it is written in NASM and so is the RMCS.
 
 The booloader only needs a few fixes now to add this. I can keep all of the original code.
+
+## Build System
+
+This is getting impossible. I tried a symlink for the path and it still does not work.
+
+# July 15
+
+OS/90 is approaching what could be considered the fourth rewite. I think there were three so far.
+
+I am so lost right now. I need a proper TODO. Maybe a TODO file.
+
+## The RMCA
+
+The RMCA can be incbin'ed. UASM supports it, although it is not documented.
+
+# July 16
+
+I got IA32.ASM to assemble. Now I need SV86.ASM done. This will be a hard one.
+
+# July 17
+
+## Do I Keep SV86 Code?
+
+I will keep it. No need to fully delete it. Just review it, remove anything that seems wrong, and refactor/fix.
+
+## MASM PROC
+
+MASM has a lot of implicit semantics with the PROC statement. It automatically generates the prologue and epilogue of functions under certain conditions.
+
+See here:
+https://stackoverflow.com/questions/57377397/calling-a-standard-library-function-in-masm
+
+It does generate the `push ebp; mov ebp,esp` pair, but it also allows for quick restoring of registers that have been clobbered.
+
+For my SV86 code, this is obviously not acceptable. I need full control here.
+
+## Tabs and Spaces
+
+I am officially switching to tabs+spaces. The file size is way too big with 8-byte indents. Right now the source code is 17MB of space, which is far too much. 50MB is the maximum for GIT, and I do not want to reach it.
+
+Well to be fair, the code is only about 136K, and that actually includes all the object files! The manual is 68K.
+
+Okay, I did some investigation. The git-related stuff it what takes up all the space. One .PACK file is 15MB.
+
+I will switch to tab indents now. It makes no sense to use 8-space indents in an OS based on minimalism. Current kernel source size is actually 208K. I will see how low it goes.
+
+# July 18
+
+## Memory Detection
+
+OS/90 does not need to detect memory at all! Just like any other boot environment, DOS has already detected the extended memory. To access more, a different XMS manager is needed.
+
+To detect the exact amount of memory, an XMS block may need to be queried. All that needs to be done is a simple.
+
+## Tabs Conversion
+
+I dropped the file size by changing the license notices to a smaller format and also switching to tabs. The file size is now 118K.
