@@ -4046,3 +4046,14 @@ To detect the exact amount of memory, an XMS block may need to be queried. All t
 ## Tabs Conversion
 
 I dropped the file size by changing the license notices to a smaller format and also switching to tabs. The file size is now 118K.
+
+## Write an IDE?
+
+Can I write my own IDE for OS/90? I am getting a bit tired of VSCode. Maybe I can finish ATM/90 and make the IDE with that. I should add windows resize events so that it works properly. That way, I can run it directly within the OS.
+(I also may want to port over to SDL3 and add support for other fonts. I do not want to be tied down to 8x8 since it looks bad on this screen.)
+
+Alternatively I could use PDCurses so that it is truly portable.
+
+> To be fair, I kind of hate CTRL/ALT/SHIFT keyboard shortcuts except for control.
+
+> If I make an IDE, I could add some other neat features like a debugger window tree for whatever interface, breakpoints, a UI designer, etc.
