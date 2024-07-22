@@ -45,11 +45,11 @@ char *blkdev[E_BLKDEV_NUM_ERRS__] =
 // };
 
 char *memdev[E_MEM_NUM_ERRS__] = {
-	[EOK]           = eok,
-	[EFAIL]         = efail,
-	[E_MEM_OUT]     = "No page frames available",
-	[E_MEM_NOMAP]   = "No more virtual address space",
-	[E_MEM_NOSWP]   = "Memory evicted or swapped in cannot be due to no swap"
+[EOK]           = eok,
+[EFAIL]         = efail,
+[E_MEM_OUT]     = "No page frames available",
+[E_MEM_NOMAP]   = "No more virtual address space",
+[E_MEM_NOSWP]   = "Memory evicted or swapped in cannot be due to no swap"
 };
 
 VOID PrintError()

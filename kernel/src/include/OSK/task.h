@@ -38,6 +38,7 @@ typedef struct Task_ {
 	SHORT   _counter;
 	LONG    flags;
 	LONG    preempt;
+	LONG    cli_count;
 	BYTE    subsystem[8];
 
 	T0_TASK_PREHOOK pre;
@@ -97,6 +98,8 @@ preempt:                The preemption counter was once a global atomic variable
 			task-local. This is because a thread that has preemption
 			disabled should be able to swith to another without
 			carrying over the same preemption state.
+
+cli_count:              Same idea as preemption but for IRQs too.
 *******************************************************************************/
 
 static inline PTASK GET_CURRENT_TASK(VOID)

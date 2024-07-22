@@ -18,7 +18,7 @@ The enhanced mutex causes a yield to the next task on the list if locked to prev
 
 The first task to try to acquire while the pointer is zero does not simply yield, however, and is also disabled (chopped out of chain) so the scheduler does not even see it.
 
-It may be enhanced and usually better, but contention is even worse as other tasks may struggle to run if too many threads want the lock.
+It may be enhanced and usually better, but contention is even worse as other tasks may struggle to run if too many threads want the lock. Additionally, if the tasks using the same resource are dependent on other events, the performance is unpredictable.
 
 ## Semaphore
 

@@ -46,7 +46,7 @@ Now the name means nothing in particular, but it kind of stuck.
 
 ## What version of DOS should be used?
 
-Anything newer that 3.3 should work.
+Anything newer that 3.3 should work. MS-DOS is recommended because it uses
 
 FreeDOS is good but requires modifications. COMMAND.COM needs to be replaced because the built-in one swaps programs to extended memory and allocates a massive chunk for that, thus starving OS/90 significantly. There is no option to disable this behavior.
 
@@ -54,14 +54,10 @@ FreeDOS is good but requires modifications. COMMAND.COM needs to be replaced bec
 
 OS/90 is an operating system in the same way that Windows 95 is. It just happens to use services from another one (DOS).
 
-## Why does the source code have strange characters?
-
-The source code uses codepage 437 characters to make it viewable in DOS. Visual studio code supports CP437. Make sure to select it when viewing the code.
-
 ## Where can I find documentation for driver development?
 
 There is a full API handbook in the `docs` folder.
 
 ## What are the Licensing Terms?
 
-Most of the code is GPLv2 licensed. Anything else is dedicated to the public domain. See the file LICENSE for details.
+Most of the code is GPLv2 licensed. See the notices inside the code.

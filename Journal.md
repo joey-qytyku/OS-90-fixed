@@ -4057,3 +4057,90 @@ Alternatively I could use PDCurses so that it is truly portable.
 > To be fair, I kind of hate CTRL/ALT/SHIFT keyboard shortcuts except for control.
 
 > If I make an IDE, I could add some other neat features like a debugger window tree for whatever interface, breakpoints, a UI designer, etc.
+
+# July 19
+
+Why make an IDE if the current one works fine? Also, how do I expect to make Git work? I guess I can use a command script.
+
+I should do a quick check on ATM/90.
+Okay, it looks like this is an up-to-date version.
+
+ATM/90 is a much more mindless project. As long as I put consistent effort, I will get closer to completion. It is also a bit more boring. Not much else can be said until I load the repo.
+
+## Idea
+
+I want to be able to have a key combination that allows for sending commands to drivers or drivers asking the user prompts. This can be done with the SysRq key.
+
+In that case, early boot IO is not sufficient. I need a way to handle this situation at any point in time and exit.
+
+This will be the "Kernel Control Panel"
+
+It will look like this:
+
+```
+K~ lsdrv
+# Name      Size    Cmdline
+0 PCI
+1 DOS32
+2 ATA
+3 FLOPPY
+4 FAT32
+5 EXECTVE.DRV
+```
+
+Maybe I should make an interpreted scripting language for this. User and kernel. (push, pop for procedures and jump locations?)
+
+Idea, use numbered aliases! Combined with a push/pop method of function declaration or something, conditional local function definition could be possible. Numbers also help avoid the overhead of string lookup.
+
+So basically these numbers are like registers. Interesting.
+
+What if the program counter is the location in the file.
+
+## DOS Extender?
+
+I found out that DOS/4G runs in ring-0 under DOS and does not even use a TSS! This means I could use it to boot OS/90. The advantage would be no bootloader. The problem would be:
+- Where does it even get loaded and mapped?
+
+
+# July 20
+
+## Complex Error Codes
+
+Argument against:
+
+Are these complex error codes a great idea? DOS is a simpler operating system so it was able to have all these really specific error codes. The value of the error information is significantly lost with the extended complexity of OS/90.
+
+There are lots of errors that either:
+- Happen for obvious reasons that are API-defined and can be recovered
+- Non-recoverable according to API and require bluescreen
+- May return various outputs that are device-specific and cannot be fully covered in Type.h
+
+In general, the API describes the error behavior and advises how to respond. Allowing the behavior of function calls to drastically change between versions is a braindead idea. Consistency is always the most important thing in programming.
+
+There are a few decent changes that could be made. The error code could have a component relevant to the user that is simply displayed but not acted upon. The Kernel Control Panel should make it very easy for the user to keep track of problems. I can add some sort of dmesg-style log buffer to go with it too (cache purging could be used). Regardless, the main purpose of anything that is not very specific to the API and describes a defined API call should be nothing more than a simple additional detail that could be used by a developer to track down where things went wrong.
+
+A different approach would be to flat out use a string pointer for that extra infromation. The issue would be with alignment, since a few bits have to convey the real code.
+
+Alternatively, I can also rely exclusively on logging.
+
+One other problem with my complex error codes is the difficulty of making the APIs fully utilitze it, and potential problems resulting from changing return values by accident.
+
+## Error Codes Decision
+
+There should be two error codes: OK and FAIL. Nothing else.
+
+> DOS made use of advanced error codes because it had no logging features.
+
+# July 22
+
+## Shell Interpreter
+
+It seems like some types of tokens have multiple possibilities. For example, the `.call` command can receive expressions, symbols, values, etc.
+
+Because there is no two stage interpretation with tokenization and lexical analysis, I must be able to determine what a space-delimited token is.
+
+If it starts with a dot, it must be an internal command. Dollar sign means register. I can make `@` the variable indicator. Brackets are used for expressions. Anything else can then be assumed to be a regular command.
+```
+
+```
+Okay, I thought about this for a moment. I do not technically have to do this. If the DOS subsystem is made a mandatory part of the OS, I can simply have an autoexec file run using the default command interpreter.
