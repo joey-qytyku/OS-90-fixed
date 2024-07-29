@@ -51,6 +51,8 @@
 
 #define NULL ((PVOID)0UL)
 
+#define MK_FNPTR(RTYPE, NAME, ARGS) typedef RTYPE(*NAME) ARGS
+
 /////////////////////////////////////
 // T y p e   D e f i n i t i o n s //
 /////////////////////////////////////

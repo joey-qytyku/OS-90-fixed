@@ -1,6 +1,10 @@
 ///////////////////////////////////////////////////////////////////////////////
 // \author (c) Marco Paland (info@paland.com)
 //             2014-2019, PALANDesign Hannover, Germany
+// \author (c) Joey Qytyku 2024
+//
+// 2024, July-August: Most of the code is the same. I simply flattened it with
+//                    the includes and made it work with OS/90.
 //
 // \license The MIT License (MIT)
 //
@@ -34,12 +38,6 @@
 
 #include <stdarg.h>
 #include <stddef.h>
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 
 /**
  * Output a character to a custom device like UART, used by the printf() function
@@ -106,11 +104,6 @@ int vprintf_(const char* format, va_list va);
  * \return The number of characters that are sent to the output function, not counting the terminating null character
  */
 int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...);
-
-
-#ifdef __cplusplus
-}
-#endif
 
 
 #endif  // _PRINTF_H_

@@ -4140,7 +4140,327 @@ It seems like some types of tokens have multiple possibilities. For example, the
 Because there is no two stage interpretation with tokenization and lexical analysis, I must be able to determine what a space-delimited token is.
 
 If it starts with a dot, it must be an internal command. Dollar sign means register. I can make `@` the variable indicator. Brackets are used for expressions. Anything else can then be assumed to be a regular command.
-```
+
+Okay, I thought about this for a moment. I do not technically have to do this. If the DOS subsystem is made a mandatory part of the OS, I can simply have an autoexec file run using the default command interpreter.
+
+# July 23
+
+## Remove permanent HMA?
+
+The permanent HMA serves a few different purposes. First of all, it is necessary for the IRQ handler to switch to and from real mode. This requires memory somewhere in low memory to be ever-present so that it can be called.
+
+Unless I use a disgusting memory manager hack to change a memory mapping.
+
+# July 24
+
+## HMA
+
+No, the permanent HMA is not going anywhere, but I may want to find a few hacks to make it possible to fully emulate the real mode addressable memory.
+
+## A20 Line
+
+https://en.wikipedia.org/wiki/A20_line#Affected_programs
+
+A few programs like MS Word Spellcheck, versions of MASM (though not any worth using on a 386), and Small-C depend on the A20 gate. I said at one point that I do not care about the A20 gate. This is still completely true, but after reading some of this information I am starting to reconsider my idea of doing nothing for A20.
+
+I need a fixed mapping to use the physical ID-mapped HMA and a function to set it up and switch back to normal operations. This way, the A20 gate can be simulated. Simulation simply involves mapping the pages in the virtual HMA to the first 64K.
+
+The reason why the address wrap feature was used was to decrease code size since they could use far pointers to the low memory without having to store the high component and could simply load FFFF into the register.
+
+DOS did introduce features that allowed things to be loaded high to reduce conventional memory footprint, and these were in fact standard since DOS 4, and should not have been disabled unless required. Programs were given no garauntee of the HMA and only one could control it, and in fact there was a feature that blocked programs from using the HMA if they requested too few bytes.
+
+Anyway, the software that depends on the A20 gate was outdated by 1989 or so. Real mode-only compilers and assemblers are not that useful on a 32-bit system, and newer version are available now.
+
+> Conclusion: no A20 gate. I honestly do not care about it.
+
+The HMA will contain only ring-0 pages. I will do my best to maximize the use of it.
+
+## HMA Problems
+
+The HMA map is wrong. While the stack is properly configured and the first two paging tables are correct, there are THREE paging tables including the PD.
+
+The actual map inlcudes:
+1. Page directory
+2. Page table for first 1M (and HMA I guess)
+3. Page table for kernel
+
+Also, in the new HMA map, I will need to specify it based on pages. Nothing should be unaligned or non-granular whatsoever. The SV86 stack should also be alot smaller. 20K is WAY too much.
+
+I will create a header file for this for assembly and C. They must be coherent.
+
+## Plans For Source Code
+
+I may want to unify the headers more. A single include will be used for drivers.
+
+## System Call Table Problems
+
+There is only one issue with using the call table, and there is a simple remedy. It must be internally used by the kernel if it is to be hookable. Otherwise, the kernel may bypass the hook when calling itself and make the whole thing pointless.
+
+I could use patchable function entires of course, though I would have to test if they generate correctly first. I want DMC emitting the code BEFORE the epilogue.
+
+Looks like it did work! I can use a multibyte NOP to incur a practically non-existent performance penalty. This allows the kernel to call itself and get hooked. This also allows for symbol exports to be used instead of a table in the first place!
+
+The only issue is that driver sizes increases since symbols have to be named in the file. The symbols are not saved in memory once inserted, however. Symbols also reduce boot time due to string searching, although I did everything I could to reduce this.
+
+So basically...
+
+Table pros:
+- Easy to hook
+- Fast load time
+Table cons:
+- Slower call, although global cache can mitigate
+- Easier to make mistakes in kernel code
+- Annoying to code kernel with
+
+Symbols+patch-hook pros:
+- Posthook and prehook by changing prologue
+- No mistakes with kernel code
+- More readable code and less typing in kernel AND drivers
+Cons:
+- Slower load
+- Kernel binary larger
+- How the heck do I export the symbols?!
+
+Symbols are more robust. I know VxD used call numbers to decent effect (which is basically like using a table), but I will do it the OS/2 way for once ever. With symbols, I do not have to worry about keeping structure compatiblity between version.
+
+The only issue with this the actual implementation. How the HECK will that work? How are exports specified? How will the loader even insert the symbols and what structure must it use?
+
+Of course, it has to mimick the internal structure of the executable, which must be fully loaded into a memory buffer.
+
+# July 25
+
+## Hooking Safety
+
+What if a function is hooked while it is running? How do I deal with that?
+
+## Testing Open Watcom
+
+I would like to try the open watcom compiler on the printf implementation to see the code size so I cna see if it can outperform the DMC-generated code in size. Also, I will TIME both samples to see which one is genuinely faster.
+
+The reason for this is that while DMC has WAY better inline assembly, Open Watcom was a much more well-reputed compiler among game developers and demosceners. If it is FASTER and generates smaller code, I will use it.
+
+I will switch to the compiler that generates the fastest code. The test will be to printf a number of things.
 
 ```
-Okay, I thought about this for a moment. I do not technically have to do this. If the DOS subsystem is made a mandatory part of the OS, I can simply have an autoexec file run using the default command interpreter.
+printf_("Hello, world!\n");
+printf_("Example\n %s %i %x %c", "Hello", 8086, 0xDEADBEEF, 'A');
+```
+
+Whichever runs this test faster wins. Measure-Command will be used to get the performance.
+
+Both will be compiled for speed optimizations. I may reconsider the preference for speed if they are close and one has a better code size.
+
+Let the games begin!
+
+Okay, I got 9, 10, and 15 MS for the DMC version. This is not precise enough. It can only matter if I run it many times. I will run 100 iterations.
+
+Still giving the same times. I think this is based on scheduler ticks that the program used. Of course, my CPU is so fast that it blazes through the whole program within the same time.
+
+Okay, I will simply run it thousands of times. I will try 4000.
+
+How about, 65536 times!
+
+Results in MS:
+- 392
+- 408
+- 399
+- 408
+- 411
+- 407
+- 414
+
+I think I will go higher. Expecting this one to be very close.
+
+Results in MS for DMC:
+- 482
+- 572
+- 532
+- 538
+- 565
+- 566
+- 570
+
+Starting to wonder if these statistics are worth anything. I think I should reduce the iterations, take more samples, and use a STOPWATCH for it.
+
+## DMC Statistics
+
+- 18.20 S
+- 19.57 S
+- 17.77 S
+
+AVG = 18.513
+
+## Open Watcom Statistics
+
+Watcom made the binary for a simple hello world excessively large for some reason, so a code size comparison may not be possible. I will however notice any major differences.
+
+Watcom does not like the source code. It seems to complain about the variadic arguments and apparently this compiler does not support C++ for iterators.
+
+Looks like things are not too good for Watcom. It can't compile it! I need to find away because it looks like a very advanced compiler.
+
+## July 27
+
+What the actual heck! This has to be a compiler bug. It is giving the most nonsensical errors imaginable.
+
+Maybe if I build the compiler from source it will do better?
+
+Guess what? I literally don't care. I will treat the stack arguments like an array like I used to back in the day. I just need to make it compatible with the regular variadic features.
+
+va_arg is just a pre-increment and a cast. va_list just needs a pointer to the first argument and a counter.
+
+I already don't like this compiler, but I REALLY want to try using it. I read that it can also inline IO port instructions with the right options, which is a plus.
+
+I found this:
+https://www.youtube.com/watch?v=_7dkppo9VC4
+
+Very interesting. This is playing a DOOM replay file. First comment is interesting. Apparently modern compiler technology really is better `:(`.
+
+I mean, c'mon. I have seen the code GCC generates. Some of the tricks it has I could never think of myself when writing assembly. And when it is not outputting genius code it writes exactly what an assembly programmer would.
+
+## Reminder
+
+Read the TODO!
+
+## Printf
+
+The printf implementation is actually incredibly bloated. It should be be used for regular logging purposes. According to Godbolt, it uses over 224 bytes of stack, which is definetely not an indicator of good performance.
+
+I don't really feel like changing it though.
+
+## Going Back to GCC
+
+I have to do this now. It won't really be that hard, and I can keep the basic idea of my build script.
+
+I am thinking of using DJGPP so that OS/90 can bootstrap. It supports GCC 10, which is VERY recent. The only parts that cannot be done in DOS are the emulation and image writing things, but building the entire OS is not hard.
+
+I need a uniform way of describing components and their install locations though. This will be done is DOS btw.
+
+```
+```
+
+The naming conventions will change. C sources will need to use 6.3-style notation because of the prefix.
+
+## Using DOS as Development Environment
+
+This is now totally possible. I only need to find a way to mount a disk to install the files. The built-in IDE RHIDE can be used to host the editor and compiler. It will be complicated to get the journal to work because RHIDE does not seem to word wrap by default.
+
+I probably should not, but I keep getting this delusion that coding like it is the 1990's will motivate me or something.
+
+A named pipe can be used to activate the virtual machine. Mounting the disk that the emulator should use can allow me to install the modules.
+
+# July 27
+
+## OS/90 Directory Structure
+
+Because I am introducing the idea of modules, I should specify where they are installed.
+
+```
+OS90/
+    SYS/
+        PCI.RZM
+        ATA.RZM
+    SUBSYS/
+        386DOS.RZM
+        DOS/
+            AUTOEXEC.BAT
+    KERNEL.BIN // Or something else idk
+```
+
+The DOS subsystem is a special one. It has its own AUTOEXEC file that it runs automatically using the COMMAND.COM inside the root directory.
+Most importantly, DSS allows direct access to the DOS FS since the interface is 100% compatible.
+
+## Subsystems
+
+I wonder what other subsystems I can add. A Linux subsystem is theoretically possible but would be extremely complicated. Also I don't like the "muh security" idea behind Linux and wonder if I could theoretically get away with not taking file permissions seriously at all.
+
+Win16 is something I may want to consider, but the 32-bit enhanced versions probably make VxD calls that are hard to emulate, if not impossible. I have a full VxD API reference which I could use to make VxD loading possible, but of course that would not be very much fun.
+
+Okay, but consider this. What VxDs are actually remotely useful on OS/90? Any common drivers for things like the mouse, keyboard, graphics, etc. probably mangle with Windows internals and depend on Windows existing, and if not, they are simple enough to be implemented natively and with much better performance.
+
+VxD emulation is only useful as a bragging rights thing. The amount of time that I would have to sink would be atronomical and for very little gain.
+
+## Windows Compatibility Again
+
+Windows 3.1 can run as a simple DOS application, at least theoretically. If DPMI already exists, Windows will use that instead. In the end, Windows can be executed inside OS/90. The only problem is with integrating it in a way that is useful for the user.
+
+Windows as a subsystem would not be that great since I would need
+- The entire KERNEL interface imlemented
+- NE loader
+- A bunch of other things I am forgetting
+- A 16-bit compiler that will work for this, or some kind of thunk mechanism
+
+## Here we go Again...
+
+WHY SUBSYSTEMS!!!!
+
+I will probably come to the same exact conclusion, but if I dont, I am fine with that too as long is it leads to the OS being dumbed down even further.
+
+> Note: DSS will need to be able to multithread DOS programs. This is necessary for implementing an OS like ELKS or even Linux under DPMI. To do this, multiple tasks must be owned by a single DOS box.
+
+Consider the potential problems associated with the current subsystem design. Can I redirect the standard output of a DOS program into one for a different OS like lets just say Linux? Not really possible unless I use some kind of common interface.
+
+On he other hand, implementing DOS as the building block permits the same interface to be used for several related subsystems.
+
+Basically:
+```
+    DOS
+-------------------
+    |   |       |
+ ELKS  WinNT    Just DOS
+```
+
+DJGPP is proof that a UNIX-like interface for DOS is perfectly possible. Even DesqView/X proves even further that DOS really is all you need.
+
+The whole standard output thing is something I have spent time before thinking about. In the current subsystem model, DOS machines are separated and standard output just goes to a virtual framebuffer. While that should exist in the old-now-new model, a DOS box does not need to be locked down as much. INT21H AH=9 can be outputted to standard output, which can be processed by the OS.
+
+A subsystem driver is technically needed, but the only purpose is to simply perform the tasks that obviously cannot be done by DOS in real mode.
+
+## Making It Happen
+
+Guess we really have to go all the way back now, since I already thought about how the architecture would be if it was formed around DOS.
+
+My first design showed its poor thinking because it required the PnP section to be part of the kernel. It could not even handle interrupts without "plug-and-play," which worked even without actual PnP BIOS support.
+
+My second-or-so design got closer to DOS and DPMI compatibility, but there were a number of conflicts and difficulties which I need to deal with right now once more.
+
+First of all, what happens when the INT instruction is called? What does the IDT contain? I found that using IOPL=3 to go directly to the IDT was a very difficult thing to use, but I will review it. INT can be made to cause an exception instead and be handled that way.
+
+I will not go by what I already wrote about this topic because last time did not work out.
+
+### Solution One: Exceptions
+
+A general protection fault handles everything. The IDT is filled with NULL ring-0 descriptors that cause a protection error for protected mode, and V86/SV86 both use IOPL=0. Attempts to change IOPL are rejected.
+
+### We Have A Solution
+
+That is literally the only way I can have it now. Anything else would be a tangled mess of nested if statements and I want none of that.
+
+DPMI can be mostly decoupled from the scheduler, except for V86 and SV86 which is barely its business anyway. DPMI will simply hook the second-stage exception handler.
+
+If it detects an INT 10H, it will know not to call the exception handler there but instead attempt to perform the whole DPMI handling chain of events.
+
+# July 28
+
+## Code Organization
+
+I need to FULLY separate DPMI from basically everything else
+
+## DPMI and Subprograms
+
+When a DOS program creates another, it will obviously not multithread, at least not automatically, but the task that started it will be frozen. This is necessary for DPMI programs like text editors that can open a shell. The return code byte is conveyed by writing to the parent task block.
+
+TSRs in practice they have limited functionality, but will work under DOS emulation.
+
+## Improvement to Uncommitted Memory
+
+Instead of looking up tables and wasting time, I can simply indicate the exact chain that an uncommitted page belongs to directly in the page table entry.
+
+## Virtual Address Spaces
+
+I can improve the ability to find free address spaces by using what is basically the same as heap allocation.
+
+A new page modifier is used to indicate the header of a address range. It will have to link with the other ones.
+
+This allows for the best fit algorithm to actually be fast.
+
+Furthermore, things that work for heaps can be done here too. Blocks can be coallesced to reduce lookup times.

@@ -28,6 +28,10 @@ OS/90 can be booted from a floppy disk or a hard disk.
 
 # FAQ
 
+## Does it Run DOOM?
+
+The #1 goal of OS/90 is to be able to run DOOM. Because OS/90 is DPMI-compatible, it should be able to run anything that uses a DOS extender. It is still recommended to exit OS/90 entirely and then run doom or to run it as an exclusive task.
+
 ## What type of kernel is used
 
 The kernel is monolithic and modular, with some inspiration from the exokernel in that there is a focus on "securely" arbitrating resources.

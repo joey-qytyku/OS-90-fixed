@@ -42,29 +42,29 @@ PVOID M_VaDeref(PVOID address)
 
 static LONG __declspec(naked) GetCmosBytePair(BYTE base)
 {
-	_asm {
-		in      al,70h
-		mov     cl,al   ; CL = Old index register
+	// _asm {
+	// 	in      al,70h
+	// 	mov     cl,al   ; CL = Old index register
 
-		mov     al,base
-		out     70h,al
+	// 	mov     al,base
+	// 	out     70h,al
 
-		in      al,71h  ; Read low order byte
-		mov     ah,al   ; Move it asside
+	// 	in      al,71h  ; Read low order byte
+	// 	mov     ah,al   ; Move it asside
 
-		mov     al,base
-		inc     al
-		out     70h,al
-		in      al,71h
+	// 	mov     al,base
+	// 	inc     al
+	// 	out     70h,al
+	// 	in      al,71h
 
-		xchg    ah,al
-		movzx   eax,ax
-		push    eax
-		mov     al,cl
-		out     70h,al
-		pop     eax
-		ret
-	}
+	// 	xchg    ah,al
+	// 	movzx   eax,ax
+	// 	push    eax
+	// 	mov     al,cl
+	// 	out     70h,al
+	// 	pop     eax
+	// 	ret
+	// }
 }
 #pragma noreturn(GetCmosBytePair)
 

@@ -2,15 +2,15 @@ This section will describe the interface of all drivers, hence the title. This a
 
 # Naming Conventions
 
-OS/90 drivers use the file extension `.AT`, which refers to the IBM PC/Advanced Technology.
-
-Examples:
-- PCI.AT
-- 8042.AT
+OS/90 drivers use the file extension `.RZM`, which means ring-0 module.
 
 # Call Mechanism
 
-Example code used to describe code in previous section is NOT CORRECT FOR DRIVERS! OS/90 uses a function pointer table and a typedef for each function. This allows function calls to be hooked, and is in fact the way that page swapping is implemented.
+> Should I reconsider the permanent HMA? Perhaps.
+
+Example code used to describe code in previous section is NOT CORRECT FOR DRIVERS! OS/90 uses a function pointer table with the address defined as a `static const` pointer which is at a fixed address in the HMA.
+
+Hooking should always be logged to diagnose problems.
 
 # Events
 
@@ -20,7 +20,7 @@ For example, GE_LOAD. This is called when a new driver is loaded. All other driv
 
 Drivers are identified by name in all interfaces exposed to them that permit communication with or knowledge of other drivers. The name MUST be 8 characters long to conform with FAT case, and may later be extended to support the tilde notation.
 
-Most of the events are not required for ordinary system operation and are there to allow for drivers to behave more optimally using certain features too complex to develop an entire API for. For example, we can handle APM or PnP events related to laptop lids or low-power states. Some of them are just there
+Most of the events are not required for ordinary system operation and are there to allow for drivers to behave more optimally using certain features too complex to develop an entire API for. For example, we can handle APM or PnP events related to laptop lids or low-power states. Some are purely advisory and have no specific condition to be sent.
 
 ```
 enum {
@@ -54,8 +54,6 @@ GE_LOAD is called when a driver is loaded and must initialize. Dynamically loade
 > Remember, ALL drivers get the GE_LOAD event and for every driver loaded. For example, PCI.90 will get G_LOAD when ATA.90 or FAT32.90 load after it.
 
 GE_UNLOAD is sent when a driver is removed from the memory. It can be refused by returning an error code of 1, but it is highly recommended that drivers do everything they can to permit dynamic removal.
-
-
 
 ## Event Masking
 

@@ -38,9 +38,16 @@
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
 // default: undefined
-#ifdef PRINTF_INCLUDE_CONFIG_H
-#include <OSK/DB/printf_config.h>
-#endif
+
+#define PRINTF_DISABLE_SUPPORT_FLOAT
+#define PRINTF_DISABLE_SUPPORT_EXPONENTIAL
+#define PRINTF_DISABLE_SUPPORT_LONG_LONG
+
+static void _putchar(char c)
+{
+    outb(0xE9, c);
+}
+
 
 // 'ntoa' conversion buffer size, this must be big enough to hold one converted
 // numeric number including padded zeros (dynamically created on stack)

@@ -5,7 +5,7 @@ OS/90 preallocates all page tables of the virtual address space and never extend
 Remapping memory takes a subchain range to perform the mapping on so that dynamic structures can be efficient. It is not necessary to change the base address being used.
 Listing:
 
-- PVOID M_Map(PVOID base, LONG chain, LONG attr)
+- STAT M_Map(PVOID base, LONG chain)
 - SIGLONG M_ChainRemap(PVOID baseaddr, LONG chain, LONG start, LONG len, LONG attr)
 - VOID M_MapPhysToVirt(PVOID phys, PVOID virt, LONG bytes)
 - PVOID M_ReserveMapping(LONG bytes)
@@ -23,7 +23,7 @@ Using the first 1MB+64K is always invalid since OS/90 does not page that memory.
 
 Remap a chain to the exact same location but with a different size. If there is a collision with in-use virtual addresses this function will do nothing and fail.
 
-The base and length of the region to remap is specified for creater efficiency.
+The base and length of the region to remap is specified for greater efficiency.
 
 ## M_MapPhysToVirt
 

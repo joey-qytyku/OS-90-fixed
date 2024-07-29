@@ -44,8 +44,7 @@ enum {
 	GE_UNDOCK,
 	GE_MEMORY_LOW,          /* Sent when approx. 90% of mem is in use */
 	GE_SWAP_LOW,            /* Same but for swap */
-	GE_SUBSYS_WANTS_DEV,    /* For VMs to work. For example, a VM needs to passthrough the PS/2 keyboard */
-	GE_SUBSYS_RELEASE_DEV,
+	GE_ENTER_EXCLUSIVE
 };
 
 typedef struct VOID (DRIVER_ENTRY*)(PSTR cmdline);
