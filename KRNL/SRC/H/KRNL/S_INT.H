@@ -15,28 +15,28 @@
 #ifndef INT_H
 #define INT_H
 
-//
-// Not all exceptions can be directly handled by a subsystem and some are
-// abstracted, but the virtual exceptions allow for effectively the same
-// amount of control by the subsystem.
-//
-// This abstracts the FPU error IRQ (which is always reserved).
-// If the FPU is external, the IRQ handler actually calls HL exception
-// handler for floating point errors directly. This may seem to violate
-// the concept of preemptible exception handlers, but is actually safe.
-// The only context in which the FPU can ever be used is a preemptible
-// user one.
-//
-// The FPU cannot be used by SV86 and doing so causes a system crash.
-//
-enum {
-        VE_DIVZ         = 0,
-        VE_DEV_NA       = 7,
-        VE_SEG_NP       = 11,
-        VE_STKF         = 12,
-        VE_GP           = 13,
-        VE_TOTAL
-};
+// //
+// // Not all exceptions can be directly handled by a subsystem and some are
+// // abstracted, but the virtual exceptions allow for effectively the same
+// // amount of control by the subsystem.
+// //
+// // This abstracts the FPU error IRQ (which is always reserved).
+// // If the FPU is external, the IRQ handler actually calls HL exception
+// // handler for floating point errors directly. This may seem to violate
+// // the concept of preemptible exception handlers, but is actually safe.
+// // The only context in which the FPU can ever be used is a preemptible
+// // user one.
+// //
+// // The FPU cannot be used by SV86 and doing so causes a system crash.
+// //
+// enum {
+//         VE_DIVZ         = 0,
+//         VE_DEV_NA       = 7,
+//         VE_SEG_NP       = 11,
+//         VE_STKF         = 12,
+//         VE_GP           = 13,
+//         VE_TOTAL
+// };
 
 #include "stdregs.h"
 /*

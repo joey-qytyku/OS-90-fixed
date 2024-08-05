@@ -1,17 +1,56 @@
-# Page Modifiers
+# Pages In Detail
 
-Using the three available bits on page table (not directory) entries, the kernel defines modifier attributes that can affect the behavior of the page. See mm/page.h for full documentation.
+## Page Flag Protocol
 
-Page modifiers represent mutually exclusive states of a page and some require that certain other bits are also configured correctly.
+The bits in a page table entry are refered to as page flags.
 
-The only ones that are not reserved for the memory manager are:
-- PTE_HOOKED
-- PTE_COLAT_L0, PTE_COLAT_L1
+In all functions that take page flags, the following rules are to be followed unless otherwise notes:
+- Present (PG_P) is always ignored.
+- Accessed and dirty can be used
 
-PTE_HOOKED requires that the page is not present. It will call a procedure when a page fault is generated while trying to access it. Do note that accesses that cross page boundaries will generate two calls.
+The page flag modifier value is 32-bit. The high 16 represent the "bother with" flags. The low 16 represent the value to set them to, only if a 1 exists in the corresponding bother with flag.
 
-> It may be useful to store some extra information in non-present PTE_HOOKED page table entries. There may be a function for that.
+This means that it is possible to "only bother with" certain bits while leaving the others alone.
 
-PTE_COLAT also use a procedure, but only for cleanup so that the deallocated and given to another chain. This is used to implement memory caches.
+To make all of this simple, macros are defined beginning with `PAGE_` that define the bother with flag AND the new value. For example `PAGE_READ_ONLY`
 
-PTE_COLAT_Lx all require that the page is present. It also HAS to be mapped.
+The following are supported
+```
+Bit On                  Bit Off
+----------------------------------------
+PAGE_READ_WRITE         PAGE_READ_ONLY
+PAGE_USER               PAGE_KERNEL
+PAGE_WRITETHROGH        PAGE_WRITEBACK
+PAGE_GLOBAL             PAGE_NOT_GLOBAL
+PAGE_DIRTY              PAGE_CLEAN
+PAGE_PRESENT            PAGE_NOT_PRESENT
+```
+
+## Page Modifier Index (PMI)
+
+There are three available bits for all page tables. This is treated as a 3-bit integer that represents a mutually exclusive trait about the page.
+
+The use of incompatible architectural page bits and PMIs is automatically corrected using the Page Flag protocol, but it is highly recommended that this document be consulted.
+
+Here is a table describing all PMIs.
+
+> "Requires" means bits that must be turned on.
+Key:
+- Requires: these bits must be on or off as described
+- ~: Negation, bit is not on
+- P: present
+- ALLOC: Mapped to chain memory. Accessible by software.
+
+|Name           |Requires       | Description
+-|-|-
+TRANSIENT       |P              | Mapped memory page that is NOT LOCKED and can be swapped to the disk. Page is present.
+AWC             |~P             | Uncommitted memory. Contents are the chain to resize according to relative location.
+HOOK            |~P             | Page that is 100% handled by the kernel directly upon page fault.
+TRANSIENT_OUT   |~P             | Page that is swapped out. 20-bit value is the swap file page index.
+COLAT           |P, ALLOC       | Allocated and mapped page that is not locked and is deallocated with notice when memory is out.
+VAHDR           | --- | Internally used to allocate virtual address ranges.
+
+- A PMI of zero excludes all of these.
+- All pages are locked by default.
+
+

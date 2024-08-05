@@ -4464,3 +4464,241 @@ A new page modifier is used to indicate the header of a address range. It will h
 This allows for the best fit algorithm to actually be fast.
 
 Furthermore, things that work for heaps can be done here too. Blocks can be coallesced to reduce lookup times.
+
+The PTEs are initially zeroed to indicate that they are unallocated. Allocating VAS is done by looking for anything in the free list that is available and then generating a zero...
+
+# July 29
+
+## Reconsidering Symbol Exports
+
+Now that I am using GCC, I should be able to generate the patch regions for API calls. The only problem is that GCC seems to use inefficient sequences, using single byte NOPs. I can of course change this at run time.
+
+There are problems with directly changing an API call entry code. If the procedure is already running.
+
+Swapping is supposed to be built on hooks. I need to figure this out.
+
+Symbols are supposed to be faster because near calls are used, though some extra bloat is added to the executable in the form of string information.
+
+Symbols also make the executable format actually useful. Without it, I might as well just have a flat binary with some relocations. I will keep the specification of course.
+
+Actually, what I have said so far is kind of nonsense. Symbols are 100% possible and I would prefer that too, but extra effort is needed. It is still worth it. Not having to keep a compatible call table across versions seems like a good thing.
+
+When a function is being hooked, nothing should call that function and it should not be running already.
+
+> Symbols HAVE to be used, or the kernel would have to be rewritten so that every self-referencing call invokes the hooked function.
+
+## You Know What
+
+Is relying on hooks bad design? I think so. The only reason I even want to use hooks is to implement swapping with minimal effort.
+
+In that case, why not just have a call table for the memory manager? Why wast 4096 bytes (aligned BTW) and add pointless overhead for no reason?
+
+And with symbols and patching, why add some needlessly complex locking mechanism to safely hook things? Just use a call table for the memory manager and that should be good enough.
+
+Even better, I can simply design the memory manager even better and not rely on hooks at all. There are only three or so functions that assist with swapping.
+
+## Virtual Address Spaces
+
+This whole free list thing seems to be quite compicated. It will probably need a third entry to define the actual size.
+
+Also, fragmentation of the virtual address space could be partially alleviated by allocating much larger chunks or forcing a certain minimum size.
+
+For example, allocating 2 pages vs 1 page could simple allocate 4 pages no matter what.
+
+I can also use other heuristic measures to reduce it. Overallocation can be used.
+
+Example:
+- We have these chains: 384K and 128K, and 512K
+- This is very large, but does illustrate the issue.
+- The 128K chain will cause significant fragmentation
+- The solution is to give each block approximately the same number of page mappings.
+- If we give each 512K or 128 pages, a total 384 page table entries are used.
+- The total allocation is 1M.
+- Assuming the system has about 2M of extended memory, the x4 rule suggests an 8M address space size or two page tables.
+- There are 2048 entries in our page tables.
+- 384/2048 = 18.75% of total entries.
+
+> Correction: Mapping real mode memory requires one entire page table. The kernel requires other one. In total, there are actually 4, but two are generated for the extended memory.
+
+I could use a conversion rate so that I can get a non-linear scale. There is another solution.
+
+I can also keep track of the size requested by the last allocation and try to keep it constant.
+
+> I do need to report the actual number of page mappings allocated. Software needs to know about this to take advantage of the overallocation.
+
+I do also need to remember that fragmentation is an issue of timing and ordering. In the ideal situation, fragmentation would never happen. In my previous example, how would I know to allocate 512K of mappings if it came in that order?
+
+Hints could be used as an alternative. Memory that is unlikely to be resized can be placed in one region while smaller things that do resize can simply fragment each other somewhere else.
+
+As a general rule, do not always consider larger blocks an immediate benefit. There needs to be a trick to it, or it will just make fragmentation more costly.
+
+Try this: use a step function to determine the thresholds. These can be configurable with macros.
+
+Another idea: Keep track of the average allocation size and if a new range is drastically higher, do something different. Maybe the average can be used to compute the overcommit.
+
+## For Now
+
+I can do it the dumb way for now, but I do need to support the new way to do it. The size of a page allocation must be reported.
+
+## Limitations
+
+The next pointer of the PFE is a signed 16-bit number. This is NOT good. It NEEDS to be bigger of the OS will not be able to handle more than 128M of RAM. I want the OS to handle over 2GB if possible.
+
+There is currently a page proc inside the PFD. Remember that a page proc is a function called whenever a page is accessed as part of page hooking. Page table entries are not large enough for this, so the idea was to put it in a PFD.
+
+This is terrible. PFDs are now 12 bytes which is not even and is larger than originally intended.
+
+I will simply remove it then. Whether I need it or not, I cannot have it.
+
+16-bit values for next pointers restrict the system to 256M. That is not acceptable either. Windows 98 can do 1GB and I have to beat it.
+
+Oh also, it does not HAVE to be even. Also, even 16-bytes is actually almost nothing, even for a computer with a 1M stick with 393,216 bytes of memory only needs 1536 to represent all 96 pages. In practice, 4K will be allocated by the kernel, but still practically nothing.
+
+Using larger entries, it is possible to use pointers rather than indices, which improves performance be reducing register pressure on the compiler.
+
+```
+typedef struct {
+	SHORT           page_bits;
+	SHORT           rel_index;
+	PVOID           next;
+	PVOID           prev;
+}PFD,*P_PFD;
+```
+
+This is what I have now. 12-byte structure and 4-byte aligned.
+
+I changed it to be 16-byte. This is more optimal as it allows the SHL instruction to be used. No LEA, but still better.
+
+## Virtual Memory
+
+I can do swapping a little differently. Instead of swapping pages only when memory is low, I can make swapping a bit more transparent.
+
+Pages in the VA can be hooked to invoke disk transfers. This would involve using a temporary buffer large enough to hold two sectors or two pages, whichever is larger.
+
+The page still remains "out" of memory. It just needs a small buffer to make it accessible.
+
+This is basically demand paging by definition. We only keep enough memory to make the data on the disk available through mapping. With proper synchronization techniques, this can be done with minimal down time.
+
+I will think about this tomorrow a bit more.
+
+Okay, some ideas. The transfer buffer is basically passed around between tasks that are demand paging. When one needs to access swapable memory, it will have the virtual address mapped to the transfer buffer and the disk transfer is done.
+
+I could of course consider the entire memory to be a disk transfer area, but having it preallocated sounds better. I can also allow for multiple swap transfer buffers and use a semaphore.
+
+## ABI
+
+I will bring back the old ABI. It generates much leaner code.
+
+# July 30
+
+Make the UI kit with DJGPP and DOS? It would be a good way to test the performance. I could also make the UI real mode DOS-compatible, although that would have limitted use.
+
+# August 1
+
+## Tasks
+
+How do I modify the registers of a task and how are they actually saved?
+
+When a task enters the kernel, the registers are saved to the stack. If the kernel thread is preempted by another, the state must be maintained by also pushing to the stack, or something. Really?
+
+> Preemption is the important thing here. My decision needs to be based on the scheduler design.
+
+The registers of the user are on the stack. These values are always restored before entering ring-3 again. This means that if the kernel must modify the registers of a task, it can do so by modifying the stack frame.
+
+Switching from the kernel to any other task requires its own save buffer since it is preemptible and cannot share with user mode.
+
+But what happens in the scheduler?
+
+The stack frame of the user entry to ring-0 does not exist at all unless the thread is in kernel mode. If the thread is in user mode, it will, upon being unscheduled, save to the same buffer as the kernel.
+
+The scheduler tick does not interact with the system entry stack frame at all. It simply does not need to. Its only purpose is to return to what will eventually become the saved context of the task.
+
+# August 3
+
+## M_Map Inquiry
+
+Is this function too complicated?
+```
+STAT M_Map(LONG chain, PVOID baseaddr, LONG start, LONG len, LONG attr_override)
+```
+
+The idea of this is to permit dynamic structures. I can remap parts of a chain instead of the whole thing and override the page bits.
+
+This is apparently a very dumb idea. Why bother with this complexity when I will end of HAVING to scan the chain no matter what?
+
+I will explain more. The attribute override thing could be useful, sure. But why do I need to specify what needs to be remapped? How am I supposed to keep track of it in a practical scenario?
+
+Okay, to the point now. If I want to remap a part fo the chain, I will have to scan no more than the whole chain. If so, why must I specify what needs to be remapped if I have to iterate anyway and access memory while doing so?
+
+The alternative is add a flag in the PFD that indicates the page frame has been mapped. To unmap it, I mark the page frame as needing remapping and remap the memory.
+
+I am starting to rethink the whole page bits in the PFD thing. Why do this? It just makes remapping more inefficient unless I change it after mapping.
+
+M_Alloc is supposed to be barebones, not a real heap allocator. A proper malloc should be built on top of it. M_Alloc/M_Map are mmap but only for memory. Dynamic allocation should use a heap that supports compact and page-based allocations.
+
+The changes I will make:
+- STAT M_Map(LONG chain, PVOID base)
+
+Proper memory management would include
+
+# August 4
+
+## New Things
+
+To properly change page bits, I will use a 32-bit mask where the high bits are the "bother with" bits and the low 16-bit value is the "set to" bits.
+
+This does not mean anything for the initial mapping, but does no harm.
+
+## Swapping
+
+I wrote some of the specs for memory swapping, and I am wondering how far I can go with it.
+
+What if I made the swap an extension to physical memory that can be allocated using M_Alloc?
+
+Sure I could, but the demand paging thing is still essentially the same. The swap file can be allocated using a bitmap.
+
+No matter what I decide to do, swap cannot be transparently accessed. Unless perhaps I emulate any instruction that accesses it, which actually would not be too bad because swapping is already slow.
+
+Even with emulation, there still needs to be buffering. Pointless idea.
+
+### Algorithm
+
+It could be theoretically possible to swap out pages that are not frequently used. The dirty bit is usable for this. The only issue is that it requires monitoring. Perhaps page faults from not P pages can be used to get a count.
+
+It would slow down the computer to have this running in the background.
+
+It is also possible to do userspace virtual page faults. The OS can let swapping be done by something that knows more about the working set and exposes proper memory managent systems.
+
+### Page Frame Descriptor Changes
+
+The PFD is now this:
+```
+	PAGE_PROC       proc;
+	PVOID           next;
+	PVOID           prev;
+	SHORT           rel_index;
+```
+
+What are these page procs and what do I expect to do with them? Apparently I wanted to have them be used to implement swapping and page hooking. At this point, page procs could be used for uncommitted memory, but that only works for virtual address spaces, not physical. I got rid of page flags in the PFD, so consistency would call for the removal of the page proc. It is also way too large.
+
+```
+	PVOID           next;
+	PVOID           prev;
+	SHORT           rel_index;
+```
+
+Finding out the size of a chain currently requires iteration. I am not sure how often this needs to happen. I see no real need to cache it.
+
+### Back To Swapping
+
+Demand paging will of course be used, and I want DPMI clients to be able to take advantage of it. For that to work, the userspace page faults of DPMI 1.0 cannot be supported (which is acceptable and reported by DPMI).
+
+I do not want to implement swapping or really even think about it right now. I just need the interface.
+
+I will shoehorn the swapping into the OS when I decide it is time. For now, I won't even bother.
+
+## DPMI DOS Translation
+
+I can implement a certain level of protected mode translation for DOS services. I could make OS/90 capable of loading `KRNL286.EXE`.
+
+Maybe later

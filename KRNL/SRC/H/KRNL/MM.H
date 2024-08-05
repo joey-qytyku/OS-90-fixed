@@ -15,12 +15,17 @@
 #ifndef MM_H
 #define MM_H
 
-#include <OSK/SD/enhmtx.h>
+#include <OSK/SD/SYNC.H>
 
 #define MB(x) ((x) * 1048576)
 #define KB(x) ((x) * 1024)
 
 static const PLONG pdir_ptr = ((PLONG)0x100000);
+
+#define ALIGN_VAL(V, A) ((V+(A-1)) & (-(A))
+
+// This is a macro. We want this to be inlined as much as possible.
+#define ROUNDUP_BYTES2UNITS(V, A) ( (V+(A)) & (-(A)) )
 
 #define PDE_SHIFT 22
 #define PTE_SHIFT 12
@@ -112,7 +117,9 @@ properties.
 //
 #define PTE_VAHDR       (6<<9)
 
-#define PTE_MOD_MASK (0b111<<9)
+// Why not add a BSS page type?
+
+#define PTE_MOD_MASK    (0b111<<9)
 
 typedef VOID (PAGE_PROC*)(
 	LONG    page_table_entry,
@@ -121,17 +128,14 @@ typedef VOID (PAGE_PROC*)(
 
 #define HIGHEST_CHAIN_ID ((1<<20)-1)
 
-typedef struct {
-	PAGE_PROC       page_proc;
-	SHORT           page_bits;
+typedef _Packed struct {
+	PAGE_PROC       proc;
+	PVOID           next;
+	PVOID           prev;
 	SHORT           rel_index;
-	SIGSHORT        next;
-	SHORT           prev;
 }PFD,*P_PFD;
-/*
- * The page bits are exactly the same as in 80x86, but some of the bits
- * are zero because they are meaningless: P, D, and A.
- ******************************************************************************/
+
+// Separate public and private?
 
 typedef struct {
 	ENHMTX  mm_lock;
@@ -144,14 +148,6 @@ typedef struct {
 	LONG    swap_file_pages_free;
 	LONG    swap_file_pages_total;
 
-	// Kernel physical address where it allocates. Page aligned.
-	LONG    alloc_region_phys_base_intptr;
-
-	// Where the kernel keeps page tables
-	PLONG   ptables_region;
-
-	// Where the physical memory allocation table is
-	P_PFD   pmat_region;
 
 	// Number of page table entires available. Initialized on startup.
 	LONG    ptents_free;
@@ -164,6 +160,17 @@ typedef struct {
 
 	LOPROC  vas_low_handler;
 	LOPROC  phys_low_handler;
+
+	//////////////////////////////////////////
+
+	// Where the kernel keeps page tables
+	PLONG   ptables_region;
+
+	// Where the physical memory allocation table is
+	P_PFD   pmat_region;
+
+	// Kernel physical address where it allocates. Page aligned.
+	LONG    alloc_region_phys_base_intptr;
 }MM_STRUCT;
 
 // The structure is interesting, but I probably can leave some of these static.

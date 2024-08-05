@@ -44,4 +44,4 @@ There is ONE exception to this system. The FPU IRQ#13 handler represents more of
 
 The answer: you don't. It is already known, and code should be specified for specific contexts.
 
-For the purposes of error checking or any odd scenario where it is necessary to get the current context, there are functions for that. TI cannot be detected.
+For the purposes of error checking or any odd scenario where it is necessary to get the current context, there are functions for that. TI cannot be detected and must be known.

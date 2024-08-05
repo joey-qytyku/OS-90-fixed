@@ -89,10 +89,10 @@ typedef struct {
 	_DW_R(SP);
 	LONG   SS;
 
-	union {LONG v86_ES; LONG ES;};
-	union {LONG v86_DS; LONG DS;};
-	union {LONG v86_FS; LONG FS;};
-	union {LONG v86_GS; LONG GS;};
+	LONG v86_ES;
+	LONG v86_DS;
+	LONG v86_FS;
+	LONG v86_GS;
 }STDREGS, *PSTDREGS;
 
 #undef _DW_R

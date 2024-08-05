@@ -22,23 +22,15 @@ Installing the OS is done by creating an OS90 directory at the root of the boot 
 
 It is very unlikely that OS/90 install files will not fit inside a floppy disk.
 
-## Boot Media
-
-OS/90 can be booted from a floppy disk or a hard disk.
-
 # FAQ
 
 ## Does it Run DOOM?
 
-The #1 goal of OS/90 is to be able to run DOOM. Because OS/90 is DPMI-compatible, it should be able to run anything that uses a DOS extender. It is still recommended to exit OS/90 entirely and then run doom or to run it as an exclusive task.
+The #1 goal of OS/90 is to be able to run DOOM. Because OS/90 is DPMI-compatible, it should be able to run anything that uses a DOS extender.
 
 ## What type of kernel is used
 
 The kernel is monolithic and modular, with some inspiration from the exokernel in that there is a focus on "securely" arbitrating resources.
-
-Programs run inside shared address space virtual machines. The kernel loads subsystem drivers which act as hypervisors or translation layers that allows programs to run using the native DOS interface.
-
-Any component of DOS or the BIOS can also be trapped to provide a 32-bit implementation. This is what makes OS/90 a true operating system.
 
 ## What does the name mean?
 
@@ -50,9 +42,11 @@ Now the name means nothing in particular, but it kind of stuck.
 
 ## What version of DOS should be used?
 
-Anything newer that 3.3 should work. MS-DOS is recommended because it uses
+Anything newer that 3.3 should work.
 
-FreeDOS is good but requires modifications. COMMAND.COM needs to be replaced because the built-in one swaps programs to extended memory and allocates a massive chunk for that, thus starving OS/90 significantly. There is no option to disable this behavior.
+FreeDOS is good but requires modifications. COMMAND.COM needs to be replaced because the built-in one swaps programs to extended memory and allocates a massive chunk for that, thus starving OS/90 significantly on startup. There is no option to disable this behavior.
+
+The FreeDOS command prompt on the other hand does save a lot of convnetional memory when swapping.
 
 ## Is OS/90 an operating system or an operating environment?
 
@@ -65,3 +59,4 @@ There is a full API handbook in the `docs` folder.
 ## What are the Licensing Terms?
 
 Most of the code is GPLv2 licensed. See the notices inside the code.
+

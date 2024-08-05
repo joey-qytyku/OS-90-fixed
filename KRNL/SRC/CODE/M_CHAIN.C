@@ -14,21 +14,48 @@
 
 #include <OSK/MM/mm.h>
 
-LONG API_CALL M_Alloc(
-	LONG    bytes_commit,
-	LONG    bytes_uncommit,
-	LONG    page_bits
-){
-	if ( (bytes_commit == 0) || (page_bits & PG_P != 0) )
+static BOOL ChainValid(LONG c) { return g_mm.pmat_region[c].prev == 0; }
+
+LONG M_GetChainSize(LONG chain)
+{
+	LONG pages = 0;
+	P_PFD pfd;
+	for (pfd=g_mm.pmat_region[chain]; pfd->next != NULL; pfd = pfd->next)
+		pages++;
+
+	return pages * 4096;
+}
+
+PVOID GetChainEntryPhysicalAddress(INT chain, INT index)
+{
+
+}
+
+STAT M_SetChainPageBits(
+	INT     chain,
+	INT     byte_offset,
+	INT     byte_count)
+{
+}
+
+INT M_Alloc(
+	INT    bytes_commit,
+	INT    bytes_uncommit,
+	INT    page_bits)
+{
+	if (bytes_commit == 0)
 		return 0;
 
-	P_PFD mtab = g_mm.pmat_region;
+	const INT pages_alloc = ROUNDUP_BYTES2UNITS(bytes_commit, 4096);
+	const INT pages_nocom = ROUNDUP_BYTES2UNITS(bytes_uncommit, 4096);
 
-	const LONG pages_alloc = (bytes_commit+4095) & (~4095);
-	const LONG pages_nocom = (bytes_uncommit+4095) & (~4095);
-
-	// Can the request be fulfilled with the existing committed pool?
-	if (g_mm.page_frames_free+pages_alloc > g_mm.page_frames_total) {
+	// Can the physical memory be allocated?
+	// The reason an int cast is used is to generate a simpler sequence
+	// where a signed comparison is involved.
+	// This is safe because there will never be 2,147,483,648 page
+	// frames.
+	if ((SIGINT)g_mm.page_frames_free - (SIGINT)pages_alloc < 0)
+	{
 		return -1;
 	}
 
@@ -36,53 +63,50 @@ LONG API_CALL M_Alloc(
 	// Now we must find free entries in the list.
 	// This is somewhat slow since it requires a linear search of the
 	// entire array
-	LONG    already_alloced = 0;
-	LONG    curr_indx = 0;
-	PFD     bogus;
-	P_PFD   last_descriptor = &bogus;
-	LONG    last_descriptor_index = 0;
+	INT     already_alloced = 0;
+	P_PFD   cur = g_mm.pmat_region;
+	P_PFD   last_descriptor = NULL;
 
-	LONG retval = 0;
+	INT retval = 0;
 
 	// last_descriptor_index of zero is correct for first entry.
-
+	// Do we need current index?
 	while (1)
 	{
 		// Can either be transient mapped or locked mapped,
 		// zero never makes sense for a chain since unmapped
 		// pages are never generated.
-		if ((mtab[curr_indx].page_bits >> 9) & 0b111 == 0) {
-			// Is it the first we found?
+		if ((cur->page_bits >> 9) == 0)
+		{
+			// Is this the first found?
 			if (unlikely(already_alloced == 0))
-				retval = curr_indx;
+			{
+				retval = ((INT)cur + (INT)g_mm.pmat_region)/sizeof(PFD);
+				cur->prev = NULL;
+				// TACTICAL GOTO, INCOMING!
+				goto skip_for_first_point;
+			}
 
-			if (unlikely(allocated == blocks_alloc))
+			if (unlikely(already_alloced == pages_alloc))
 				break;
 
-			// Otherwise, create the PFD normally.
-			// It is assumed that this entry will be the last
-			// and the uncommitted count is always stored.
-			// This reduces duplicated code.
+			// These should not run for the first PFD in chain
+			cur->prev = last_descriptor;
+			last_descriptor->next = cur;
 
-			mtab[curr_indx].page_bits       = page_bits;
-			mtab[curr_indx].rel_index       = already_alloced;
-			mtab[curr_indx].next            = -(pages_nocom);
-			mtab[curr_indx].prev            = last_descriptor_index;
-			last_descriptor->next           = curr_indx;
+			skip_for_first_point:
 
-			// The index of the previous descriptor will not be the
-			// current one on the next iteration.
-			last_descriptor_index = curr_indx;
+			cur->page_bits = page_bits;
+			cur->rel_index = already_alloced;
+			// mtab[curr_indx].next            = -(pages_nocom);
 
-			// Pointer to previous descriptor set for next time.
-			last_descriptor = &mtab[curr_indx];
-
-			// Indicate that one more was allocated.
+			// FOR NEXT ITER
+			last_descriptor = cur;
 			already_alloced++;
 		}
 
 		// Advance to the next descriptor.
-		curr_indx++;
+		cur++;
 	}
 
 	// Report that the page frames were allocated.
@@ -90,24 +114,47 @@ LONG API_CALL M_Alloc(
 	return 0; // RETURN THE CHAIN ID!
 }
 
-// Could I just reserve a page entry to creat some sort of allocation
-// header for mappings?
-
-STAT M_Map(PVOID base, LONG chain)
+VOID DoFlushTLB_386(PVOID addr, INT bytes)
 {
-	PLONG const pd  = g_mm.pdir_ptr;
-	PLONG const pts = g_mm.ptables_region;
-
-	for (LONG i = 0; ; i++)
-	{
-		if (i <= g_mm.ptents_max) {
-			// We should NOT have reached the end. Error.
-			return OS_ERR;
-		}
-
-		if (pts[i] & PTE_MOD_MASK == 0) {
-			//
-		}
-	}
+	ASM(
+		"mov %%cr3,%%eax;"
+		"mov %%eax,%%cr3;"
+		:::"memory","eax"
+	);
 }
 
+VOID DoFlushTLB_486(PVOID addr, INT bytes)
+{
+	if (bytes >= MB())
+		DoFlushTLB_386();
+	else
+		for (INT i = 0; i < ROUNDUP_BYTES2UNITS(bytes, 4096); i++)
+			ASM("invlpg %0"::"r"(addr+i):"memory");
+}
+
+VOID (DoFlushTLB*)(PVOID, INT) = DoFlashTLB_386;
+
+VOID M_FlushTLB(PVOID addr, INT bytes) { DoFlashTLB(); }
+
+PVOID M_ReserveMapping(LONG bytes, PINT out_bytes_alloc)
+{
+	PINT pts = g_mm.ptables_region;
+}
+
+STAT M_ReleaseMapping(PVOID addr)
+{}
+
+// REMEMBER, THIS DOES NOT "ALLOCATE" ADDRESSES, ONLY MAPS!
+STAT M_Map(
+	LONG    chain,
+	PVOID   baseaddr,
+	INT    start,
+	INT    len,
+	INT    attr)
+{
+	if (!ChainValid(chain) || len == 0)
+		return OS_ERR;
+}
+
+VOID M_SetAttr(PVOID addr, INT bytes, INT attr)
+{}

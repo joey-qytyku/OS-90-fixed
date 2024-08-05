@@ -15,8 +15,8 @@
 #ifndef TYPE_H
 #define TYPE_H
 
-#define EOK   0
-#define EFAIL 1
+#define OS_OK   0
+#define OS_ERR  1
 
 /////////////////////////////////////////////////////////////////////////////
 // I n l i n e   A s s e m b l y   a n d   A s s e m b l y   L i n k a g e //
@@ -29,7 +29,7 @@
 ////////////////////////////////////////////////////
 
 // TODO
-#define kernel_export
+#define APICALL
 
 #define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) |\
 ((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
@@ -40,7 +40,7 @@
 // so that it can be added to the procedure table
 
 // TODO!
-#define API_DECL(rtype, name, ...)
+#define EXP(rtype, name, ...) rtype name(__VA_ARGS__)
 
     // typedef rtype kernel (*_API_##name)(__VA_ARGS__);\
     // rtype kernel name(__VA_ARGS__)
@@ -57,15 +57,15 @@
 // T y p e   D e f i n i t i o n s //
 /////////////////////////////////////
 
-typedef unsigned long  LONG;
+typedef unsigned long  INT;
 typedef unsigned short SHORT;
 typedef unsigned char  BYTE;
 
-typedef LONG  *PLONG;
-typedef SHORT *PSHORT;
+typedef UINT  *PINT;
+typedef USHORT *PSHORT;
 typedef BYTE  *PBYTE;
 
-typedef long  SIGLONG;
+typedef long  SIGINT;
 typedef short SIGSHORT;
 typedef char  SIGBYTE;
 
@@ -82,7 +82,7 @@ typedef const BYTE *PCSTR;
 // Fixed
 #define BYTE_PTR(var, off) *(BYTE)  ((PVOID)(var) + (off))
 #define WORD_PTR(var, off) *(SHORT) ((PVOID)(var) + (off))
-#define DWORD_PTR(var,off) *(LONG)  ((PVOID)(var) + (off))
+#define DWORD_PTR(var,off) *(INT)  ((PVOID)(var) + (off))
 
 /////////////////////////////
 // G C C   B u i l t i n s //

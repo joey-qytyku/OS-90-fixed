@@ -5,6 +5,8 @@ BOOT386, the OS/90 bootloader written by Joey Qytyku
 This program is released to the public domain, feel free to
 use and modify it to load other kernels.
 
+Assemble with NASM.
+
 %endif
 
 ;-------------------------------------------------------------------------------
@@ -53,9 +55,6 @@ Machine         DB      "[!] 2MB of memory is required",LNE
 KernelFile      DB      "[!] The kernel image appears corrupted.",LNE
 FileIO_Error    DB      "[!] Error opening or reading from kernel image",LNE
 MoveError       DB      "[!] Error copying from conventional to extended memory",LNE
-
-;----------------------------
-; Debug message strings
 
 %macro ERROR 1
         mov     ah,9
@@ -287,6 +286,7 @@ PageSetup:
 
         ;Create the page directory
         ; UPDATE: Changed 768 to 512 reflecting new load VMA.
+        ; If you want to load at 0xC0000000 change to 768.
         mov     dword [es:bx],       (101h<<PAGE_SHIFT)|7h
         mov     dword [es:bx+512*4], (102h<<PAGE_SHIFT)|3h
 

@@ -1,9 +1,35 @@
 # Virtual Memory
 
-OS/90 swaps only when it is unabled to complete a memory allocation request and commit the expected number of pages. An out of memory handler stack is used.
+OS/90 is intended to run optimimally on low memory systems. It implements demand paging.
 
-> I should add a way to monitor chain allocation from a driver. This could allow me to write an independent but efficient swapper.
+Disk drivers are required to cooperate with the kernel for the sole purpose of swapping. Disk transfers must happen without caching whatsoever.
 
-```
-MMCall(MM_ALLOC, 1000)
-```
+## The Swap File
+
+There is one swap file called `_SWP_.___` and it must be on the boot disk.
+
+A tool called MKSWAP in the OS90 directory does this by getting the free space left, creating a file exactly that large, and then resizing down to the desired size. The system attribute is used to indicate that the file cannot be physically moved or deleted.
+
+The drive should be defragmented before making the swap file to avoid fragmenting further.
+
+> Tructation on DOS happens like this: (https://stackoverflow.com/questions/2869050/shrinking-or-partially-truncating-a-file-in-dos-fat). Basically, by writing with zero length.
+
+## Demand Paging
+
+### The Demand Paging Buffer
+
+A demand page buffer is allocated of at least 2 pages or 2 disk sectors, whichever is larger, is used to keep the absolute minimum of the paged out data in memory.
+
+The reason why it works like this is to permit non-aligned access to pages and the same for a disk. For example, if 0x6004FFF is accessed as a word, it will cross a page boundary. This requires reading enough data and mapping the right number of pages.
+
+The buffer can only be controlled by one task at a time. If another task needs to demand page, it will spin on the MM lock.
+
+### Operation
+
+Swapped out pages contain a 20-bit page index to the swap file, allowing for 4GB of swap space.
+
+## Interface
+
+> What is this? https://stanislavs.org/helppc/int_21-33.html
+
+See the header `MMSWAP.H`.

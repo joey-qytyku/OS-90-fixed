@@ -1,29 +1,28 @@
 # EF90 (2024)
 
-OS/90 has a special executable format for drivers and anything else.
+It support relocations, shared libraries, and other features, but is simpler than other executable formats.
 
-It support relocations, shared libraries, and other features, but is simpler than other executable formats. Executables are contructed from objects and executables of the ELF format using a Python script parses the contents to generate the OS/90 executable.
+The most innovative part of the format is alphabetically sorted symbol table entires.
 
-The most innovative part of the format is alphabetically sorted symbol table entires. It is no coincidence that the kernel API uses Quake prefix naming.
-
-The OS/90 executable format is bloated for very small programs and requires a memory-intensive linking method, but has extra information that greatly accelerates the loading process. The goal is to make OS/90 load drivers fast.
+EF90 is bloated for very small programs and requires a memory-intensive linking method, but has extra information that greatly accelerates the loading process.
 
 ## Limitations
 
+- No named segments
 - Symbol names can accumulate to about 256M in size. This is practically a non-limit.
-- 4G of code and 4G of data is possible, though it would never happen because of FAT limits and 32-bit addressing.
+- 4G of code and 4G of data is possible, though it would never happen because of 32-bit addressing.
 - 256K is the maximum size of a symbol length group. Practically a non-limit.
 - The whole format is very bloated, though perhaps not as bad as Win32 PE.
 - The format is 32-bit. It could of course be adapted to 64-bit.
-- A total of 64 kilolibraries can be imported.
+- A total of 65,536 kilolibraries can be imported. Practically a non-limit.
 
 ## File Structure
 
-- The extensions for userspace executables are `.CMD` and `.LIB`.
+There is no specific file extension required.
 
 ```
 MZ Header
-OS/90 Header
+EF90 Header
 Code and data *
 Relocation table *
 Import symbol table *
@@ -32,15 +31,17 @@ String table *
 Import library table
 ```
 
-> Anything with * is 512-byte aligned and granular. This is 100% totally not related in any way to the size of a sector `:)`.
+Anything with * is 512-byte aligned and granular. This is 100% totally not related in any way to the size of a sector `:)`.
+
+This makes the minimum size of an EF90 executable over 2.5K.
 
 ## Header
 
-The OS/90 executable starts with an MZ header. After the MZ stub, there must be an EXEC_HEADER.
+The executable starts with an MZ header. After the MZ stub, there must be an EXEC_HEADER. A loader has the option to not require the MZ stub, but it must be supported if it exists.
 
 ```
 #define EXEC_FLAGS_LIB 1
-#define EXEC_DUPABLE_DSEG 2
+#define EXEC_FLAGS_CMP 2
 
 typedef struct { // COMPLETELY OUTDATED
         LONG    magic;
@@ -55,7 +56,15 @@ typedef struct { // COMPLETELY OUTDATED
 }EXEC_HEADER;
 ```
 
-init and fini are both procedures and use the standard calling conventions. Libraries can use both to initialize and clean up. Drivers use the entry point for a different purpose as described in the drivers chapter of the manual.
+EXEC_FLAGS_LIB indicates that the file is a library. This means that relocations can be purged from memory but the symbol table must be retained. Only exported symbols should be exposed.
+
+EXEC_FLAGS_CMP means that the executable is compressed.
+
+All other flags must be zero.
+
+init and fini are both procedures. The exact ABI is not specified. Every OS should specify its own since executables cannot run accross operating systems anyway.
+
+BSS must be zeroed by the loader.
 
 > The format does not support arbitrary sections and hence has only one relocation table.
 
@@ -68,8 +77,8 @@ Straight from the SysV ABI spec:
 A This means the addend used to compute the value of the relocatable field.
 B This means the base address at which a shared object has been loaded into
 memory during execution. Generally, a shared object file is built with a 0
-base virtual address, but the execution address will be different. See ??Pro-
-gram Header?? in the System V ABI for more information about the base
+base virtual address, but the execution address will be different. See "Pro-
+gram Header" in the System V ABI for more information about the base
 address.
 P This means the place (section offset or address) of the storage unit being
 relocated (computed using r_offset).
