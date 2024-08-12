@@ -84,3 +84,7 @@ Executing subprograms can only be done using memory outside the DMR.
 OS/90 supports DPMI 0.9 with some 1.0 features and reports 0.9 to software.
 
 This part of the document lists each DPMI feature and how OS/90 implements them.
+
+# MS-DOS Extensions
+
+https://docs.pcjs.org/specs/dpmi/1991_03_11-MSDOS_DPMI_EXTENSIONS.pdf

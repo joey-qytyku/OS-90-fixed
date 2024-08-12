@@ -43,7 +43,7 @@ Each MPE contains a count of free chunks after the allocated region (including s
 
 ## Defragmentation Strategy
 
-Fragmentation is not a problem until it becomes a problem. There is no need to defragment except in cases where a memory request cannot be fullfilled.
+Fragmentation is not a problem until memory is low. There is no need to defragment except in cases where a memory request cannot be fullfilled.
 
 The allocator uses attempts to find the best possible fit at all times.
 
@@ -52,4 +52,4 @@ The allocator uses attempts to find the best possible fit at all times.
 The heap validator function checks the following:
 - Master pointer table must always point to data in the pool.
 - Lock count is not overlocked
-- Sentinel bytes in the allocation are not
+- Sentinel bytes in the allocation are not overwritten

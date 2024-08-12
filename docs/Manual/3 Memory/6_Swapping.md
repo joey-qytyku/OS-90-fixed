@@ -26,10 +26,26 @@ The buffer can only be controlled by one task at a time. If another task needs t
 
 ### Operation
 
-Swapped out pages contain a 20-bit page index to the swap file, allowing for 4GB of swap space.
+Swap space is allocatable as physical memory is. Swap pages can be mapped to any reserved address space and any pages can be copied from the memory to the transfer buffer to remove it from memory.
 
-## Interface
+### Implementation Interface
 
 > What is this? https://stanislavs.org/helppc/int_21-33.html
 
 See the header `MMSWAP.H`.
+
+### API Listing
+
+```
+LONG V_SwapStat(LONG code);
+
+LONG V_SwapReserve(LONG bytes)
+```
+
+### LONG V_SwapReserve(LONG bytes)
+
+Reserves a range of pages in the swap file.
+
+### STAT V_EvictPages(PVOID vaddr, LONG bytes)
+
+Maybe I can do something advanced? Have a high-level "region" structure with a present memory quota for transfer buffering?

@@ -1,6 +1,6 @@
-# Chain Management
+## Chain Management
 
-The OS/90 memory manager uses a FAT-style linked list table to allocate pages. An allocation is called a chain, and a chain ID is the index to the first block in the chain. Chain IDs are used throughout the chain allocation API.
+The OS/90 memory manager uses a FAT-style linked list table to allocate physical memory pages. An allocation is called a chain, and a chain ID is the index to the first block in the chain. Chain IDs are used throughout the chain allocation API.
 
 The very last entry in a chain holds a count of how many uncommitted pages are to be mapped when mapping takes place. These do NOT get memory block entries.
 Modifications to chains do NOT change mappings whatsoever.
@@ -14,7 +14,7 @@ Each page frame represented in the table has a persistent page bit state, which 
 
 > TODO: Features to detect memory available, that way allocations can be respectful to the caches.
 
-## LONG M_Alloc(LONG bytes_commit, LONG bytes_uncommit)
+### LONG M_Alloc(LONG bytes_commit, LONG bytes_uncommit)
 
 Allocates a chain with `bytes_commit` bytes rounded to a page count and specifies the very last entry the number of uncommitted blocks that must later be mapped.
 
@@ -23,15 +23,14 @@ Allocates a chain with `bytes_commit` bytes rounded to a page count and specifie
 Consider this example: `M_Alloc(1, 1)`. The committed pages are allocated first in the chain, and then the uncommitted pages are memorized. 4096 bytes are committed and 4096 bytes are not.
 `bytes_commit` may never be zero.
 
-> This function MUST succeed. It will do everything possible to ensure a complete allocation, and collateral pages are the first to be wiped. If there is not enough swap space to free enough page frames, the system will crash.
 
-## STAT M_Free(LONG chain)
+### STAT M_Free(LONG chain)
 
 This will delete the chain completely.
 
 M_Free can fail. If the chain ID does not reference the start of the chain, an error will occur.
 
-## STAT M_Resize(LONG chain, SIGLONG delta_bytes)
+### STAT M_Resize(LONG chain, SIGLONG delta_bytes)
 
 Extends the chain and does not alter the number of uncommitted pages. Each time it is resized a page multiple is used. For example, resizing up twice by one will resize by +8192.
 

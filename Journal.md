@@ -4702,3 +4702,215 @@ I will shoehorn the swapping into the OS when I decide it is time. For now, I wo
 I can implement a certain level of protected mode translation for DOS services. I could make OS/90 capable of loading `KRNL286.EXE`.
 
 Maybe later
+
+# August 6
+
+## Collateral Pages: Totally Useless?
+
+Why is this in any way whatsoever a good idea?
+
+I need to stop getting clever with the memory manager because it has lead nowhere good. Collateral pages are a perfect example.
+
+Okay, so we are out of memory. My original idea was to not have the allocator fail but do everything to fullfill the allocation. Suppose this happens. Caches will be purged.
+
+This is not fast, but holding the chain ID in the PTE is a good idea and makes it faster to deallocate the data. I suppose the entire chain is collateral.
+
+The problem is that each page will have the procedure run. Collateral pages are not fast and just kludge up the memory manager.
+
+Instead, I can fail the physical memory allocation. Another function can be responsible for allocating pagable memory mapped to an address backed by either RAM or the disk. Virtual and physical memory need to be separated totally.
+
+# August 7
+
+## No "features"
+
+I need to worry less about "features" right now. Every single "thing" I add or minor performance concern I have increases the time to finish this project quadratically but most importantly, leads to zero fun or enjoyment.
+
+Features are so cringe. I need to add less of them. Minimalism versus "doing everything properly" is the difference between getting the OS to kind of compile in the next few months or the next year.
+
+Do not optimize anything that is not speed critical. Specify the interface before writing any code. Make all code reusable because everything is subject to change.
+
+## Uncommitted Memory
+
+This is very important to support, although not required for DPMI 0.9 compliance. If I do not add it right away, I definetely want it to be possible.
+
+I am going to fully separate physical memory from virtual memory. That means PFDs must not contain anything related to memory.
+
+The current design is good. The 20-bit value will be a chain ID.
+
+## M_Map
+
+The reason why the old version allowed for mapping only parts of a chain was for dynamic data structures. This is actually a bad idea. Dynamic data structures do not need to use one chain. OS/90 can allocate as many chains as there are page frames on the memory. Chains can be mapped side-by-side. Growing and expanding can be kept track of easily as it is essentially like implementing `sbrk`.
+
+Allocating may not be cheap, but neither is resizing.
+
+## Uncommitted Memory Changes
+
+UCM will now allocate a new chain every time it is accessed. Resizing is not better because it is just as slow.
+
+## New Function for MM: M_VmCopy
+
+This will allow for copying allocated virtual address spaces.
+
+## Allocation Speedup Idea
+
+I can keep track of contiguous ranges.
+
+## Different Structure?
+
+I could consider a faster algorithm for page table allocation. A tree-like structure could be used, but I am not yet sure how.
+
+Maybe the whole memory can be represented as one single tree entry. Allocating is done by halving it until reaching the necessary block size or something.
+
+Suppose we have 4M or extended memory and we allocate 4K.
+
+```
+4096 = 4,194,304(1/2)^x
+```
+
+According to the Desmos, it will take ten entries to represent the allocation. This gets higher as the memory size goes up.
+
+It is unreasonable to preallocate enough memory to control the entire physical address space, so it would have to be reduced, which means that failures can happen at any time. Also, uncommitted memory cannot simply make a new chain because chains become a scarce resource.
+
+This will punish small allocations and reward larger ones.
+
+I could alter the design to not halve but instead divide by 4.
+
+Okay, interesting idea, but how does this actually manage non-contiguous blocks of memory? Maybe the tree can side-link.
+
+The tree itself is only used to manage fragments of memory. Side links can produce the chain.
+
+But then why bother? Maybe for malloc/free it may work, but if I introduce a chain it makes the whole thing pointless.
+
+Not really. The speed of allocation is increased for large chunks somewhat since a large number of iterations can be avoided. The problem is allocating the 4K page fragments. Exponential increase in page fragments based on total memory sounds bad. It's not linear, so the increase would eventually clog the memory.
+
+# August 9
+
+## Userspace Interrupts Revisited
+
+Passing control to a ring-3 code segment from an ISR is a bad idea for reasons I have already explained months ago. Another way to do this kind of thing is to use a far call or something.
+
+> Probably not going to do this.
+
+## Virtual Memory
+
+I have written some information about demand paging, but the whole procedure is not fully clarified. How do I allocate swap space, for example?
+
+I think I need to make changes to the memory manager. It needs to be a zone-based allocator. This way, it can allocate chains for physical memory and swap pages. Zones could also allow the allocation of DMA buffers in the 15M region. These changes are not major.
+
+My goal is to bridge the gap as much as possible between RAM and the disk. Demand paging is one of those ways, but having a global buffer for it does not sound like a good idea.
+
+I could design a way to encapsulate paged memory allocations and set certain quotas, such as forcing a certain amount to be present and serve as a buffer.
+
+Probably not, but just as an idea.
+
+Basically, I will have multiple chain types. Mapping them can be done using physical or virtual memory mapping.
+
+Typical allocations for software would involve multiple chains.
+
+There is no longer a need for chain-local indices because we are now using multiple chains. Eviction to the disk can involve splitting the chain, which is not impossible and actually makes sense. The operation can even return the new chain IDs.
+
+Remeber, chains are meant to simply keep track of groups of non-contiguous data that are free in an array of memory units. Anything can be kept track of using a chain. It is like the FAT filesystem.
+
+Actual swapping is complicated. I cannot remove a page at any point in time because there is a risk of a deadlock due to a lack of a transfer buffer if the system is low on memory.
+
+While evicting a page, that page cannot be accessed anymore. Anything swapping related will surely have to disable preemption or there is a great risk of a deadlock due to no transfer buffers or something else. I could stall every task that tries to access memory, but that has a chance of freezing the whole system.
+
+
+There is also another thing to note. If memory is swapped out, how do I know when to swap it back in? All this talk about merging the disk and the RAM into one is nice, but is it actually practical?
+
+The point of swapping is not to put data on the disk. It is to save memory. The intention is to put that data back in the memory.
+
+While the idea of being able to allocate and map swap space like regular RAM sounds interesting, it is actually more complicated.
+
+Like I said previously, swapping is intended to temporarily remove data from memory. I can do the whole mapping swap into memory like RAM, but swapping is a different thing altogether.
+
+If pages are permanently "out" and disk mapped, it just means heavy IO occurs every time it is accessed.
+
+Well, not really. A buffer exists for the transfer that makes it faster, but the buffer is limited and several programs may want a chunk. That is simply a problem with demand paging itself.
+
+Also, random note on uncommitted memory. Iterating from the bottom of the PFT is not necessary. Because only one page frame is being allocated, it is much better to scan from the center and check both halves, with the top half being more worthwhile to check first.
+
+## VM Ideas
+
+I can keep track of the number of page faults a task has caused. Swapping out pages of a task that is already page faulting constantly would only make things worse.
+
+It will be measured in page faults per second
+
+## What I Have to Do
+
+I will rewrite the memory document and fully describe everything. I also think I should change the names of some data structures. PFD is not very memorable.
+
+MPAT: Memory page allocation table (0 and 1)
+SPAT: Swap page allocation table
+
+The chain allocation functions will become zone-based allocators with structures maintaining their states.
+
+There will be a zone for 1M+64K to 15M and 17M-whatever.
+
+I also think uncommitted memory can be rethought. Allowing individual pages to be uncommitted may not be good for performance. Memory is usually allocated sequentially by programs too.
+
+## Zone Allocator
+
+# August 11
+
+## Zone Allocator
+
+I need to have a method of knowing what process allocated the memory. Causing a memory leak when forcefully termminating a program is unacceptable, especially for conventional memory.
+
+I can maintain a fixed array of allocation chains along with a zone tag. This can work, but is limited. There is another way.
+
+Another way is to have side links on the zone entries. This is better than using a a table because there is no built-in limit. The first entry should have the side link.
+
+The side links form a singly-linked list. When deallocating, encoutering a NULL reference means that it must end right there.
+
+This would require keeping track of the last chain ID for processes. I would like this to be fully automatic and unrelated to processes.
+
+### Alternative #1
+
+Chains no longer have a more weakly defined end and size. Any part of a chain can be treated as a separate chain. A random block in the chain can be resized into the main one or beyond.
+
+The problem is that it does not actually permit instant dealloation.
+
+### Create a Zone For Each Process
+
+Crazy idea. Technically possible. A subzone is doable.
+
+In this model, program most likely get contiguous memory and it is non-resizable.
+
+The advantage is that the zone can be fully deleted at once.
+
+But how? I do not have a measure for deleting a zone.
+
+Bad idea.
+
+### Fixed List
+
+The process contains chains and a zone table tag. For example, 32 chains and 8 32-bit packed zone table indices.
+
+Most DOS programs with DPMI support allocate a giant chunk and use their own allocator. DPMI servers often had fixed limits.
+
+### Quick Note
+
+Virtual memory can be greatly enhanced by grouping allocations. I can swap PROGRAMS rather than random pages. This can permit more intelligent swapping.
+
+As stated before, a page fault count is quite useful.
+
+### Ring-3 IRQs
+
+By using a ring-0 alias descriptor, I can make it perfectly possible to call protected mode interrupt service routines directly. Doing this in real mode is a bit more of a challenge.
+
+OS/90 sends IRQs to actual real mode. This makes protected mode callbacks difficult or impossible.
+
+> I need to think about this more.
+
+If an actual IRQ is received, it cannot literally go to a real mode program. Even if it is non-DPMI, this is a bad idea that makes it too convoluded.
+
+Fake IRQs are better. Just schedule the event within TI to be handled in T2 later. This would normally lead to massive latency, but there are solutions like exclusive tasking.
+
+### Exclusive Tasking
+
+True single tasking is impossible because mutex locks implicitly yield, and non-preemptible threads are permitted to acquire locks.
+
+Scheduler modifications can be made to disable yielding entirely, although this raises the risk of deadlocks.
+
+This means that fake interrupt handling latency will probably be bad, unless I switch to a task that needs to handle one.

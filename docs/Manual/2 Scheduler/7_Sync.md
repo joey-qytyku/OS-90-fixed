@@ -4,6 +4,8 @@ OS/90 has an enhanced mutex which queues exactly one task in a pointer to hand o
 
 OS/90 also supports sempahore-guarded queue structures with more than one item. This is useful for when a thread is in the "background" and should handle a batch of requests rather than the low-latency enhanced mutex.
 
+The PAUSE instruction is encoded in all builds of OS/90.
+
 > The best way to handle concurrency optimally is to test the performance.
 
 ## Yield Mutex

@@ -69,11 +69,14 @@ typedef struct {
 // Add IRET action to avoid IF?
 
 // MUST BE UNDER 4096 BYTES
+// Note that ^C does not require return in real mode.
 typedef _Packed struct {
 	P_PSP   psp;
 	FPTR16  virtual_ivt[256];
 	FPTR32  virtual_idt[256];
 	FPTR32  pm_except[0x20];
+
+	LONG    extended_error;
 
 	PVOID   parent_prog;
 	LONG    prog_flags;

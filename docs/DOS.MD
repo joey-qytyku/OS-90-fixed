@@ -70,11 +70,14 @@ A new task is created for subprograms, but the invoking program.
 
 > What if we _don't_ block the process that spawned a new one? It could work, but the return code is impossible to deduce. There is no way a compiler toolchain could handle this.
 
-## Memory Management
+## Conventional Memory
 
 OS/90 uses a single address space for DOS. The conventional memory is unpagable and therefore limited in all situations to 640K. This can be a problem for some demanding games that could need up to 500K in order to run properly.
 
 The memory manager of DOS is used. Best fit allocation strategy is used.
+
+Conventional memory is deliberately underreported. The invocation function takes the number of kilobytes to permit the program to allocate (not immediately). If the program is a `.COM`, it normally would need the entire conventional memory but this not possible, so allocated memory on startup is restricted to about
+
 
 ### XMS Emulation
 
@@ -109,3 +112,85 @@ Pointer to first child VM
 Flag for "do subprograms run seperately?"
 
 ```
+
+# DPMI
+
+OS/90 reports DPMI 0.9. The implementation is not planned to support 1.0 features to any extent further than being able to run Win16 or the OS/90 UI.
+
+Some additional interfaces are also added to access unique OS/90 functionality not supported by any other OS.
+
+This section will explain how OS/90 implements each DPMI function call and explains any extensions to or deviations from the standard.
+
+## 32-bitness and 16-bitness
+
+OS/90 DPMI is very soft when it comes to enforcing bitness. Function calls that are normally not supported in 16-bit clients are supported under OS/90 with the expectation they are not used.
+
+If extended registers are used to address program memory, bitness will be considered to ensure proper program behavior. The bitness of a program is constant throughout its execution and extended registers MUST be used for arguments if the client is 32-bit, even if the current code segment is 16-bit.
+
+The general rule of thumb is that 16-bit and 32-bit clients will run "as expected" with no unusual behavior if the program does not rely on bitness-related errors.
+
+## LDT Services
+
+### Allocate LDT Descriptors (0000)
+
+Because DPMI programs can set LDT entries manually, a separate bit array is used to allocate LDT entries.
+
+### Free LDT Descriptor (0001)
+
+### Segment to Descriptor (0002)
+
+Allocates a descriptor and maps it to a real mode segment. Fairly simple. Multiple calls must return the same selector, but it is uncertain how many programs rely on such functionality; OS/90 does not comply in this regard.
+
+Descriptors allocated by this are supposed to be impossible to free, but this is not a limitation on OS/90.
+
+### Get Selector Increment Value
+
+This is a value that when added to a range of allocated descriptors, gets it up to the next increment. This is 8.
+
+The first 16 LDT descriptors are reserved for specific descriptors.
+
+### Get/Set Descriptor (000C, 000D)
+
+This maps almost directly to actual descriptors, but non-ring-3 descriptors are not allowed.
+
+## Extended Memory Services
+
+### Get Free Memory Information (0500)
+
+DPMI recognizes the following attributes of extended memory, reported by function `0500h`:
+1. Largest available free block in bytes
+2. Maximum unlocked page allocation in pages
+3. Maximum locked page allocation in pages
+4. Linear address space size in pages
+5. Total number of unlocked pages
+6. Total number of free pages
+7. Total number of physical pages
+8. Free linear address space in pages
+9. Size of paging file/partition in pages
+
+1. OS/90 does not allocate contiguous memory normally, so the __largest block is the same as the total number of free pages.__
+
+2. __The maximum number of pages that can be allocated. First field/4096.__ The amount of memory reported is adjustible.
+
+3. The largest number of pages that can be locked if allocated independently. Essentially, how many pages can be locked, since OS/90 lets anything get locked. DPMI programs can lock 10% of their available memory.
+
+4. Size of the linear address space. OS/90 has a limited address space, so only enough to map the allocated memory is permitted.
+
+5. This changes at run time. Total number of allocated pages that are unlocked.  A count is kept and decreased when pages are locked.
+
+9. Swap is not reported to programs ever. The field is set to FFFFFFFF.
+
+# DOS Memory Policy In Detail (TODO)
+
+# Unsupported Interfaces
+
+## Virtual DMA Services
+> https://web.archive.org/web/20121022073637/https://support.microsoft.com/kb/93469
+
+There are currently no plans to support VDS. Programs that use DPMI usually allocate their own memory for it, generally conventional. Windows has a VxD for simulating DMA. OS/90 has a driver for emulating DMA as well, with partially arbitrated access.
+
+There is little need for this interface. As far as I know, few programs ever used it. OS/90 also allows drivers to allocate DMA buffers easily using the zone system.
+
+## DOS Protected Mode Services (DPMS)
+
+This API is independent of DPMI or VCPI and can use both. It allows for resident drivers to run in protected mode. Not currently supported. Existing implementations may still be able to run on top of built-in DPMI.

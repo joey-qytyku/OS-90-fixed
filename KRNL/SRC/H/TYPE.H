@@ -57,15 +57,15 @@
 // T y p e   D e f i n i t i o n s //
 /////////////////////////////////////
 
-typedef unsigned long  INT;
+typedef unsigned long  LONG;
 typedef unsigned short SHORT;
 typedef unsigned char  BYTE;
 
-typedef UINT  *PINT;
-typedef USHORT *PSHORT;
+typedef LONG   *PLONG;
+typedef SHORT *PSHORT;
 typedef BYTE  *PBYTE;
 
-typedef long  SIGINT;
+typedef int   SIGLONG;
 typedef short SIGSHORT;
 typedef char  SIGBYTE;
 
@@ -82,7 +82,7 @@ typedef const BYTE *PCSTR;
 // Fixed
 #define BYTE_PTR(var, off) *(BYTE)  ((PVOID)(var) + (off))
 #define WORD_PTR(var, off) *(SHORT) ((PVOID)(var) + (off))
-#define DWORD_PTR(var,off) *(INT)  ((PVOID)(var) + (off))
+#define DWORD_PTR(var,off) *(LONG)  ((PVOID)(var) + (off))
 
 /////////////////////////////
 // G C C   B u i l t i n s //

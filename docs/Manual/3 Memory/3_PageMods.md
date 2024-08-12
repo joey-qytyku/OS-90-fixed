@@ -1,6 +1,6 @@
-# Pages In Detail
+## Pages In Detail
 
-## Page Flag Protocol
+### Page Flag Protocol
 
 The bits in a page table entry are refered to as page flags.
 
@@ -16,17 +16,18 @@ To make all of this simple, macros are defined beginning with `PAGE_` that defin
 
 The following are supported
 ```
-Bit On                  Bit Off
-----------------------------------------
-PAGE_READ_WRITE         PAGE_READ_ONLY
-PAGE_USER               PAGE_KERNEL
-PAGE_WRITETHROGH        PAGE_WRITEBACK
-PAGE_GLOBAL             PAGE_NOT_GLOBAL
-PAGE_DIRTY              PAGE_CLEAN
-PAGE_PRESENT            PAGE_NOT_PRESENT
+Bit On             |    Bit Off
+-------------------|--------------------
+PAGE_READ_WRITE    |    PAGE_READ_ONLY
+PAGE_USER          |    PAGE_KERNEL
+PAGE_WRITETHROGH   |    PAGE_WRITEBACK
+PAGE_GLOBAL        |    PAGE_NOT_GLOBAL
+PAGE_DIRTY         |    PAGE_CLEAN
+PAGE_PRESENT       |    PAGE_NOT_PRESENT
 ```
+> There are more options related to the Page Attribute Table. This is not complete.
 
-## Page Modifier Index (PMI)
+### Page Modifier Index (PMI)
 
 There are three available bits for all page tables. This is treated as a 3-bit integer that represents a mutually exclusive trait about the page.
 
@@ -52,5 +53,3 @@ VAHDR           | --- | Internally used to allocate virtual address ranges.
 
 - A PMI of zero excludes all of these.
 - All pages are locked by default.
-
-
