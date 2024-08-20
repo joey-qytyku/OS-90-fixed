@@ -1,6 +1,6 @@
 # Memory Allocator
 
-The kernel heap allocator uses a pool the size of about 10% of the extended memory. For example, if the user has 2M of memory and 2,031,616 bytes of extended, 203,161 will be allocated rounded to a page. The entire region is pagable, writable, cache enabled, and never resizes.
+The kernel heap allocator uses a pool the size of about 1% of the extended memory. The entire region is pagable, writable, cache enabled, and never resizes.
 
 An alignment of 16 is guaranteed for all blocks.
 

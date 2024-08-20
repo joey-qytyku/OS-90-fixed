@@ -6,7 +6,7 @@ The heap is intended for small items that are kept in memory for a long time by 
 
 ```
 PVOID M_HAlloc(LONG bytes)
-M_HFree(PVOID handle)
+VOID M_HFree(PVOID handle)
 M_HLock(PVOID handle)
 M_HUnlock(PVOID handle)
 LONG M_HTotalAvail(VOID)
@@ -37,7 +37,7 @@ PLONG *data = M_HAlloc();
 (*data)[0] = 40;
 ```
 
-Lock counts are defined as no larger 254. After that, a flag is set to indicate an overlocked block that is reported after heap validation.
+Lock counts are defined as no larger 254. After that, an overlocked block is reported after heap validation.
 
 The structure member operator has the same operator precedence as the subscript.
 
@@ -49,7 +49,7 @@ Ensure than locking is done for the shortest length of time possible.
 
 ### Beware of Sentinel Bytes
 
-16 bytes are allocated to detect buffer overflows:
+16 bytes are allocated to detect buffer overflows. Do not place these bytes in the heap.
 ```
 AB CD DE FE
 88 AA 55 5A

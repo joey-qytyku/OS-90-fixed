@@ -78,10 +78,11 @@ typedef struct {
 #define EXEC_SEEK_CUR 1
 #define EXEC_SEEK_END 2
 
-FNPTR(LONG, EXEC_FILE_OPENER,   (PBYTE path) );
+FNPTR(LONG, EXEC_FILE_OPENER,   (PCSTR path) );
 FNPTR(LONG, EXEC_FILE_CLOSER,   (LONG handle) );
 FNPTR(LONG, EXEC_FILE_SEEK,     (LONG handle, LONG seek) );
 FNPTR(LONG, EXEC_FILE_READ,     (LONG handle, PVOID buff, LONG size) );
+FNPTR(SHORT,EXEC_FILE_LOWALLOC, (SHORT pgc));
 
 typedef struct {
 	EXEC_FILE_OPENER        fopen;
@@ -89,6 +90,7 @@ typedef struct {
 	EXEC_FILE_SEEK          fseek;
 	EXEC_FILE_READ          fread;
 	EXEC_FILE_PTRTAB        ptrtab;
+	EXEC_FILE_LOWALLOC      lowalloc;
 }EXEC_LOADER, *PEXEC_LOADER;
 
 #endif /* EXEC_H */

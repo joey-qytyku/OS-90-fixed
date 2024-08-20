@@ -37,6 +37,8 @@ VOID L_SetSegmentBase(LONG base)
 
 VOID L_SetLdtSegBase(SHORT selector, LONG base);
 
+VOID L_SetIdtEntry(SHORT selector)
+
 VOID L_LdtAlloc()
 {}
 

@@ -37,35 +37,9 @@ PVOID M_VaDeref(PVOID address)
 	// - PTE is masked too
 	// - Convert result to pointer and return.
 
-	return (PLONG)(*((PLONG)( pdir_ptr[va>>PDE_SHIFT] & PAGE_MAP_MASK)) & PAGE_MAP_MASK);
+	return (PLONG)(*((PLONG)(pdir_ptr[va>>PDE_SHIFT] & PAGE_MAP_MASK)) & PAGE_MAP_MASK);
 }
 
-static LONG __declspec(naked) GetCmosBytePair(BYTE base)
-{
-	// _asm {
-	// 	in      al,70h
-	// 	mov     cl,al   ; CL = Old index register
-
-	// 	mov     al,base
-	// 	out     70h,al
-
-	// 	in      al,71h  ; Read low order byte
-	// 	mov     ah,al   ; Move it asside
-
-	// 	mov     al,base
-	// 	inc     al
-	// 	out     70h,al
-	// 	in      al,71h
-
-	// 	xchg    ah,al
-	// 	movzx   eax,ax
-	// 	push    eax
-	// 	mov     al,cl
-	// 	out     70h,al
-	// 	pop     eax
-	// 	ret
-	// }
-}
 #pragma noreturn(GetCmosBytePair)
 
 extern int _bss_end;
@@ -77,24 +51,8 @@ extern int _bss_end;
 //
 static LONG GetPageFrames(VOID)
 {
-	// LONG kernel_phys_end = M_VaDeref((LONG)0x80000000) + (LONG)&_bss_end;
-
-	LONG ext_kilos = GetCmosBytePair(0x30);
-
-
-	if (ext_kilos == 0xFFFF) {
-		STDREGS r;
-		r.AX = 0xE801;
-		r.ESP = 0;
-		V_INTxH(0x15, &r);
-		ext_kilos += r.BX * 64;
-	}
-
 }
 
 VOID M_Init(VOID)
 {
-	// Remember to include memory hole in PBT
-	g_mm.page_frames_registered = GetExtendedMemPages();
-
 }

@@ -14,7 +14,6 @@
 
 	.386p
 	.model  flat, stdcall
-	include OSK/LL/hmadef.inc
 
 ;---------------------------------------------------------------------------
 ;                               E Q U A T E S
@@ -114,98 +113,8 @@ GdtInfo LABEL FWORD
 	DD      GDT
 
 	.CODE
-;---------------------------------------------------------------------------
-; Arguments on stdcall stack:
-;       PVOID   address
-;
-i386GetDescriptorAddress:
-	push    EBX
-	; Descriptors are perfectly valid offsets to the LDT when the DPL
-	; and GDT/LDT bits are masked off.
-
-	mov     EBX,[ESP+4]
-
-	; EBX is now the address of our descriptor
-
-	; Let us put the segment descriptor address confusion to rest
-	; The first address field is 16-bit.
-	; It is equal to TheFullAddress & 0xFFFF. Nuff said.
-	;
-	; The last two fields are BYTEs. To make the high address word
-	; we left shift by 8 the 31..24 field
-	; then we OR it with the 23..16
-	mov     EAX,[EBX+2]
-	movzx   ECX,BYTE PTR [EBX+3]
-	movzx   EDX,BYTE PTR [EBX+7]        ; 31..24
-	shl     EDX,8
-	or      ECX,EDX
-	or      EAX,ECX
-
-	;EAX now contains the address, we are done.
-	pop     EBX
-	ret     4
-
-i386SetDescriptorAddress: ;(VOID *gdt_entry, DWORD address)
-	push    ebp
-	mov     ebp,esp
-
-	push    ebx
-
-	mov     ebx,[ebp+8]
-
-	movzx   eax, WORD PTR [ebp+12]
-	mov     [ebx+2],ax
-
-	movzx   eax,BYTE PTR [ebp+12+2]
-	mov     [ebx+4],al
-
-	movzx   eax,BYTE PTR [ebp+12+3]
-	mov     [ebx+7],al
-
-	pop     ebx
-
-	pop     ebp
-	ret     8
-
-
-i386SetDescriptorLimit:
-	push    ebx
-
-	mov     esi, [esp+4]
-	mov     dx, [esp+8]
-
-	mov     WORD PTR [esi],dx
-	mov     WORD PTR [esi+6],dx
-
-	mov     ah,BYTE PTR [esi+6]
-	shl     ax, 8
-	mov     BYTE PTR [esi+2], ah
-
-	pop     ebx
-	ret     8
-
-SetIntVector:
-	push    ebx
-
-	mov     edx,[esp+12+4]    ; Base address to insert
-	movzx   eax,BYTE PTR [esp+8+4] ; Info
-	mov     ebx,[esp+4+4]     ; Index of descriptor
-
-	; EBX is not the address yet, only index. Calculate.
-	lea     ebx,[ebx*8+IDT]
-
-	mov     BYTE PTR [ebx+5],al
-	mov     BYTE PTR [ebx+4],0
-	mov     [ebx+2],cs
-	mov     [ebx+0],dx
-	shr     edx,16
-	mov     [ebx+6],dx
-
-	pop     ebx
-	ret     12
 
 ConfPIC MACRO
-
 	;
 	; Reconfiguring the PICs will destroy the mask registers.
 	;
@@ -262,17 +171,7 @@ SetupLDTD_LDTR MACRO
 ENDM
 
 SetupTSSD_IOPB MACRO
-	mov     WORD PTR [TSS+100],104
-
-	;----------------------------------
-	; Insert address to TSS descriptor
-	;----------------------------------
-	push    OFFSET TSS
-	push    OFFSET GDT + 8*GDT_TSSD
-	call    i386SetDescriptorAddress
-
-	mov     ax,GDT_TSSD shl 3
-	ltr     ax
+	; What to do?
 ENDM
 
 ZeroBSS MACRO
@@ -362,7 +261,7 @@ SetupRMCA MACRO
 ENDM
 
 RMCA_COPY LABEL PTR
-	incbin <BLOBS/switch.bin>
+	incbin <switch.bin>
 	align   4
 RMCA_COPY_END LABEL PTR
 

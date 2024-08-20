@@ -46,7 +46,7 @@ typedef struct {
 	};
 }ZONED,*PZONED;
 
-VOID ZBA_CreateZone(
+VOID Z_CreateZone(
 	PZONED  z,
 	LONG    entries,
 	BYTE    grnl,
@@ -70,7 +70,7 @@ VOID ZBA_CreateZone(
 #define ROUNDUP_BYTES2UNITS(V, A) ( (V+(A)-1) & (-(A)) )
 
 // Bytes has a limited range for current input. I need to check it.
-PZENT ZBA_Alloc(PZONED z, LONG bytes)
+PZENT Z_Alloc(PZONED z, LONG bytes)
 {
 	const LONG blocks_alloc = ROUNDUP_BYTES2UNITS(bytes, 1<<z->grnl_pow2) / (1<<z->grnl_pow2);
 	LONG    did_alloc       = 0;
@@ -117,7 +117,7 @@ PZENT ZBA_Alloc(PZONED z, LONG bytes)
 			did_alloc++;
 			// printf("did_alloc: %i\n", did_alloc);
 		}
-		cur++; // Problem
+		cur++;
 	}
 	// We have to update the counts
 	z->blocks_remaining -= blocks_alloc;
@@ -132,7 +132,7 @@ PZENT ZBA_Alloc(PZONED z, LONG bytes)
 //
 //
 
-STAT ZBA_Free(PZONED z, PZENT chain)
+STAT Z_Free(PZONED z, PZENT chain)
 {
 	PZENT cur = chain;
 
@@ -145,6 +145,21 @@ STAT ZBA_Free(PZONED z, PZENT chain)
 		cur = cur->next;
 	}
 	// We have to update things
+	return 0;
+}
+
+VOID Z_AddToGroup(PZENT group_of, PZENT toadd)
+{
+	group_of->
+}
+
+STAT Z_FreeGroup(PZENT group_of)
+{
+	PZENT cur = group_of;
+	while (cur != NULL) {
+		Z_Free();
+		cur = cur->next;
+	}
 }
 
 VOID ReadTable(PZONED z)
@@ -177,12 +192,9 @@ ZENT  table[8192];
 
 int main(int argc, char **argv)
 {
-	ZBA_CreateZone(&zone, 1024, 12, table);
-	PZENT a1 = ZBA_Alloc(&zone, 4096*1024);
+	Z_CreateZone(&zone, 1024, 12, table);
+	// PZENT a1 = ZBA_Alloc(&zone, 4096*1024);
 
-	// printf("%p\n", a1);
-
-	// ZBA_Free(&zone, a2);
 	// ReadTable(&zone);
 
 	return 0;

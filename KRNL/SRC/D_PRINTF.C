@@ -2,6 +2,11 @@
 // \author (c) Marco Paland (info@paland.com)
 //             2014-2019, PALANDesign Hannover, Germany
 //
+// \author (c) Joey Qytyku 2024
+//
+// I made a number of changes so that two header files are not needed.
+// The code is still 99% made by the original author.
+//
 // \license The MIT License (MIT)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -33,7 +38,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <OSK/DB/printf.h>
+// #include <OSK/DB/printf.h>
 
 // define this globally (e.g. gcc -DPRINTF_INCLUDE_CONFIG_H ...) to include the
 // printf_config.h header file
@@ -908,12 +913,12 @@ int vsnprintf_(char* buffer, size_t count, const char* format, va_list va)
 }
 
 
-// int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...)
-// {
-//   va_list va;
-//   va_start(va, format);
-//   const out_fct_wrap_type out_fct_wrap = { out, arg };
-//   const int ret = _vsnprintf(_out_fct, (char*)(uintptr_t)&out_fct_wrap, (size_t)-1, format, va);
-//   va_end(va);
-//   return ret;
-// }
+int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...)
+{
+  va_list va;
+  va_start(va, format);
+  const out_fct_wrap_type out_fct_wrap = { out, arg };
+  const int ret = _vsnprintf(_out_fct, (char*)(uintptr_t)&out_fct_wrap, (size_t)-1, format, va);
+  va_end(va);
+  return ret;
+}

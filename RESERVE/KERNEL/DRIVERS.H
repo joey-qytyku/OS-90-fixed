@@ -44,7 +44,7 @@ enum {
 	GE_UNDOCK,
 	GE_MEMORY_LOW,          /* Sent when approx. 90% of mem is in use */
 	GE_SWAP_LOW,            /* Same but for swap */
-	GE_ENTER_EXCLUSIVE,
+	GE_ENTER_EXCLUSIVE,     /* Task specified in arg want all of the CPU */
 	GE_FORCE_TERMINATE
 };
 

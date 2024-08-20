@@ -117,8 +117,6 @@ properties.
 //
 #define PTE_VAHDR       (6<<9)
 
-// Why not add a BSS page type?
-
 #define PTE_MOD_MASK    (0b111<<9)
 
 typedef VOID (PAGE_PROC*)(

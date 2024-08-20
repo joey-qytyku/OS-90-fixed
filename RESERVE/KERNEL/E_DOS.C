@@ -52,7 +52,6 @@ static VOID TOFUNC(DPMI_DOSMEM)(PEMU_CONTEXT e, PTASK t, PSTDREGS, r)
 // AH=05
 static VOID TOFUNC(DPMI_XMEM)(PEMU_CONTEXT e, PTASK t, PSTDREGS, r)
 {
-	case :
 }
 
 static FUNC_GROUP func_groups[DPMI_NUM_GROUPS] = {

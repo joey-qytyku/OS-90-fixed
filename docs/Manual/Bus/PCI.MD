@@ -2,7 +2,7 @@
 
 # OS/90 PCI Support
 
-OS/90 has a driver called `PCI.RZM` that communicates with all device drivers that implement a PCI device.
+OS/90 has a driver called `PCI.RSX` that communicates with all device drivers that implement a PCI device.
 
 The PCI bus driver requires handling of multiple devices of the same type.
 
@@ -16,7 +16,6 @@ Features include:
 - Single bus scan
 - Support for legacy drivers
 - Cache-enabled MMIO mapping
-- Port and MMIO indiscriminant device IO based on BARs.
 - Line-based interrupt handling
 - PCI configuration cached to disk
 
@@ -26,16 +25,31 @@ Device calls:
 // VOID BarIOWrite(BYTE bar_and_size, LONG offset, );
 
 
+```
 BYTE PCI_GetNumDevsWithSpec(LONG v_d);
+```
+Returns the number of devices in the PCI bus that have a certain identification code, which includes the vendor ID and the device ID in the exact way it appears in the PCI configuration space.
 
-HPCIDEV *PCI_OpenDevices(LONG v_d);
+Note that a byte is returned.
 
+```
+VOID PCI_OpenDevices(LONG v_d, HPCIDEV *handles, BYTE count);
+```
+Opens all devices with this ID and returns the handles in a buffer. If the driver really does not want to handle multiple devices, it can decide the exact count, but the order of detection is not predictable.
+
+```
 STAT PCI_DeviceSetIrqState(HPCIDEV dev, LONG enable);
+```
+Enable or disable interrupt requests from the PCI device.
+
 LONG PCI_ReadConfig(HPCIDEV dev, LONG offset);
+
 VOID PCI_WriteConfig(HPCIDEV dev, LONG offset, LONG value);
+
 VOID PCI_BarSetMemoryMode(PCI_MEM_MODE mode);
 
 STAT PCI_CloseDevices(HPCIDEV *handles, BYTE num_handles);
-STAT PCI_DeleteDevices(LONG v_d);
 
+```
+STAT PCI_DeleteDevices(LONG v_d);
 ```

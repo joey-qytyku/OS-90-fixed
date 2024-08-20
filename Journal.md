@@ -4914,3 +4914,141 @@ True single tasking is impossible because mutex locks implicitly yield, and non-
 Scheduler modifications can be made to disable yielding entirely, although this raises the risk of deadlocks.
 
 This means that fake interrupt handling latency will probably be bad, unless I switch to a task that needs to handle one.
+
+# August 12
+
+## Zone Allocator
+
+The zone allocator is basically finished. I suppose DPMI memory will use fixed allocations.
+
+Should it though? Reconsider.
+
+If I use a linked list, there will be only one link. It will be a circular list so we do not need to know where it starts.
+
+Only the first entry in the chain will use the auxillary pointer.
+
+Entries can only be added to a group. They cannot be removed. The point is to deallocate at once.
+
+Wait, I cannot have a circular array with no double links, especially if I do not know where it started.
+
+# August 13
+
+Most programs will implement their own memory allocation systems. The NASM source code has `nasm_malloc` and `nasm_free`. DOOM has its own heap manager.
+
+The page granularity of the allocation (something warned about on the DPMI spec) is what makes it ineffective for general purpose use.
+
+I can have 24 or 32 allocations available. They cannot be physical memory allocations, but virtual memory regions with the possibility of swapping.
+
+## More Swap Ideas
+
+Since demand paging will be used, I have some ideas that would make it useful.
+
+The page file is allocatable, so I will make it so that data can be copied to it.
+
+I also should have a VirtualAlloc function call to allocate virtual memory. This will be very similar to the Windows NT API call, but with some differences.
+
+## Documentation
+
+The doc for virtual memory and swapping should be cleaned up and have some parts separated, as it contains implementation details.
+
+## Swapping
+
+Making swapping perform well is more important than maintaining an advanced orthogonal address space idea.
+
+When something is removed from memory to the swap, there needs to be a way to put it back in. It cannot stay there forever.
+
+I can do something with timing. Swapped-out regions can have some sort of priority-based scheduling that swaps out pages that are percieved as more important. The problem is that if this is not done right, it could actually cause more disk IO and not improve performance.
+
+Process "importance" or "priority" is a better way to deal with swapping. Paging out memory used by a less important process has a much more noticable impact to the user.
+
+## Loading Executable Example
+
+If an executable is larger than the memory, it is necessary to allocate the largest block of physical memory possible and then swap space. I may need a function to allocate the largest chain possible.
+
+There are alternative methods. A smaller buffer can be used to load to both RAM and the disk. The executable data can go into another chain that grows in size.
+
+## OS Page Flags
+
+I would like to have a page fault counter built into the page table entries. This would be possible if some PTE numbers are removed.
+
+- Collateral pages will be removed.
+- Page hooks are removed
+
+Virtual memory will work differently now and the attributes may need to change. The use of allocation zones will also change how this works.
+
+Chains cannot be represented in pages because the zone cannot be identified and virtual memory will require multiple chains to work properly now.
+
+# August 18
+
+Last weekend of the summer and I am going to college. Not a bad thing at all. I have always gotten more done while going to school.
+
+Overall, I did not really accomplish a whole lot, and it appears that I went backward if anything. I will come back out of this stronger though.
+
+## Boot Configuration
+
+I can use `CONFIG.SYS`. Unrecognized directives do not cause boot errors and are actually used by OS/2 to set certain options.
+
+Here is a list of potential options and example inputs:
+```
+OS90_VAS_SIZE=
+OS90_Z0_GRAN
+OS90_Z1_GRAN
+OS90_Z2_GRAN
+
+OS90_DEVICE=C:\OS90\DRV\PCI.RSX
+OS90_ONSTART=C:\OS90\ATMDESK.EXE /S=80,50
+```
+
+It seems like DOS may give warning messages when they are not recognized. I could use the environment instead.
+
+# August 19
+
+The environment segment by default is very small. It needs to be enlarged in the configuration for most users.
+
+Otherwise, it is good enough for configuration options.
+
+## Driver Names
+
+They are now RSX for Resident System Extension
+
+## DOS Emulation Handling
+
+The command.com that executed the bootloader along with the bootloader itself need to be freed from memory. There are actually methods of finding the allocation of the initial COMMAND.COM. The PSP will already point to the bootloader on startup.
+
+This document explains how to locate `COMMAND.COM`.
+```
+http://www.piclist.com/techref/dos/psps.htm
+```
+
+The method is follow the parent PSP until the value of the last PSP is equal to that of the current program.
+
+This allows for getting the environment of command.com. This is dynamically allocated and not part of the executable image.
+
+The first segment entry in the PSP can be used to locate the executable data, which may then be freed.
+
+The current PSP is then inaccurate because no program is actually running. When DOS needs to be entered, the PSP must be set appropriately within a preemption off section. DOS requires the PSP to be correct and has an internal variable for it. Local data such as the JFT are part of the PSP.
+
+### INT
+
+INTxH is the generic interface used by drivers or the kernel to call real mode services. It is not enough on its own to allow for full emulation of all DOS services.
+
+DOS programs will sometimes use services that only INTxH can access, but there are a few things that need to be added to make it work.
+
+Calls to the DOS API require:
+- Preemption is disabled before doing anything else
+- Program segment prefix is set to currently active process
+- All hooks made by the client are processed
+- All hooks made by server software are also processed.
+- INTxH can be called.
+
+Preemption really HAS to be disabled while in SV86. There will be direct hardware access and other things that cannot be tolerated in a multitasking environment. It is not a big deal. If multitasking needs to be improved, simply use 32-bit drivers and avoid that.
+
+Also, if I want to recycle the existing SV86 code (do I still have it?) I can adjust the calling conventions.
+
+### General Ideas
+
+Do not worry about DPMI yet. It is a simple extension of an exisitng interface. I will have structure fields for it, but no support until I can actually run DOS programs, which is not too far out actually.
+
+## Build System
+
+I have flattened all of the header files and source files. This is actually very common in many projects since multiple directory levels are not necessary for headers and code directories.

@@ -1,3 +1,5 @@
+#ifndef
+
 typedef struct {
 	SHORT   off;
 	SHORT   seg;
@@ -35,7 +37,7 @@ typedef _Packed struct {
 	BYTE    fcb1[16];
 	BYTE    fcb2[20];
 	BYTE    command_len;
-	BYTE    command[127];
+	BYTE    command[127];   /* Terminated by carriage return (0Dh) */
 }PSP,*P_PSP;
 
 // Note: The Disk Transfer Area is always at offset 80h of the PSP by default.

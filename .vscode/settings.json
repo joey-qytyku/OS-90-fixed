@@ -90,5 +90,5 @@
 "C_Cpp.default.compilerPath": "/home/joey/opt/cross1/bin/i386-linux-gcc",
 "files.encoding": "cp437",
 "C_Cpp.errorSquiggles": "disabled",
-"editor.wordWrap": "bounded",
+"editor.wordWrap": "off",
 }
