@@ -12,17 +12,6 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include <OSK/SD/stdregs.h>
-#include <OSK/SD/sv86.h>
-#include <OSK/SD/int.h>
-
-#include <OSK/DB/debug.h>
-
-extern VOID M_Init(VOID);
-
-static STDREGS r;
-
 VOID KernelMain(VOID)
 {
-        kdebug_log("Hello, world!\n");
 }

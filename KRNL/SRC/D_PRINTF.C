@@ -48,11 +48,10 @@
 #define PRINTF_DISABLE_SUPPORT_EXPONENTIAL
 #define PRINTF_DISABLE_SUPPORT_LONG_LONG
 
-static void _putchar(char c)
+static inline void _putchar(char c)
 {
     outb(0xE9, c);
 }
-
 
 // 'ntoa' conversion buffer size, this must be big enough to hold one converted
 // numeric number including padded zeros (dynamically created on stack)

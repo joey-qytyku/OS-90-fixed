@@ -5052,3 +5052,27 @@ Do not worry about DPMI yet. It is a simple extension of an exisitng interface. 
 ## Build System
 
 I have flattened all of the header files and source files. This is actually very common in many projects since multiple directory levels are not necessary for headers and code directories.
+
+## My Next Laptop
+
+If I get a new laptop, I may need to get an x86-based one. Open watcom does not run on ARM-based computers.
+
+Windows for ARM does have emulation for x86 programs. From what I have heard the performance is decent enough, so it could work, but how would I actually install the toolchain? I also need to make sure it runs 32-bit apps, since watcom might not be 64-bit.
+
+32-bit programs are actually supported.
+
+# August 20
+
+## Next Laptop
+
+The OS is now moving to a Windows/DOS-based toolchain, although UNIX can obviously be supported.
+
+## Moving To Windows
+
+It's so over for my Linux install. Should back up the data if I want to format that drive.
+
+For now, I need to convert a few scripts to Windows.
+
+The build system is simple enough. All source trees are flat and can be compiled with a single command. That is the correct way to do it.
+
+

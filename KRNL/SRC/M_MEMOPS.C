@@ -13,6 +13,8 @@ void M_fast_memcpy(void * __restrict to, void * __restrict from, size_t size)
 	};
 }
 
+// Unrolling stosb may not be fast. Maybe find a way to use stosw there
+
 //
 // TESTED WORKING
 //
