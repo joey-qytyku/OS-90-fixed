@@ -1,6 +1,6 @@
 # EF90 (2024)
 
-It support relocations, shared libraries, and other features, but is simpler than other executable formats.
+EF90 is an executable format for drivers and userspace programs using the 32-bit flat model. It support relocations, shared libraries, and other features, but is simpler than other executable formats.
 
 The most innovative part of the format is alphabetically sorted symbol table entires.
 
@@ -33,7 +33,7 @@ Import library table
 
 Anything with * is 512-byte aligned and granular. This is 100% totally not related in any way to the size of a sector `:)`.
 
-This makes the minimum size of an EF90 executable over 2.5K.
+This makes the minimum size of an EF90 executable over 2.5K. This is not bad because the average cluster size in FAT is 8K-16K.
 
 ## Header
 
@@ -102,20 +102,29 @@ Any other relocations do not matter much unless the compiler tries to insert 16-
 
 > I should switch to a "structure of arrays" so that I can compress the relocations. 16 bytes is too much.
 
-OS/90 uses the exact same relocation scheme as ELF. The relocation tables are added into the final binary with a linker script. There is a rela table and rel table, both are separated.
+OS/90 uses the exact same relocation scheme as ELF and uses similar definitions. Relocations are the only part of the format that have subpar loading performance due to poor alignment. This is to reduce file size.
 
 ```
-typedef struct {
-        SHORT   flags;
-        SHORT   symbol;
-        LONG    offset;
-        LONG    addend;
-}EXEC_RELA;
+enum {
+        R_32
+        R_PC32
+
+        R_16
+        R_PC16
+
+        R_8
+        R_PC8
+};
 ```
 
-flags can be R_32/R_PC32, R_16/R_PC16, R_8/R_PC8. The values correspond directly with the values that ELF uses. The first eight bits are reserved for this purpose and all others must be zero.
+Relocations have a confusing format, so pay attention.
 
-EXEC_REL is the same but without the addend, or in practice an addend of zero.
+The top 4 bits of the first 32-bit value fetched are the opcode. If the relocation type does not need an offset, 28 bits can be read to
+????
+
+> Why not batch up relocations? If the same symbol is used for something, there is little reason not to.
+
+All relocations are in the same array. The addent is only present if the flags indicate that it is needed. The full 32-bit value is used.
 
 ## Symbol Reference Table (SRT)
 
@@ -124,17 +133,24 @@ Symbol tables do not contain strings, but string table-relative offsets. The ind
 > Symbols are ALWAYS imported or exported. The format is not designed as an intermediary object format.
 
 ```c
-typedef struct {        // Packed
-        SHORT longs;    // String length in 4-byte chunks
+typedef _Packed struct {
+        SHORT bytes;
         SHORT sdp_index;// DWORD array index to SDP entry.
 }EXEC_SRT_ENTRY;
 ```
 
-The first 4 entries are pointer/counts of the SYMENT groups. These are based on how large the symbol is in DWORDS, with the associated size being the maximum, not the exact. The order goes {8,16,32,other}. `SRT_ENTRY.index` is instead an index into the SRT and the `SRT_ENTRY.bytes` represents the size of the subtable but
+The number of bytes is rounded to DWORD values in most operations, but the actual size is still important (e.g. printing the name of a symbol).
 
-> The rationale for this is that pasting symbols from a DLL can be accelerated. If the loader finds the length of a symbol referenced by the main module it can reduce the number of strings it needs to search.
+### First Two Entries
 
-> Previously a library ID was used for SRT entries. This is useless because libraries are scanned for their symbols when they are imported on load time.
+The first two SRT entries are special. The SRT is partitioned into a section for symbols with an even number of bytes in the symbol names and other for odd, in that order.
+
+The format is instead:
+```
+BYTE  0
+SHORT <offset>
+```
+It represents the number of even-sized symbols.
 
 ## String Data Pool (SDP)
 
@@ -160,9 +176,6 @@ Symbol pasting is a bit more complicated and requires multiple lookups, but it u
 
 # Toolchain Guidelines
 
-The approach is like this:
-- DMC or similar compiler genreates OMF32 file.
-- Watcom Linker generates one single ELF file.
-- A GNU linker script is used to merge .text and .data and delete EVERYTHING else (Using `/DISCARD/ { *(*) }` ). The objects are merged into one.
+A second stage linker exists. The program must be compiled to a 32-bit DLL. Symbols should be stripped as part of this process.
 
-We are still not done. Any symbols that are not explicitly marked for export should not be in the symbol table. This is impossible to do in DMC using an attribute, and the module definition file is only good for the linker.
+

@@ -13,10 +13,13 @@ Typical operating systems will probably have a "block" or file data located wher
 
 > User can match based on extensions and also the size.
 
+# List of Ideas
+
+- Caching of directories. This should include alphabetical ordering for maximum lookup speed. There are less dirs than files.
+
 # fastfat
 
 fastfat is the file cache driver of OS/90. It conforms to a block device access and cache sharing protocol with the filesystem and disk driver.
-
 
 ## Cache and Block Device Protocol
 

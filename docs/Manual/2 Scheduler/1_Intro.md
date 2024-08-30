@@ -14,7 +14,7 @@ The reason why this is done is because the number of time slices given to a task
 
 Percentage-based scheduling should not be construed as permitting real-time programming. OS/90 is not intended to be a real time operating system. Do not rely on any kind of single-milisecond precision and keep in mind that most drivers yield slices and can make RT scheduling impossible.
 
-> This should never come up, but never trust OS/90 for anything important. If a surgical patient dies or a plane crashes with a one-off mistake in timing, do not use OS/90.
+> This should never come up, but never trust OS/90 for anything important. If a surgical patient dies or a plane crashes with a one-off mistake in timing, do not use OS/90. Remember there is no warranty.
 
 ## TASK Structure
 
@@ -30,4 +30,13 @@ Task IDs exist as mere pointers, and functions that operate on tasks usually tak
 
 Casting a PTASK to PSTDREGS is sufficient for accessing the registers in all circumstances.
 
-## Hooking
+## Time Slice Length Rationale
+
+- The i386 used by the Compaq Deskpro 386 runs at 16MHz.
+- This is 16,000,000 clocks per second.
+- 1MS is 1/1000 of a second, such a frequency is 1000 Hz
+- Ring-3 to ring-0 is 99 clocks
+- 1000 times per second * 99 clocks every time = 99,000 clocks each second
+- This is a negligible number of clocks. The i386 is not overburdened.
+
+Linux usually has a granularity of about 0.75 miliseconds even on modern systems (it is ocnfigurable), so this is quite normal.

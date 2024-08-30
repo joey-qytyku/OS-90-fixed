@@ -18,6 +18,8 @@ STAT X_MZLoad(
 		status = 1;
 		goto cleanup;
 	}
+	// Use ASM and variable conventions?
+
 
 	cleanup:
 	return status;

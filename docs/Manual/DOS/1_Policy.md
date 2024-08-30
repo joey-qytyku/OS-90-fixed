@@ -10,3 +10,5 @@ OS/90 permits the adjustment of the following resource allocations:
 - Initial program allocation (for .COM executables)
 - Extended memory
 - Virtual address space reported by DPMI
+
+

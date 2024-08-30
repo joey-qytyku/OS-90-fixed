@@ -1,10 +1,6 @@
-> Idea: drivers do not get missing symbols errors until that symbol is called. A stub can be used. This way, PCI can be used only if available on legacy drivers.
-
-# OS/90 PCI Support
+## OS/90 PCI Support
 
 OS/90 has a driver called `PCI.RSX` that communicates with all device drivers that implement a PCI device.
-
-The PCI bus driver requires handling of multiple devices of the same type.
 
 64-bit PCI devices are not supported.
 
@@ -19,14 +15,20 @@ Features include:
 - Line-based interrupt handling
 - PCI configuration cached to disk
 
+### Calling Interface
+
+PCI functions are exposed using a call table. The calling conventions are cdecl.
+
+### API Listing
+
 Device calls:
-```
+
 // LONG BarIORead(BYTE bar_and_size, LONG offset);
 // VOID BarIOWrite(BYTE bar_and_size, LONG offset, );
 
 
 ```
-BYTE PCI_GetNumDevsWithSpec(LONG v_d);
+BYTE PCI_CountDevices(LONG v_d);
 ```
 Returns the number of devices in the PCI bus that have a certain identification code, which includes the vendor ID and the device ID in the exact way it appears in the PCI configuration space.
 
@@ -42,13 +44,21 @@ STAT PCI_DeviceSetIrqState(HPCIDEV dev, LONG enable);
 ```
 Enable or disable interrupt requests from the PCI device.
 
-LONG PCI_ReadConfig(HPCIDEV dev, LONG offset);
+```
+LONG PCI_DeviceReadConfig(HPCIDEV dev, BYTE offset);
+```
 
-VOID PCI_WriteConfig(HPCIDEV dev, LONG offset, LONG value);
+```
+VOID PCI_DeviceWriteConfig(HPCIDEV dev, BYTE offset, LONG value);
+```
 
+```
 VOID PCI_BarSetMemoryMode(PCI_MEM_MODE mode);
+```
 
+```
 STAT PCI_CloseDevices(HPCIDEV *handles, BYTE num_handles);
+```
 
 ```
 STAT PCI_DeleteDevices(LONG v_d);

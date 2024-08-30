@@ -6,13 +6,13 @@ Functions provided by the kernel are specified to work in certain contexts.
 
 Context types can be considered similar to Windows NT IRQ Levels (obviously much simpler) because it defines situations in which code in one context cannot be preempted by code in another, and determines the correct transfer of control flow.
 
-TI or simply IRQ:
-- Interrupt handler.
-- Entered by external IRQ
+TI:
+- Usually an external interrupt handler.
 - Interrupts are OFF and only approved functions may be used
 - Any function called must be fully reentrant or internally CLI/STI guarded to prevent reentrancy problems.
 - Preemption off.
-- May never give control to any code made for other contexts. - In general, reentrant code is IRQ-safe but that may not always be the case depending on what the code does.
+- May never give control to any code made for other contexts.
+- In general, reentrant code is IRQ-safe but that may not always be the case depending on what the code does.
 - Not schedulable or restartable like the others.
 - MUST EXECUTE AND ACCESS LOCKED MEMORY ONLY. NO FAULTS EVER.
 
@@ -23,7 +23,9 @@ T0:
 - Entered from T1 or T2 by disabling interrupts
 - Preemption off
 - Exceptions are acceptable, including page faults.
-- Local to each process because of an interrupts disabled counter. It is safe to yield to another task while in T0.
+- It is safe to yield to another task while in T0
+- If no yielding takes place within the handler, T0 is an __effective TI__.
+- __Only reentrant code will work.__
 
 T1: Preemption is disabled but interrupts remain the same. Entered by incrementing the local preemption counter.
 
@@ -45,3 +47,11 @@ There is ONE exception to this system. The FPU IRQ#13 handler represents more of
 The answer: you don't. It is already known, and code should be specified for specific contexts.
 
 For the purposes of error checking or any odd scenario where it is necessary to get the current context, there are functions for that. TI cannot be detected and must be known.
+
+## Yield Semantics In Detail
+
+Mutex locks and other synchronization primitives all have implicit yield characteristics to avoid wasting CPU time. This means that no-preemption and no-interrupts sections have weak guarantees that depend on what function calls are used
+
+Each API call has this specified somewhere.
+
+> Any changes to the API will not break compatibility with a previous standard version. If the concurrency safety changes to be more relaxed, old code will not be effected.

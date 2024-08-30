@@ -33,7 +33,7 @@ typedef PVOID (*V86HND)(PSTDREGS);
 // Not recommended, but will signal an immediate reflection to SV86.
 #define SV86_RET_REFLECT  ((PVOID)(1))
 
-VOID V_HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
+VOID HookINTxH(BYTE vector, V86HND hnew, V86HND *out_prev);
 
 /*
 	General purpose V86 INT service routine.

@@ -6,7 +6,9 @@ OS/90 is DPMI-compatible and supports most 1.0 features (with some exceptions). 
 
 ## Program Segment Prefix
 
-The PSP has many components that must function as expected.
+The PSP has many components that must function as expected. It is needed for some program-local operations.
+
+The entire get/set current PSP interface is fully hijacked. I do not know if DOS tries to access this interface????
 
 ### Environment Segment
 
@@ -14,10 +16,22 @@ The environment will usually be initialized by the command interpreter. It is no
 
 In cases where a program is executed without COMMAND.COM starting it up, ENV will be empty and preallocated to the size explicitly requested.
 
+> It is impossible to use a shared environment. This noramlly increases memory usage.
+
 ### Job File Table
 
-The JFT is a list of indices into the System File Table. It represents every handle opened by the currently executing program and is a part of the local context.
-An entry in thhe JFT
+> Some programs try to change the JFT though. Windows probably does.
+
+Here is how DOS file handles work:
+- The system file table keeps a linked list of every unique open file
+- The address of a SFT entry cannot serve as a handle because handles can be duplicates and point to the same file.
+- The JFT serves as a table of indices
+
+Making the JFT actually local is not useful and makes it harder to perform IO from kernel mode drivers.
+
+OS/90 considers the JFT to be global. It is resized to 255 handles. Creating new programs will not change the JFT references.
+
+Wait, what? How do I decide the location of the JFT.
 
 The JFT's first entries are:
 - stdin (0)
@@ -27,9 +41,7 @@ The JFT's first entries are:
 - lpt (4)
 - Rest are FF
 
-The actual SFT is still used for 16-bit FS capability.
-
-The JFT is 20 entries as usual and that is the size reported in the PSP.
+> Do not confuse the JFT with the FILES=x directive in CONFIG.SYS. This actually refers to the SFT.
 
 ### Critical, ^C, and Exit Addresses
 
@@ -37,7 +49,7 @@ These are techically old features that should not be relied upon.
 
 ### File Control Blocks
 
-OS/90 does not support file control blocks. This is fine since Windows 95 also does not support them.
+OS/90 does not support file control blocks. This is fine since Windows 95 also does not fully support them.
 
 
 ### Disk Transfer Area
@@ -60,15 +72,17 @@ DOS esentially executes programs like a stack. This is the PSP of the task that 
 
 Segments
 
+## System File Table
+
+As stated previously, the SFT is still required to be used. Windows expects its presence.
+
 ## Handling of Subprograms
 
 The interface for creating subprograms is controlled by the OS and the entire executable loader is reimplemented in the kernel.
 
-Subprograms get complicated when DPMI is involved. The specification is not very specific, but I have been able to run DJGPP from a command prompt spawned by RHIDE. This indicates that nested instances of DOS programs does work, and they CAN in fact enter protected mode on their own.
+Subprograms get complicated when DPMI is involved. The specification is not very specific, but I have been able to run DJGPP from a command prompt spawned by RHIDE. This indicates that nested instances of DOS programs do work, and they CAN in fact enter protected mode on their own.
 
 A new task is created for subprograms, but the invoking program.
-
-> What if we _don't_ block the process that spawned a new one? It could work, but the return code is impossible to deduce. There is no way a compiler toolchain could handle this.
 
 ## Conventional Memory
 
@@ -78,14 +92,15 @@ The memory manager of DOS is used. Best fit allocation strategy is used.
 
 Conventional memory is deliberately underreported. The invocation function takes the number of kilobytes to permit the program to allocate (not immediately). If the program is a `.COM`, it normally would need the entire conventional memory but this not possible, so allocated memory on startup is restricted to about
 
-
-### XMS Emulation
+## XMS Emulation
 
 Each VM gets a certain number of XMS handles which are non-sharable between VMs. A simple lookup table with 24-bit compressed chain IDs is used.
 
-### EMS Emulation
+## EMS Emulation
 
-OS/90 cannot tolerate the exisitence of EMM386 or anything similar and implements its own EMS simulator.
+OS/90 cannot tolerate the exisitence of EMM386.
+
+Expanded memory is a very ugly API that I have little interest in implementing. If I can adapt some existing code, it could happen.
 
 ## Context In General
 
@@ -108,9 +123,6 @@ INT 21h STDIO callbacks
 DTA address
 
 Pointer to first child VM
-
-Flag for "do subprograms run seperately?"
-
 ```
 
 # DPMI
@@ -127,7 +139,7 @@ OS/90 DPMI is very soft when it comes to enforcing bitness. Function calls that 
 
 If extended registers are used to address program memory, bitness will be considered to ensure proper program behavior. The bitness of a program is constant throughout its execution and extended registers MUST be used for arguments if the client is 32-bit, even if the current code segment is 16-bit.
 
-The general rule of thumb is that 16-bit and 32-bit clients will run "as expected" with no unusual behavior if the program does not rely on bitness-related errors.
+The general rule of thumb is that 16-bit and 32-bit clients will run "as expected" with no unusual behavior if the program does not rely on bitness-related errors, which will essentially never occur.
 
 ## LDT Services
 
@@ -147,11 +159,15 @@ Descriptors allocated by this are supposed to be impossible to free, but this is
 
 This is a value that when added to a range of allocated descriptors, gets it up to the next increment. This is 8.
 
-The first 16 LDT descriptors are reserved for specific descriptors.
+The reason why this API call exists is because running DPMI in a different ring could cause the number to be different?
 
 ### Get/Set Descriptor (000C, 000D)
 
 This maps almost directly to actual descriptors, but non-ring-3 descriptors are not allowed.
+
+### Allocate Specific Descriptors
+
+These work as expected. The first 16 LDT descriptors are reserved for specific descriptors.
 
 ## Extended Memory Services
 
@@ -168,19 +184,73 @@ DPMI recognizes the following attributes of extended memory, reported by functio
 8. Free linear address space in pages
 9. Size of paging file/partition in pages
 
-1. OS/90 does not allocate contiguous memory normally, so the __largest block is the same as the total number of free pages.__
+OS/90 does NOT report swap space to the program. It is none of its business. Swap space is virtual memory and reports as regular allocatable pages.
 
-2. __The maximum number of pages that can be allocated. First field/4096.__ The amount of memory reported is adjustible.
 
-3. The largest number of pages that can be locked if allocated independently. Essentially, how many pages can be locked, since OS/90 lets anything get locked. DPMI programs can lock 10% of their available memory.
 
-4. Size of the linear address space. OS/90 has a limited address space, so only enough to map the allocated memory is permitted.
+# Microsoft Extensions
 
-5. This changes at run time. Total number of allocated pages that are unlocked.  A count is kept and decreased when pages are locked.
+OS/90 supports extensions for DOS as specified by leaked Microsoft documents, which should permit running 16-bit Windows under it. This permits protected mode to call 16-bit real mode functions.
 
-9. Swap is not reported to programs ever. The field is set to FFFFFFFF.
+## Reflection Strategy
+
+I want the ability to implement entire API calls using the direct context of the protected mode call. For example, a call to INT 21H AH=9 can be totally handled in PM using the segments as expected, while real mode can use a different tactic.
+
+To do this, PM reflection and RM reflection will NOT handle PM extensions. Instead, it will be an SV86 global hook. The real mode reflection handler will pass down a PM context and the SV86 handler must capture this.
+
+Suppose INT 21H AH=9.
+
+- INT is received by exception handler
+- Looks for local PM handler
+- Finds none, passing to real mode
+- No local real mode handler
+- SV86 captures and finds out this is a PM context.
+- If within the jurisdiction of extensions, it will be translated.
+- If NOT, the call is carried out noramlly by the SV86 handler assigned
+
+INT 21H will have an SV86 handler that is global. INT 13H will have one too since the API does support extensions.
+
+If protected mode drivers want to hook something like INT 13H, it can work just fine, but it requires acknowledgement of extensions. The SV86 handler could be passed a protected mode context, and the only way to know is by checking the VM bit. If it was protected mode, it has to handle it differently.
+
+The default SV86 handler for the INTs will copy the context to another one, and will do so directly using the registers of the calling task.
+
+This makes writing drivers that use SV86 hooks kind of annoying. INTxH will automatically set the VM bit, so it is not that bad. Register-based APIs do not have to worry about handling PM.
+
+Suppose I create an unrealistic AH=9 hook:
+```
+V86_HOOK INT21H_AH_9(PSTDREGS r)
+{
+    if (!(r->EFLAGS & FLAGS_VM)) {
+        // In protected mode
+        char __far *msg = MK_FP32(r->ds, r->edx);
+        int i;
+        for (i = 0; msg[i] != '$'; i++)
+            putchar(msg[i]);
+    }
+}
+```
+
+This is obviously not how it should be done but illustrates the idea. Nobody would ever call INT 21H AH=9 directly in normal DPMI, and if they did, it would not work properly. On OS/90, it would. The PM call in both instances has the entire contexted passed to a real mode reflection callee. In our case, an extra layer exists that makes it work when it normally would not.
+
+Note that this code is completely impractical. It is meant to highlight that the protected mode context can be received and detected for extensions.
+
+## Things To Support
+
+Most of the APIs are fairly straightforward to extend, but there are a few that need special considerations.
+
+### Get/set PSP
 
 # DOS Memory Policy In Detail (TODO)
+
+## Conventional Memory
+
+This is something that should be user-configurable, and it is when starting the VM.
+
+The recommendation is that only about 75% of the available conventional memory, but the create interface has full control.
+
+## Environment Segment
+
+Each program has its own environment. The size must be adjusted.
 
 # Unsupported Interfaces
 

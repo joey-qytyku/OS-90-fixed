@@ -5076,3 +5076,352 @@ For now, I need to convert a few scripts to Windows.
 The build system is simple enough. All source trees are flat and can be compiled with a single command. That is the correct way to do it.
 
 
+# August 21
+
+## Name
+
+I am not going to make a full rebrand totally out of the question. There is no issue since the project is not done yet. The main problem will be updating the documentation.
+
+First of all, it needs to be very clear that OS/90 is in fact an operating system. I like having OS in it, or something that implies an operating system.
+
+I can take a jab at OS/2 and name it OS/3, but that is just a little too aggressive. OS/2 deserves it though. The moment I found out that OS/2 uses ring 1 and 2 and has a FREAKING 16-BIT USB DRIVER I stopped caring about the thing. Like are you serious? 16-bit USB driver? ArcaOS had to get rid of that.
+
+The whole thing is a bunch of layered model garbage. I don't care if anyone tries to debunk my claims here, I will stand by my belief that OS/2 is a trash operating system architecturally.
+
+OS/3 gives OS/2 exactly what it deserves, but it also implies that OS/90 is a successor, which it is not. ArcaOS is.
+
+PC-MOS is already taken, and it's a really good name.
+
+I think I should stick to OS/90.
+
+# August 23
+
+## Printf implementation
+
+The current printf implementation is horrendously bloated. I am 100% I can make a better one that uses less stack, no offense.
+
+I have some code that works for converting integers to strings. There is code for hex too, which is a lot simpler.
+
+Hex conversion is essentially a shift, and, table lookup. The buffer can be fixed size and always output 8 characters.
+
+```
+emitf("$hh", 0xDEADBEEF); // 0DEADBEEFh
+```
+
+## Segments
+
+I hate segmentation and honestly do not want to deal with it much at all. I genuinely do not care how much "performance" there is, as if it is speed critical at all. I want segments to be handled in the dumbest and most impossible to mess up manner possible.
+
+```
+VOID L_CreateSegment(
+    SHORT   selector,
+    LONG    base_addr,
+    LONG    limit,
+    BYTE    dpl,
+    BYTE    type,
+    LONG    granularity,
+);
+```
+
+When I create the system descriptors and all the others, I will do it using this braindead method.
+
+There are not that many:
+- Null
+- Kernel code
+- Kernel data
+- LDT descriptor
+- TSS descriptor
+- Real mode swap CS
+- Real mode swap DS (same base and limit as CS)
+
+L_CreateSegment cannot be the only one. For example, setting specific parts.
+
+For each part, the name is self-explanitory:
+- PBYTE L_SegmentAccessPtrGet(SHORT sel)
+- PLONG L_SegmentExtAccessPtrGet(SHORT sel)
+- LONG L_SegmentLimit(PLONG newlim)
+
+Using these may need to be serialized depending on the situation. In the case of DPMI, they are allocated before use, so no worries.
+
+# August 24
+
+## Protected Mode Translation
+
+First of all, translation for protected mode when calling real mode functions is a layer that exists on top of the PM hooking interface. The reflection handler will perform translations on the registers if supported before passing it down to real mode handling.
+
+I should avoid having to copy buffers. One way is to use mapping instead, but there could be issues with that if interrupts are depended on.
+
+The idea can be to have a 64K map region that must be acquired and released if and only if translation is being performed. This can allow for direct communication.
+
+It may not be totally necessary because V86 hooks are already in protected mode.
+
+### Mapping Instead of Copying
+
+The only issue with this is that DOS normalizes all pointers passed to it. This means it cannot for example read file data into the HMA or something like that.
+
+A solution is to use an old trick I found and allocate a region of memory at the very end of the conventional memory and use it as a transfer page buffer. This can use mapping instead of copying, which is way faster.
+
+This is still quite complicated. If we do a hello world with a 32-bit address and want to avoid copying, this is not so easy. The alignment of the data will make it difficult to properly map the data. This could lead to bugs if the full 64K need to be used at an unaligned boundary, and the only way to avoid this is to actually allocate 128K, which is quite a hit for conventional memory.
+
+This buffer is not intended to be shared by all programs. No, it will be local and I can establish a protocol for it working that way.
+
+128K is a lot even for extended memory. Bad idea in general, honestly.
+
+### Strategy
+
+Each DOS API call must be translated if it uses memory operands.
+
+Most use DS:DX for addressing. Since this is essentially the rule, the system should be structured around handling the exceptions to the rule.
+
+I can keep a lookup table that is large enough to represent the whole API (0x6C is the highest). If the entry is zero, no translation is needed since the API call is register-based.
+
+If the value is one, it can be handled using DS:(E)DX translation. The approach for that is a PM reflection handler copies the context, changes the mode to V86 and modifies the segment registers and EDX, and finally the request can be passed to the local real mode vectors, and if there is no hook, it can go to global real mode reflection or SV86. It is quite complex and not very fast, but would make OS/90 a very nice platform for DOS developers.
+
+### ACTUAL STRATEGY (COPY TO JOURNAL)
+
+No, it will NOT work quite like that.
+
+I want the ability to implement entire API calls using the direct context of the protected mode call. For example, a call to INT 21H AH=9 can be totally handled in PM using the segments as expected, while real mode can use a different tactic.
+
+To do this, PM reflection and RM reflection will NOT handle PM extensions. Instead, it will be an SV86 global hook. The real mode reflection handler will pass down a PM context and the SV86 handler must capture this.
+
+Suppose INT 21H AH=9.
+
+- INT is received by exception handler
+- Looks for local PM handler
+- Finds none, passing to real mode
+- No local real mode handler
+- SV86 captures and finds out this is a PM context.
+- If within the jurisdiction of extensions, it will be translated.
+- If NOT, the call is carried out noramlly by the SV86 handler assigned
+
+INT 21H will have an SV86 handler that is global. INT 13H will have one too since the API does support extensions.
+
+If protected mode drivers want to hook something like INT 13H, it can work just fine, but it requires acknowledgement of extensions. The SV86 handler could be passed a protected mode context, and the only way to know is by checking the VM bit. If it was protected mode, it has to handle it differently.
+
+The default SV86 handler for the INTs will copy the context to another one, and will do so directly using the registers of the calling task.
+
+This makes writing drivers that use SV86 hooks kind of annoying. INTxH will automatically set the VM bit, so it is not that bad. Register-based APIs do not have to worry about handling PM.
+
+Suppose I create an unrealistic AH=9 hook:
+```
+V86_HOOK INT21H_AH_9(PSTDREGS r)
+{
+    if (!(r->EFLAGS & FLAGS_VM)) {
+        // In protected mode
+        char __far *msg = MK_FP32(r->ds, r->edx);
+        int i;
+        for (i = 0; msg[i] != '$'; i++)
+            putchar(msg[i]);
+    }
+}
+```
+
+This is obviously not how it should be done but illustrates the idea. Nobody would ever call INT 21H AH=9 directly in normal DPMI, and if they did, it would not work properly. On OS/90, it would. The PM call in both instances has the entire contexted passed to a real mode reflection callee. In our case, an extra layer exists that makes it work when it normally would not.
+
+Note that this code is completely impractical. It is meant to highlight that the protected mode context can be received and detected for extensions.
+
+## GUI Paradigm
+
+OS/90 does not need to rip off Windows because Windows already does what it does better than I can with the time I have. If I want the ultimate DOS multitasker, the GUI will have to be different.
+
+Instead of windowing DOS programs, I can have one run like a background image. Why minimize it?
+
+I can make it like Borland Sidekick but much more powerful. For example, I can have a caulculator open while editing code. Another idea is having a popup window with a list of active programs that can be minimized or moved around.
+
+# August 26
+
+## Note on GUI
+
+Add a button to a window for going back to the main command line.
+
+## ASSIGN and SUBST
+
+NOTE: How do I do things like aliasing the drives? (ASSIGN and SUBST)
+
+I cannot seem to find a system call that does this.
+
+
+It seems like DOS uses a system-dependent drive parameter structure for this.
+There is not INT 21h call.
+
+Might as well leave it to DOS. It should be a global context.
+
+Hooks on the FS API revolve around performing some of the FS-related accesses in protected mode.
+The FS driver does not need to implement substitution. DOS will be left to handle locating
+a file and properly opening it, or listing the right dir contents.
+
+Okay, that does not really make sense, but if DOS does open a file (we sent the request to it after monitoring the input), it will resolve the real path using its internal structures. Then it will attempt to find it and ensure it exists before presumably preloading some information about it that is none of my concern. INT 13H handling can take care of that.
+
+So basically, remapping drive can work and in fact, it can carry over after boot! There is no need to reimplement it either.
+
+Protected mode will also keep track of the recently opened file.
+
+## Disk Cache Ideas
+
+Can I use some sort of "page table" concept to avoid using the ordered list/binary tree idea?
+
+Also, can the disk driver be portable between OS/90 and also DOS?
+
+## PSP and Local Operations
+
+I can make INTxH calls from drivers a bit more streamlined by having some sort of initial VM. I think Win386 did something like that. Any requests will be safe as long as the VM is not in kernel mode.
+
+> The correct way to wait for a task to exit kernel mode is to turn off preemption and yield in a loop after checking the status. Because the operation is not atomic, this must be done.
+
+# August 27
+
+## Calling Interface
+
+I still have not technically decided the interface by which I will call the kernel API.
+
+To get the best code density, something similar to VxD can be used, such as using a function call-style interface. This interface helps the code density of drivers. Using register conventions allows reused values to be moved around as well.
+
+This makes me wonder if I should just write the whole OS in assembly, or at least a large part of it.
+
+This already seems to be the case. Whatever scheduler code I have written is already ASM. The only exception is the zone allocation, bit arrays, and executable loading.
+
+Doing those in assembly does not seem very rewarding. The zone allocator CAN be converted though, since it is a rather simple algorithm. Other features can be thunked for it to work.
+
+The executable loader does not sound like much fun to write in assembly, but the process is quite straightforward.
+
+Even if I increase the use of assembly, I will miss out on certain C features most of the time such as placing functions and data in separate segments for optimal space use. I am quite good at packing the data, so it may not be a problem.
+
+## SFT and JFT
+
+The program segment prefix has a JFT built into it with a total of 20 handles. It also has a segment and offset in the PSP so it can have a different location.
+
+The first 5 entries are standard IO. These require special handling. Output of characters to the screen will be done using callbacks.
+
+Input must be "served" to the program. The UI or whatever else is running sends input to it. This becomes complicated because the keyboard driver could choose to emulate the whole 8042 interface.
+
+The actual console IO model is not fully established at the moment. I will eventually need a real keyboard driver.
+
+Special handles are not global like the rest. Things like redirection will require hooking the interface. There is no other way.
+
+# August 28
+
+## Call Interface
+
+I need to think long term. Making the kernel easy to develop is fine, but using standard C calling conventions is not exactly the best idea for the drivers.
+
+The best code density is achieved by using register arguments. This allows for exchanging, saving to the stack, reusing values, etc. which is good for reducing code but is not really that great for performance. The disadvantage is that 32-bit arguments will require a full 32-bit write, which can be mitigated on i486 and older CPUs that do not mind a partial access.
+
+The call interface can be separated from the implementation, which internally can use whatever conventions I need it to.
+
+One way to do this is have some kind of enumeration or a set of enumeration with defines to set their starting points. The enums will define call numbers.
+
+```
+enum {
+    M_PhysAlloc = MEM_MAJOR,
+    ...
+};
+
+PZENT _M_PhysAlloc(LONG bytes);
+```
+
+The interface can use registers. A thunk then takes place. Each function takes a certain number of arguments, which can be copied
+
+In assembly, it could be used like this:
+```
+OSCall<M_PhysAlloc, 5>
+```
+
+Or in C:
+```
+OSCall(M_PhysAlloc, 4);
+```
+The ABI can require a return value in EAX, so this can work just fine.
+
+This is all based on the theory that the kernel will have to use all of the registers. That might work, but there are procedures that do not work like that, such as the memcpy routines.
+
+I think they can be statically linked. If FAT uses 8K or 16K clusters, there is no meaningful loss to statically link it. Just copy the C file and the header to be done with it.
+
+## System Entry
+
+The idea is to make everything an exception. Every vector will be ring-0, which will cause a general protection fault.
+
+#GP can be sent for a variety of reasons.
+
+## Calling Idea
+
+I can place the push instructions in the call target! Everything else can work as expected, though some adjustments may be necessary. Maybe ask ChatGPT for some ideas.
+
+I need to push, EAX,EBX,ECX,EDX,ESI,EDI,EBP, or 7 registers. That can be done with 7 bytes.
+
+I can also use the jump to procedure right before return optimization, which requires a jump instruction. The 32-bit jump uses the E9 code.
+
+The format now is:
+```
+7 pushes
+E9 xx xx xx xx
+7 pops
+ret
+```
+
+20 bytes total. There is no specific need to fit this in exactly one page, but I really should. This can fit 204 calls. Linux has somewhere around that many system calls. Should be good enough.
+
+The ABI of the table entry
+
+# August 29
+
+# August 30
+
+## Segment Alignment in Kernel
+
+I may not really need this. The linker sorts out the alignments because every variable or function gets a separate segment.
+
+Finding the size of the kernel can be done in various ways. Looking at the page tables works. The bootloader will have to zero things out or something, but it should work. I can also check if the mappings are sequential. When they stop, the end is reached.
+
+I do have to ensure a page multiple size. THe file must be extended.
+
+The only issue is alignemnt directives in the assembler code. I cannot depend on an align directive at all since the segments can be rearranged however the linker wants to.
+
+The only way to do this is to have some kind of assembly version of TYPE.H.
+
+## MASM Is Annoying
+
+I cannot get segment alignment to work. It is the only way I can ensure alignment of a segment. NASM on the other hand, works perfectly.
+
+I will need segments to align all things. This will make assembly code a bit annoying.
+
+Macros will be needed to simulate the MASM functionality.
+
+I will create a macro pack like this and preinclude it. All code will be converted to NASM.
+
+```
+LONG x 50
+LONG y 30
+LONG a 1,2,3
+RES LONG 8
+
+STR st "Hello"
+
+KERNEL_CSEG
+main:
+    xor eax,eax
+    ret
+
+END_KERNEL_CSEG
+
+```
+
+## Win32 Console Apps?
+
+HDPMI has a layer for Win32 applications, and it is build on DPMI woth extensions. I can port some of its source code to run Win32 console apps.
+
+An example would be the Digital Mars C compiler toolchain, which is good for 16-bit DOS programs.
+
+Open Watcom already runs under DOS.
+
+I think HDPMI has a loader which automatically configures things
+
+## More On Segments
+
+I do not need a data segment because it adds a 4K alignment requirement. A possibility is to merge code and data.
+
+This is not very realistic since there is a class-based filtering.
+
+I will separate code and data then. Perhaps if I want to make the kernel code read only.
+
+

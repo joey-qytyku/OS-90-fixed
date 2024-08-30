@@ -132,6 +132,9 @@ PZENT Z_Alloc(PZONED z, LONG bytes)
 //
 //
 
+PZENT __naked Z_Alloc2()
+{}
+
 STAT Z_Free(PZONED z, PZENT chain)
 {
 	PZENT cur = chain;
@@ -193,9 +196,9 @@ ZENT  table[8192];
 int main(int argc, char **argv)
 {
 	Z_CreateZone(&zone, 1024, 12, table);
-	// PZENT a1 = ZBA_Alloc(&zone, 4096*1024);
+	PZENT a1 = ZBA_Alloc(&zone, 3);
 
-	// ReadTable(&zone);
+	ReadTable(&zone);
 
 	return 0;
 }

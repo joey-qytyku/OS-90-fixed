@@ -36,6 +36,7 @@ void M_fast_memset(void *buff, int val, size_t size)
 
 void M_fast_memzero(void *buff, size_t size)
 {
+	// Unroll using table? There will be 0,1,2,3 iterations. No more.
 	_asm {
 		cld
 		xor eax,eax
@@ -44,17 +45,14 @@ void M_fast_memzero(void *buff, size_t size)
 		shr ecx,2
 		rep stosd
 
-		and ebx,3
-		neg ebx
-		add ebx,offset base
-		jmp ebx
-		stosb
-		stosb
-		stosb
-	base:
+		mov ecx,ebx
+		and ecx,3
+		rep stosb
 	};
 }
 
+// Why use a stosw? I dont need the decrement, do I?
+// It comes after, I think.
 void M_fast_memset2(void *buff, int val, size_t words)
 {
 	_asm {
@@ -67,7 +65,7 @@ void M_fast_memset2(void *buff, int val, size_t words)
 
 		and ebx,1
 		jz finish
-		stosw
+		mov dword ptr [edi],0
 		finish:
 	};
 }

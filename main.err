@@ -1,0 +1,2 @@
+main.c(2): Warning! W107: Missing return value for function 'main'
+main.c(2): Warning! W138: No newline at end of file

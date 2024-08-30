@@ -1,0 +1,11 @@
+name KERNL386.SYS
+output raw
+format raw bin
+option nodefaultlibs
+
+order
+	clname CODE segment _INIT offset=0xC0000000
+	clname CODE segment _TEXT
+	clname DATA
+	clname BSS noemit
+	file *.obj

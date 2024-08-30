@@ -47,20 +47,20 @@ PRES  EQU 1
 GRAN  EQU 80h
 SEG32 EQU 40h
 
-ACCESS MACRO present, ring, type
-EXITM <((present shl 7) or (ring shl 6) or type)>
-ENDM
+Access macro present, ring, type
+exitm <((present shl 7) or (ring shl 6) or type)>
+endm
 
 ; Base address is not relocatable, so it must be manually
 ; written with code.
-DESC MACRO limit, acc, extacc
+Desc macro limit, acc, extacc
 	DW      (limit) and 0FFFFh
 	DW      0
 	DW      0
 	DB      (acc)
 	DB      (extacc) or ((limit) shr 16)
 	DB      0
-ENDM
+endm
 
 IRQ_BASE        EQU     0A0h
 ICW1            EQU     1 shl 4
@@ -69,52 +69,45 @@ ICW1_ICW4       EQU     1
 ICW4_8086       EQU     1
 ICW4_SLAVE      EQU     1 shl 3
 
-;---------------------------------------------------------------------------
-;                               I M P O R T S
-;---------------------------------------------------------------------------
 
-	EXTERNDEF IDT:ABS, IDT_INFO:FWORD
-
-	EXTERN GetIrqMask:PROC, SetIrqMask:PROC
-
+externdef       IDT:abs,
+externdef       IDT_INFO:fword
+extern          GetIrqMask:proc
+extern          SetIrqMask:proc
+public          TSS
+public          LDT
 
 FOR i, <0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19>
-	EXTERNDEF EXC_&i :ABS
-ENDM
+	externdef EXC_&i:abs
+endm
 
-;---------------------------------------------------------------------------
-;                               E X P O R T S
-;---------------------------------------------------------------------------
 
-	PUBLIC i386GetDescriptorAddress
-	PUBLIC i386SetDescriptorAddress
-	PUBLIC i386SetDescriptorLimit
-	PUBLIC TSS, LDT
-
-	.DATA?
+_BSS    segment align(16) 'BSS'
 LDT     DD      LDT_SIZE * 8 DUP(?)
 TSS     DD      104+8192 DUP(?)
-
-	.DATA
+_BSS    ends
 
 	align 16
-GDT     LABEL PTR
+GDT     label ptr
 	DD      0,0
-	DESC    0FFFFFh,        ACCESS(1,0,TYPE_CODE), <SEG32 or GRAN>
-	DESC    0FFFFFh,        ACCESS(1,0,TYPE_DATA), <SEG32 or GRAN>
-	DESC    103,            ACCESS(1,0,TYPE_TSS),  <0>
-	DESC    LDT_SIZE*8-1,   ACCESS(1,0,TYPE_LDT),  <0>
-	DESC    512,            ACCESS(1,0,TYPE_CODE), <0>
-	DESC    512,            ACCESS(1,0,TYPE_DATA), <0>
-EGDT    LABEL PTR
+	Desc    0FFFFFh,        Access(1,0,TYPE_CODE), <SEG32 or GRAN>
+	Desc    0FFFFFh,        Access(1,0,TYPE_DATA), <SEG32 or GRAN>
+	Desc    103,            Access(1,0,TYPE_TSS),  <0>
+	Desc    LDT_SIZE*8-1,   Access(1,0,TYPE_LDT),  <0>
+	Desc    512,            Access(1,0,TYPE_CODE), <0>
+	Desc    512,            Access(1,0,TYPE_DATA), <0>
+EGDT    label ptr
 
-GdtInfo LABEL FWORD
-	DW      EGDT-GDT-1
-	DD      GDT
+GdtInfo label fword
+	dw      EGDT-GDT-1
+	dd      GDT
 
-	.CODE
 
-ConfPIC MACRO
+_BSS    ends
+
+_TEXT   segment align=4096 'CODE'
+
+ConfPIC macro
 	;
 	; Reconfiguring the PICs will destroy the mask registers.
 	;
@@ -151,15 +144,15 @@ ConfPIC MACRO
 	; Rewrite mask register with mask on stack
 	call    SetIrqMask
 
-ENDM
+endm
 
-SetupLDTD_LDTR MACRO
+SetupLDTD_LDTR macro
 	;---------------------------
 	; Create LDT descriptor
 	;---------------------------
 
-	push    OFFSET LDT
-	push    OFFSET GDT + 8*GDT_LDT
+	push    offset LDT
+	push    offset GDT + 8*GDT_LDT
 	call    i386SetDescriptorAddress
 
 	;---------------------------
@@ -168,22 +161,22 @@ SetupLDTD_LDTR MACRO
 	mov     ax,GDT_LDT shl 3
 	lldt    ax
 
-ENDM
+endm
 
-SetupTSSD_IOPB MACRO
+SetupTSSD_IOPB macro
 	; What to do?
-ENDM
+endm
 
-ZeroBSS MACRO
+ZeroBSS macro
 	cld
 	xor     eax,eax
-	mov     ecx,OFFSET BSS_SIZE
-	mov     edi,OFFSET END_CODE
+	mov     ecx,offset BSS_SIZE
+	mov     edi,offset END_CODE
 	rep     stosb
-ENDM
+endm
 
-SetupSegments MACRO
-	lgdt    FWORD PTR GdtInfo
+SetupSegments macro
+	lgdt    Fword ptr GdtInfo
 	mov     ax,2 shl 3
 	mov     ds,ax
 	mov     es,ax
@@ -192,12 +185,12 @@ SetupSegments MACRO
 	mov     gs,ax
 
 	DB      0EAh            ; Far JMP
-	DD      OFFSET Cont
+	DD      offset Cont
 	DW      8h
 Cont:
-ENDM
+endm
 
-EXTERNDEF ISR_REST:ABS, ISR_7:ABS, ISR_15:ABS
+externdef ISR_REST:abs, ISR_7:abs, ISR_15:abs
 
 ;
 ; ESI = List of vectors
@@ -206,10 +199,10 @@ EXTERNDEF ISR_REST:ABS, ISR_7:ABS, ISR_15:ABS
 ;
 CopyVectors PROC
 _L:
-	movzx   eax, WORD PTR [esi]
+	movzx   eax, word ptr [esi]
 	mov     [edi],ax ;;;
 
-	movzx   eax, WORD PTR [esi+2]
+	movzx   eax, word ptr [esi+2]
 	mov     [edi+6],ax
 
 	mov     BYTE PTR [edi+5],8Eh
@@ -223,11 +216,11 @@ _L:
 	ret
 CopyVectors ENDP
 
-InsertVectors MACRO
+InsertVectors macro
 
 	; Insert exception vectors
-	mov     esi,OFFSET IDT_COPY
-	mov     edi,OFFSET IDT
+	mov     esi,offset IDT_COPY
+	mov     edi,offset IDT
 	mov     ecx,19
 	call    CopyVectors
 
@@ -235,30 +228,30 @@ InsertVectors MACRO
 
 	mov     ecx,16
 _L:
-	push    OFFSET ISR_REST
+	push    offset ISR_REST
 	loop    SHORT _L
 
-	mov     DWORD PTR [esp+7*4],ISR_7
-	mov     DWORD PTR [esp+15*4],ISR_15
+	mov     dword ptr [esp+7*4],ISR_7
+	mov     dword ptr [esp+15*4],ISR_15
 	mov     esi,esp
-	mov     edi,OFFSET(IDT)+(0A0h*8)
+	mov     edi,offset(IDT)+(0A0h*8)
 	mov     ecx,16
 	call    CopyVectors
 DONE1:
 
-	lidt    FWORD PTR IDT_INFO
-ENDM
+	lidt    Fword ptr IDT_INFO
+endm
 
 
-SetupRMCA MACRO
+SetupRMCA macro
 
-	mov     esi,OFFSET RMCA_COPY
-	mov     edi,OFFSET SWBASE
-	mov     ecx, (OFFSET RMCA_COPY_END - OFFSET RMCA_COPY) / 4
+	mov     esi,offset RMCA_COPY
+	mov     edi,offset SWBASE
+	mov     ecx, (offset RMCA_COPY_END - offset RMCA_COPY) / 4
 	cld
 	rep     movsd
 
-ENDM
+endm
 
 RMCA_COPY LABEL PTR
 	incbin <switch.bin>
@@ -270,11 +263,13 @@ DD 0, 1, 2, 3, 4, 5, 6, 7, 8
 DD 9, 10, 11, 12, 13, 14, 15
 DD 16, 17, 18, 19
 
-_INIT   SEGMENT
+_TEXT   ends
 
-	EXTERNDEF       END_CODE:ABS
-	EXTERNDEF       BSS_SIZE:ABS
-	EXTERN          KernelMain:PROC
+_INIT   segment 'CODE'
+
+	externdef       END_CODE:abs
+	externdef       BSS_SIZE:abs
+	extern          KernelMain:PROC
 
 Begin:
 	ZeroBSS

@@ -16,7 +16,7 @@
 
 #define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
-void enable_bit_array_entry(PLONG array, LONG inx)
+void APICALL enable_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx >> 5;
@@ -24,7 +24,7 @@ void enable_bit_array_entry(PLONG array, LONG inx)
 	array[Int_index] |= 1 << bit_offset;
 }
 
-void disable_bit_array_entry(PLONG array, LONG inx)
+void APICALL disable_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx >> 5;
@@ -32,7 +32,7 @@ void disable_bit_array_entry(PLONG array, LONG inx)
 	array[Int_index] &= ~(1 << bit_offset);
 }
 
-BOOL get_bit_array_entry(PLONG array, LONG inx)
+BOOL APICALL get_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx / 32;
@@ -40,16 +40,17 @@ BOOL get_bit_array_entry(PLONG array, LONG inx)
 	return BIT_IS_SET(array[Int_index], bit_offset);
 }
 
-void enable_bit_array_range(
+void APICALL enable_bit_array_range(
 	PLONG   array,
 	LONG    base_inx,
 	LONG    count)
 {
-	for (LONG i = 0; i < count; i++)
+	LONG i;
+	for (i = 0; i < count; i++)
 		enable_bit_array_entry(array, base_inx+i);
 }
 
-LONG alloc_bits(
+LONG APICALL alloc_bits(
 	PLONG   array,
 	LONG    bound,
 	LONG    num)

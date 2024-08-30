@@ -18,18 +18,19 @@
 #define OS_OK   0
 #define OS_ERR  1
 
+#include <stdbool.h>
+
 /////////////////////////////////////////////////////////////////////////////
 // I n l i n e   A s s e m b l y   a n d   A s s e m b l y   L i n k a g e //
 /////////////////////////////////////////////////////////////////////////////
 
 #define NORETURN _Noreturn
 
+#define APICALL __cdecl
+
 ////////////////////////////////////////////////////
 // F u n c t i o n   R e l a t e d   M a c r o s  //
 ////////////////////////////////////////////////////
-
-// TODO
-#define APICALL
 
 #define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) |\
 ((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
@@ -64,7 +65,7 @@ typedef const BYTE *PCSTR;
 
 #define VOID void
 #define PVOID void*
-#define BOOL _Bool
+#define BOOL bool
 
 /////////////////////////////////////////////////////////////////////
 // A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //

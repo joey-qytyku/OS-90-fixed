@@ -4,7 +4,7 @@ OS/90 has an enhanced mutex which queues exactly one task in a pointer to hand o
 
 OS/90 also supports sempahore-guarded queue structures with more than one item. This is useful for when a thread is in the "background" and should handle a batch of requests rather than the low-latency enhanced mutex.
 
-The PAUSE instruction is encoded in all builds of OS/90.
+The PAUSE instruction is encoded in all builds of OS/90. It is a `REP NOP` on older systems and significantly improves Pentium performance.
 
 > The best way to handle concurrency optimally is to test the performance.
 
@@ -13,6 +13,8 @@ The PAUSE instruction is encoded in all builds of OS/90.
 Use the Ymutex if in doubt. It will yield if the lock is held, and has no other semantics.
 
 The reason why yielding is used in the syncrhonization primitives is to allow T1 to acquire locks. Otherwise it would deadlock since nothing would release it.
+
+T0 is permitted to lock too because it is capable of yielding.
 
 ## Enhanced Mutex
 

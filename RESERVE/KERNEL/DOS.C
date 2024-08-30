@@ -71,3 +71,16 @@ static FUNC_GROUP func_groups[DPMI_NUM_GROUPS] = {
 	[DPMI_SHMEM]    = TOFUNC(DPMI_SHMEM),
 	[DPMI_FPUEMU]   = TOFUNC(DPMI_FPUEMU)
 }
+
+static PVOID Handle21h(PSTDREGS r)
+{
+	switch (r->AH)
+	{
+		case :
+	}
+}
+
+VOID D_Init()
+{
+	HookINTxH(0x21, &int21h_prevhook, Handle21h);
+}

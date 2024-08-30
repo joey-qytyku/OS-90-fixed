@@ -166,18 +166,19 @@ EXC_CONT:
         Restore
         iret
 
+        align 4
 EXC_CODE DD 0
 
-        align   32
+        align   16
 ISR_15:
         mov     BYTE PTR ss:actual_irq,15
         jmp     ISR_REST
 
-        align   32
+        align   16
 ISR_7:
         mov     BYTE PTR ss:actual_irq,7
         jmp     ISR_REST
-        align   32
+        align   16
 ISR_REST:
         ; Maybe I should change Ts for thread safe to Tu for threat unsafe.
         Save
@@ -259,8 +260,11 @@ NO_EOI::
         Restore
         iret
 
-; TESTED WORKING
-
+;============================================
+; PARAM:        EAX = mask (16-bit)
+; CLOBBER:      EAX,EBX
+;
+        align 16
 SetIrqMask:
         pushf
         cli
@@ -275,8 +279,13 @@ SetIrqMask:
         popf
         ret
 
-; Possibly untested
-
+;============================================
+; Possibly untested.
+;
+; PARAM:   NONE
+; CLOBBER: EAX, EBX
+;
+        align   16
 GetIrqMask:
         pushf
         cli
@@ -293,7 +302,7 @@ GetIrqMask:
         popf
         ret
 
-        align   64
+        align   16
 GetInService:
         pushf
         cli
@@ -327,7 +336,8 @@ SetStage2ISR:
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ; Handler for IRQ0. TODO update time in BDA.
 ;
-; This does not deal with inactive tasks.
+; This does not deal with inactive tasks because they are removed from the list.
+;
 ;
 IRQ0:
         ; CONVERT TO A JUMP LOCATION!

@@ -28,13 +28,13 @@
 
 // Memory fenced for accurate assertion in certain situatins.
 
-#define kassert(exp)                                                    \
-if (!(exp))                                                             \
-{                                                                       \
-        FENCE()                                                         \
-        printf("%s:%i `%s` ASSRT FAILED\n\r",__FILE__,__LINE__,##exp);  \
-        ASM("cli; hlt":::"memory");                                     \
-        FENCE()                                                         \
+#define kassert(exp) \
+if (!(exp)) \
+{\
+        FENCE()\
+        printf("%s:%i `%s` ASSRT FAILED\n\r",__FILE__,__LINE__,##exp);\
+        ASM("cli; hlt":::"memory");\
+        FENCE()\
 }
 
 #define not_null(exp) { assert((exp) != NULL); }

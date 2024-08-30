@@ -1,29 +1,43 @@
+TODO:
+- Creating task block: How is this meant to work?
+
 # Task Management
 
-1.  GET_CURRENT_TASK
-2.  VOID KTHREAD_PROC(PVOID args)
-3.  VOID S_Terminate(PTASK pt)
-4.  VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
-5.  PTASK S_NewTask(VOID);
-6.  VOID S_Yield(VOID)
-7.  VOID S_Sched(PTASK pt)
-8.  VOID S_Deactivate(PTASK pt)
-9.  VOID S_PreemptOff(VOID)
-10. VOID S_PreemptOn(VOID)
-11. VOID S_IntsOn(VOID)
-12. VOID S_IntsOff(VOID);
-13. BOOL S_TaskInKernel(PTASK pt)
-14. STAT S_IssueTimeSlices(PTASK to, PTASK time_provider, SHORT slices);
-15. STAT S_RemoveTimeSlices(PTASK from, SHORT count)
-16. LONG S_GetLoadAverage(VOID);
-17. VOID HookIdle(IDLE newidle, PIDLE ptr_oldidle);
-18. PTASK MapTaskBlock(PTASK task);
+Macros and definitions:
+- GET_CURRENT_TASK
+- VOID KTHREAD_PROC(PVOID args)
+
+- VOID S_Terminate(PTASK pt)
+- VOID S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args)
+- PTASK S_NewTask(VOID);
+- VOID S_Yield(VOID)
+- VOID S_Sched(PTASK pt)
+- VOID S_Deactivate(PTASK pt)
+
+Basic concurrency control:
+- VOID S_PreemptOff(VOID)
+- VOID S_PreemptOn(VOID)
+- VOID S_IntsOn(VOID)
+- VOID S_IntsOff(VOID);
+
+Time distribution:
+- STAT S_IssueTimeSlices(PTASK to, PTASK time_provider, SHORT slices);
+- STAT S_RemoveTimeSlices(PTASK from, SHORT count)
+- LONG S_GetLoadAverage(VOID);
+- VOID S_HookIdle(IDLE newidle, PIDLE ptr_oldidle);
+
+Needed?
+- PTASK MapTaskBlock(PTASK task);
+
+Advanced Features:
+- BOOL S_TaskInKernel(PTASK pt)
+- VOID S_WaitForExitKernel(PTASK task)
 
 ## Standard Registers
 
 STDREGS is the universal structure used for register dumps, excluding x87.
 
-It is a very nice structure that uses a trick that even the compiler writers of the DOS days did not think of: multi-nested unions.
+It is a very nice structure that uses a trick that even the compiler writers of the DOS days did not think of when they made union REGS: multi-nested unions.
 
 Each register is a union of a 32-bit value, a 16-bit value, and a union of a low byte with a structure containing a pad byte for the high value.
 
@@ -40,6 +54,12 @@ The context type can be determined simply by looking at the VM bit of the EFLAGS
 Every task has a semi-opaque 4096-byte structure called a task block (TASK in C code). Because it contains a kernel mode stack, it is possible to find using a simple stack calulation.
 
 Task blocks never move upon allocation because they are 4K (smallest memory unit). Upon creation, task blocks are permanently stuck to the virtual address where they are mapped and are in locked memory.
+
+### Concurrency Protocol
+
+Interrupts must be off while accessing the task block. Interrupt redirection depends on this to reduce redirection latency once IRQ#0 schedules the simulated IRQ.
+
+A fake IRQ can only go to a task that is NOT in the kernel. More on this in the interrupts section.
 
 ## Task Registers
 
@@ -114,7 +134,9 @@ This was added in order to make contexts truly self-containing without limiting 
 
 ## S_IntsOn, S_IntsOff
 
-Tasks maintain an interrupt counter as with preemption. While interrupts can be enabled on disabled using the macros provided by basicatomic, this is the recommended function. It does not tell the compiler that the flags register was clobbered and does not require the use of automatic variables.
+Tasks maintain an interrupt counter as with preemption. This allows a task to run with interrupts off. The yield operation is fully working, which makes it possible to hold locks within T0 so long as the standard ones are used.
+
+> NEVER use CLI or STI unless you are ready to run code as if it were TI, since anything that acquires locks or is intended to be multithreaded will CRASH THE WHOLE SYSTEM.
 
 ## S_TaskInKernel
 
@@ -138,11 +160,9 @@ Revokes time slices and gives them to the idle task.
 
 ## S_GetLoadAverage
 
-Returns the total number of time slices granted divided by the total number of running tasks. Result should be considered approximate. This function does not iterate through tasks.
+Returns the total number of time slices granted divided by the total number of running tasks. Result should be considered approximate. This function does not iterate through tasks and is not slow.
 
 The load average is a value that represents how much CPU the average task is using.
-
-Subsystems can use this for advanced scheduling.
 
 ## HookIdle
 
@@ -155,6 +175,16 @@ This allows for adding extra things to the idle task. For example: setting some 
 Task blocks are allocated as single pages in physical memory. To make them actually accessible, they must be mapped. The current task block is always mapped to a reserved region in the HMA address space, which can be done directly from an interrupt service routine.
 
 NEVER ACCESS A TASK BLOCK WITHOUT MAPPING IT FIRST. NEVER PASS A MAPPED TASK BLOCK TO A SCHEDULER TASK.
+
+## VOID S_WaitForExitKernel(PTASK task, HEXIT_KERNEL h)
+
+This function will wait for another thread to not be in the kernel and the function pointer is called when true. The handler is not an instant event and has significant latency.
+
+Internally, this waits for the thread to be out of the kernel from within a non-preemptible context, and yields periodically to the specified process until it does. Expect significant delays for other processes if the operation the initial VM is busy with takes too long.
+
+If making DOS calls, this is useful when performing the call on the behalf of a task and its process instance. Using NULL as the task will use the initial task.
+
+
 
 ## Other TASK Topics
 
