@@ -9,7 +9,7 @@ SEGMENT_DESCRIPTOR ldt[128];
 #define GET_DESC(selector) \
 	(( (selector) & 4 == 0 ? gdt : ldt) + ( (selector) >> 3))
 
-VOID APICALL L_SegmentSetBase(SHORT selector, LONG base_addr)
+VOID API L_SegmentSetBase(SHORT selector, LONG base_addr)
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 	s->s_base1 = base_addr & 0xFFFF;
@@ -18,21 +18,16 @@ VOID APICALL L_SegmentSetBase(SHORT selector, LONG base_addr)
 }
 
 // Will not clobber the high portion of extended access
-VOID APICALL L_SegmentSetLimit(SHORT selector, LONG limit)
+VOID API L_SegmentSetLimit(SHORT selector, LONG limit)
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 	s->limit1 = limit & 0xFFFF;
 	s->extended.limit2 = (limit >> 16) & 0xF;
 }
 
-LONG APICALL L_SegmentGetLimit(SHORT selector);
-#pragma aux L_SegmentGetLimit = \
-	"xor eax,eax" \
-	"lsl ax,dx" \
-	parm  [edx] \
-	value [eax];
+LONG API L_SegmentGetLimit(SHORT selector);
 
-VOID APICALL L_SegmentCreate(
+VOID API L_SegmentCreate(
 	SHORT   selector,
 	LONG    base_addr,
 	LONG    limit,
@@ -46,8 +41,4 @@ VOID APICALL L_SegmentCreate(
 
 	L_SegmentSetLimit(selector, limit);
 	L_SegmentSetBase(selector, base_addr);
-}
-
-VOID L_InitKernelSegments()
-{
 }

@@ -26,28 +26,17 @@
 
 #define NORETURN _Noreturn
 
-#define APICALL __cdecl
+#define API __attribute__((cdecl))
 
-////////////////////////////////////////////////////
-// F u n c t i o n   R e l a t e d   M a c r o s  //
-////////////////////////////////////////////////////
+#define API_DECL(rtype, name, ...)\
+	typedef rtype API (*_API_##name)(__VA_ARGS__);\
+	rtype API name(__VA_ARGS__)
 
-#define BYTESWAP(value) ((value & 0xFF) << 24) | ((value & 0xFF00) << 8) |\
-((value & 0xFF0000)>>8) | ((value & 0xFF000000) >> 24)
-
-#define UNUSED_PARM(x) (VOID)x
-
-///////////////////////////////////////////
-// M i s c e l a n e o u s   M a c r o s //
-///////////////////////////////////////////
 
 #define NULL ((PVOID)0UL)
 
-#define MK_FNPTR(RTYPE, NAME, ARGS) typedef RTYPE(*NAME) ARGS
-
-/////////////////////////////////////
-// T y p e   D e f i n i t i o n s //
-/////////////////////////////////////
+// Need?
+#define MK_FNPTR(RTYPE, NAME, __VA_ARGS__) typedef RTYPE(*NAME) (ARGS)
 
 typedef unsigned long  LONG;
 typedef unsigned short SHORT;
@@ -61,20 +50,21 @@ typedef int   SIGLONG;
 typedef short SIGSHORT;
 typedef char  SIGBYTE;
 
-typedef const BYTE *PCSTR;
+typedef int   *PSIGLONG;
+typedef short *PSIGSHORT;
+typedef char  *PSIGBYTE;
 
 #define VOID void
 #define PVOID void*
 #define BOOL bool
 
-/////////////////////////////////////////////////////////////////////
-// A d d r e s s + O f f s e t   A d d r e s s i n g   M a c r o s //
-/////////////////////////////////////////////////////////////////////
+#define unlikely(x) __builtin_expect((x),0)
+#define likely(x)   __builtin_expect((x),1)
 
-// Fixed
-#define BYTE_PTR(var, off) *(BYTE)  ((PVOID)(var) + (off))
-#define WORD_PTR(var, off) *(SHORT) ((PVOID)(var) + (off))
+// Remove?
 #define DWORD_PTR(var,off) *(LONG)  ((PVOID)(var) + (off))
+#define WORD_PTR(var, off) *(SHORT) ((PVOID)(var) + (off))
+#define BYTE_PTR(var, off) *(BYTE)  ((PVOID)(var) + (off))
 
 // Create a register that has a 32-bit/16-bit/8-bit high or low version
 #define _DWB_R(n)\

@@ -14,9 +14,21 @@
 
 #include <stdbool.h>
 
+// Convert to bit test inline assembly
 #define BIT_IS_SET(num,bit) ((num & (1<<bit))>0)
 
-void APICALL enable_bit_array_entry(PLONG array, LONG inx)
+static inline BOOL BIT_IS_SET(LONG num, LONG bit)
+{
+	BOOL ret;
+	__asm__ volatile(
+		"btl %1,%2"
+		:"ccc"(ret) /* out */
+		:"r"(bit), "r"(num)
+		:"cc","memory"
+	);
+}
+
+static void API enable_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx >> 5;
@@ -24,7 +36,7 @@ void APICALL enable_bit_array_entry(PLONG array, LONG inx)
 	array[Int_index] |= 1 << bit_offset;
 }
 
-void APICALL disable_bit_array_entry(PLONG array, LONG inx)
+static void disable_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx >> 5;
@@ -32,7 +44,7 @@ void APICALL disable_bit_array_entry(PLONG array, LONG inx)
 	array[Int_index] &= ~(1 << bit_offset);
 }
 
-BOOL APICALL get_bit_array_entry(PLONG array, LONG inx)
+static BOOL get_bit_array_entry(PLONG array, LONG inx)
 {
 	LONG bit_offset  = inx & 31;
 	LONG Int_index = inx / 32;
@@ -40,7 +52,7 @@ BOOL APICALL get_bit_array_entry(PLONG array, LONG inx)
 	return BIT_IS_SET(array[Int_index], bit_offset);
 }
 
-void APICALL enable_bit_array_range(
+static void enable_bit_array_range(
 	PLONG   array,
 	LONG    base_inx,
 	LONG    count)
@@ -50,7 +62,7 @@ void APICALL enable_bit_array_range(
 		enable_bit_array_entry(array, base_inx+i);
 }
 
-LONG APICALL alloc_bits(
+LONG API alloc_bits(
 	PLONG   array,
 	LONG    bound,
 	LONG    num)

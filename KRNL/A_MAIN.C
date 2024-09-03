@@ -12,6 +12,20 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-VOID KernelMain(VOID)
+// Remember to use -masm=intel option
+// No, just convert
+
+VOID _Noreturn KernelMain(VOID)
 {
+	__asm__ volatile ("cli; hlt");
+}
+
+__attribute__((naked), section(".init"))
+VOID _Noreturn EntryPoint(VOID)
+{
+__asm__ (
+	R"(
+		jmp KernelMain
+	)"
+);
 }

@@ -2,6 +2,10 @@
 
 OS/90 is DPMI-compatible and supports most 1.0 features (with some exceptions). It reports 0.9 unless configured otherwise. it also is capable of simulating 16-bit DOS.
 
+DOS interface implementations are separated from most other components.
+
+This document will be mostly useless for most OS/90 developers. It is for any notes that cannot be yet inlayed into source comments.
+
 # DOS Virtual Machines
 
 ## Program Segment Prefix
