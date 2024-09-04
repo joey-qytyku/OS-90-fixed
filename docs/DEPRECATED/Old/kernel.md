@@ -1,104 +1,254 @@
-# Kernel Overview
+> TODO: We should make it so that the capture chain goes in reverse so that we can alter the inputs of the previous handler instead of going up the chain and potentially never reaching it. Instead, we will provide a function for getting the current handler and saving it. No need for a linked list.
 
-This document describes the purpose of the kernel, which is called KERNL386.EXE.
+# Introduction
 
-The kernel binary is position independent and runs at the virtual address of C0000000.
+OS/90 features a preemptible, reentrant, multitasking microkernel.
 
-# Design Concept
+The kernel is designed to be minimal and only deals with communication between servers and memory management.
 
-The idea is that all requests to hardware from the userspace will be handled by a component on a stack of software following the layered model. Because DOS is a fully featured operating system, its interface is used, but it is extended to allow the 32-bit software to control it or pass it down the stack. Almost every request to the system is able devolve to a DOS driver/API call or BIOS function, ensuring high compatibility at the expense of slight overhead.
+Servers are cooperatively scheduled userspace programs that can communicate with user programs and handle events.
 
-32-bit software can also function as an abstraction layer on the stack, e.g. USB host and USB device.
+
+## Comparison With Win386
+
+VMM32 can schedule tasks while in kernel mode, but is still considered non-reentrant. I believe it uses an event system to schedule event handling for an opportune time. OS/90 is 100% reentrant and uses mutex locks.
+
+
+# Index
+
+[Code Rules](#code-rules)
+
+[Scheduler and V86](#scheduler)
+
+[Memory Management](#memory-management)
+
+[Drivers](#drivers)
+
+[Kernel API Overview](#kernel-api-overview)
+
+[Kernel API Index](#kernel-api-index)
+
+
+# Code Rules
+
+## File Names
+
+Source files and folder should be capitalized and follow DOS naming rules. Documents must also follow this rule. Files related to the build process
+
+## Include Files
+
+Includes files have the extension `.INC`. Includes are restricted to defining structures and equates.
+
+Equates should be in MACRO_CASE and may NOT use dots as seperators.
+
+## Style Rules
+
+Procedures should be This_Cased. Local labels should be snake_cased. Variables use a Hungarian-like naming protocol.
+
 ```
-High Level
-[  User Request  ]==\\
-[  OS/90 Kernel  ]->||
-[ Driver |   Bus ]->||
-[   DOS Kernel   ]->||
-[  PC BIOS traps ]  \/
-Low level
+A = array of ...
+P = pointer to ...
+
+== Only make sense for pointers ==
+
+V = void (for pointers)
+F = function (for pointers)
+
+== Others ==
+
+J = jump location
+
+STR  = Exactly the same meaning and intended semantics as a `const char*` in C
+
+== Data Types ==
+
+U/I{8,16,32,64}
+
+Structure instances simply use their name.
+
+== Examples ==
+
+AU8_myArray
+APF_ArrayOfPointersToFunctions
+U64_GDTEntry
 ```
 
-# What Type of Kernel?
+All code should be written for viewing on 80x25 screens. Spaces should be used and indent size is 8.
 
-Monolithic modular.
+## Comment Rules
 
-# Features
+Code should be sectioned using double lines (=) for the top level and single lines (-) for procedure- or variable-related comments. `.section` declarations should be spaced to the center.
+```
+;=============================
+;       S e c t i o n
+;=============================
 
-The OS/90 is a preemtive multitasking DPMI host with special driver support and a system call interface for accessing its features.
+;=============================
+          .section
+;=============================
+```
 
-## Memory Manager
+Procedures can be commented like this:
+```
+;----------------------------------
+; BRIEF:
+;       ...
+; Argument(can be register) := ...
+;
+; WARNINGS:
+;
+```
+Text should be aligned with spaces.
 
-Features:
-* Demand Paging
-* Virtual address space allocation
-* Page frame pool allocation (fixed blocks)
-* Evicting pages
-* Cleaning, marking pages for writeback
-* Page cache disable/enable
-* Locking pages
+# Scheduler
 
-# Fileystem and Disk Access
+Scheduler means more than just "the part of the kernel that decides what runs and when." It should be thought of instead as a __context manager__.
 
-Upon startup, filesystem and disk access is immediately possible through the V86 mode interface. Drivers can trap real mode interrupts and IRQs to implement 32-bit disk access.
+## Context Types
 
-[Service1] -> [V86] -> [DOS]
-[Service2] -> [DRV]
+## Processes
 
-# Exiting to DOS
+### Process Control Block Structure (INTERNAL)
 
-Exiting to DOS is impossible is OS/90. I could not figure it out, and do not see a huge advantage.
+A PCB is 4096 bytes large and is aligned at a 4K boundary. It is an internal structure that drivers do not deal with.
 
-# Rationale For DOS Emulation
+16 page directory entries are stored, which are 64 bytes large. These are copied into global page directory when scheduling a process. This gives 64MB of addressing space. In future versions, the address space for userspace.
 
-There are different ways that a DOS-compatible and DOS-initiated OS can be designed.
+A process can have no more than the (maximum address space / 4MB) pages.
 
-## Replace Kernel Entirely
+The register dump structure applies to both kernel and user mode. If the thread switched from user to kernel, the userspace registers are saved onto the stack, which is part of the PCB.
 
-Instead of starting the regular DOS kernel, a replacement kernel sets up the entire system on startup.
+```
+    STRUC   PCB
 
-### Analysis
+RES RD_registerDump, U8, RD.size
+RES AU32_localPDEs, U32, 16
+RES PF_eventHandler, U32
+RES PF_posthook, U32
+RES PF_prehook, U32
 
-This design makes legacy compatibility difficult because of the isolation between DOS VMs. The entire DOS kernel would have to be emulated, including the filesystem and the BIOS. The advantage would be more consistent design with less bugs. To avoid difficulties, the backup DOS kernel could be loaded in a virtual machine and get restricted access to hardware resources.
+    ; Rest is stack space.
+    ENDSTRUC
 
-One question wuld be how devices can be accessed by DOS. Emulation could be possible, but in cases where the real device needs to use a DOS driver, the kernel would have to differentiate between supervisory virtual machines and regular machines, with an organized method of passing interrupts. It could also have to "lie" to DOS-based drivers about direct hardware access. This would be quite complicated. To what extent will a DOS driver be able to integrate itself in the system?
+```
 
-Overall, this is a clean concept, but way too difficult to design and not worth the time.
+Event handlers are local to each process, unlike V86 chains. This allows for greater concurrency.
 
-## Device Driver Bootstrap
+Prehook and posthook are procedures that run when the process
 
-A device driver can be installed that loads the 32-bit kernel and enters it. The kernel can access DOS services right away witout any emulation. AUTOEXEC runs automatically in a special process.
+## Virtual 8086 Mode
 
-### Analysis
+### Supervisor V86
 
-The issue with this design is that the TSRs and other programs executed in the AUTOEXEC process must be given special rights, somehow. Should programs forked by this initial DOS VM be split into separate processes? Probably.
+It is often necessary for kernel-mode software to access BIOS services or to use any feature that is not implemented in 32-bits.
 
-## The OS/90 Kernel
+The issue is that the 1MB of real mode addressing space could be mapped in any way whatsoever by running processes. A special memory manager function is used to identity map the real mode memory.
 
-DOS is accessible to the kernel and all DOS VMs. Programs have a userspace API and interrupt call interface to access the 32-bit kernel services similar to unistd.h. Drivers can capture DOS interrupts and form an interrupt chain for sharing multiple sub-functions.
+### Trap Hooks
 
-There are two types of drivers, bus and device. Bus drivers can request IO, DMA, IRQs, and MMIO from the kernel (a bus itself) and allow a device driver to control it.
+The kernel provides the basic functionality of capturing INT calls from programs, a feature needed by most drivers. The emulation behavior of instructions is the business of a dedicated driver.
 
-### Analysis
+UV86 INT capturing is not automatically done. A special API call is used to dispatch to a V86 handler from the event handler.
 
-I chose this design because it offered compatibility and ease of programing at the cost of overall design cleanliness. It also allows for easier user troubleshooting when drivers malfunction.
+SV86 hooks are required, however, and a global chain is used for this.
 
-# Toolchain and Compiling
+The hook procedure recieves an RD structure in register EBX. If the carry flag is zero
 
-A GCC-compatile toolchain is required.
+> Setting a V86 handler requires doing so for __both__ SV86 and UV86 to ensure there is a proper handler for both.
 
-Dependencies include:
-* bochs
-* qemu
-* DOSBox
-* GCC cross compiler for at least i386
-* make
-* git
+## Protected Mode
 
-Always use a cross compiler so that code generated does not assume a linux environment.
+### Trap Hooks
 
-Compiler arguments must eliminate any instructions that are not i386-compatible. Never use -mrtd because assembly code assumes caller cleanup. mtune can be modified for any architecture, but march must remain i386. Avoid -O3 optimization.
+Protected mode traps can be hooked. A global array of handlers is kept and they follow the same protocol as V86, but there is nothing related to SV86.
 
-## Default Options
+## Scheduling Policy
 
-By default, the makefile will compile the kernel with the smallest code size possible.
+OS/90 uses a round robin scheduler at the moment.
+
+# Memory Management
+
+The features that will be implemented include:
+- Per-process virtual address spaces
+- Virtual real mode memory
+- Uncommitted memory
+- Page locking/staining
+- Shared memory and emulation buffers
+- Heap allocation for kernel
+- Paging
+
+Local real mode memory is built in and is not provided by a driver (but can it be?). The first process is configured not to use it.
+
+> Make it possible to implement DPMI in a driver.
+
+## MEM16.DRV
+
+> We need a way of keeping track of pages that are being monitored by a driver to prevent conflicts. Or they can just share. `PG_MONITOR`.
+
+MEM16 is a driver that implements local DOS memory for all processes. Memory is allocated with page granularity, so there are 160 pages. This requires 20 bytes to store a bitmap of available blocks. Actual memory control blocks are not used and only the PSP segment is stored before the data region.
+
+
+
+> We need the notion of scheduling events for VMs and have a kernel-mode procedure to handle them. Calling V86 on behalf of another process requires something like this.
+> What if we have a local handler chain for each process?
+
+> How will you handle events in a T2?
+
+## Structures and Algorithms
+
+### Page Frame Table (PFT)
+
+# Drivers
+
+Drivers have the file extension .DRV and use a special executable format.
+
+## Executable Format
+
+Drivers are flat binaries but with a special relocation table added in. They have no external symbol linking abilities.
+
+The output of `readelf -r` is used to generate a relocation table that is terminated by a magic number of 0xDEADBEEF at the end of the file.
+
+The binary has no sections and all allocated sections are required to be joined into .text. The only relocation table that matters is `.rel.text`.
+
+R_386_PC32 requires an addend of the load point minus the relative program counter. Procedure calls (which use relative 32-bit addresses)
+R_386_32 simply adds a number to the base.
+
+> Think about this
+
+Both are needed for successful relocation.
+
+The entry point is just before the magic number and is near called.
+
+## Environment
+
+The initialization function is executed using a kernel startup stack or a process-local kernel stack. The size of the stack can be assumed to be under 4096 bytes. Avoid recursion and large stack allocations.
+
+# Kernel API Overview
+
+The OS/90 kernel API uses an assembly-only ABI that requires thunks to work with C. Any procedure that is exposed through the kernel API must respect the ABI.
+
+INT 0CFh is used to access this API.
+
+> Memory allocator with relocation event handler?
+
+## Calling Conventions
+
+The following registers are used in this order: EAX, EBX, ECX, EDX, ESI. Any registers not specified as outputs to a function call will not be clobbered.
+
+The macro OSC is used to make kernel API calls from drivers in assembly code.
+
+AX is the function code and EAX>>16 is the driver code, where zero is the kernel. This is for implementing dynamic linking. The assembly macro OSC automatically makes a list of calls to INT 41h with addresses (that are relocated on load). It is possible to import symbols from other drivers and pass the base address of the API relocation table.
+
+This still requires ordinals to call driver or API functions, but the driver name can be linked.
+
+```
+OSC Logf, "Hello, world! Also a number: %i\n", 10
+```
+
+The carry flag is the universal error code indicator.
+
+If a function is not supported, EAX will be set to all zeroes.
+
+## Function Codes
+
+# Kernel API Index
