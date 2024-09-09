@@ -36,7 +36,7 @@
 #define NULL ((PVOID)0UL)
 
 // Need?
-#define MK_FNPTR(RTYPE, NAME, __VA_ARGS__) typedef RTYPE(*NAME) (ARGS)
+#define MK_FNPTR(RTYPE, NAME, ...) typedef RTYPE(*NAME) (__VA_ARGS__)
 
 typedef unsigned long  LONG;
 typedef unsigned short SHORT;

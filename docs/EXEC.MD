@@ -1,5 +1,7 @@
 # EF90 (2024)
 
+> This is NOT currently being used. A simpler format is in use for kernel drivers.
+
 EF90 is an executable format for drivers and userspace programs using the 32-bit flat model. It support relocations, shared libraries, and other features, but is simpler than other executable formats.
 
 The most innovative part of the format is alphabetically sorted symbol table entires.

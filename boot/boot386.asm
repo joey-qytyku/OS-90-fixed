@@ -9,13 +9,6 @@ Assemble with NASM.
 
 %endif
 
-;-------------------------------------------------------------------------------
-; How to use for your own kernel:
-; - Change
-;
-;
-;
-
 ;-----------------------------
 ; Equates
 
@@ -285,10 +278,9 @@ PageSetup:
         mov     bx,16
 
         ;Create the page directory
-        ; UPDATE: Changed 768 to 512 reflecting new load VMA.
-        ; If you want to load at 0xC0000000 change to 768.
+        ; If you want to load at 0xC0000000 set to 768.
         mov     dword [es:bx],       (101h<<PAGE_SHIFT)|7h
-        mov     dword [es:bx+512*4], (102h<<PAGE_SHIFT)|3h
+        mov     dword [es:bx+768*4], (102h<<PAGE_SHIFT)|3h
 
         ; April 9, 2024: Updated to map the HMA too.
 
@@ -367,7 +359,7 @@ Corrupted:
 ;############Data#############
 ;#############################
 
-Path:   DB      "\OS90\OS90.DAT",0
+Path:   DB      "\OS90\KERNEL.BIN",0
 SavedProgBase: DW 0
 KernelAddr:
         DD      0

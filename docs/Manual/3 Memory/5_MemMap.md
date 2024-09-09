@@ -3,6 +3,9 @@
 OS/90 preallocates all page tables of the virtual address space and never extends it.
 
 Remapping memory takes a subchain range to perform the mapping on so that dynamic structures can be efficient. It is not necessary to change the base address being used.
+
+This API is used to implement the more complex memory management features.
+
 Listing:
 
 ```

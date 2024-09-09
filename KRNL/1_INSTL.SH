@@ -1,0 +1,2 @@
+mdel c:/OS90/KERNEL.BIN
+mcopy KERNEL.BIN c:/OS90/KERNEL.BIN

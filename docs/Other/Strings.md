@@ -46,7 +46,3 @@ I surrender. `const char *` is simply the C idiom for "constant string." `char *
 Programmer discretion should be used to decide when a string should be constant or not.
 
 If C had array pass by value it could work in a reasonable way, but C does not.
-
-## OS/90 Policy on Strings
-
-See `Code.md`.

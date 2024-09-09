@@ -20,12 +20,8 @@ VOID _Noreturn KernelMain(VOID)
 	__asm__ volatile ("cli; hlt");
 }
 
-__attribute__((naked), section(".init"))
+__attribute__((naked, section(".init")))
 VOID _Noreturn EntryPoint(VOID)
 {
-__asm__ (
-	R"(
-		jmp KernelMain
-	)"
-);
+	__asm__ ("jmp KernelMain");
 }

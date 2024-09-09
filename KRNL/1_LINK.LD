@@ -6,12 +6,15 @@
  source code and can be found at <https://www.gnu.org/licenses/>.
 */
 
+OUTPUT_FORMAT(binary)
+OUTPUT(KERNEL.BIN)
+
 SECTIONS
 {
         . = 0xC0000000;
 
 /*
-Explainiation on sections
+Explaination on sections
 
 The compiler emits sections that have an alignment as large as the highest
 alignment requested by the generated assembly. The linker knows this and honors

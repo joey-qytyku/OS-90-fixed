@@ -5559,8 +5559,219 @@ The video can be switched using a KVM (keyboard, video, mouse) switch driver.
 
 This is not technically required, but Windows 95 certainly did it this way. In fact, it was very intuitive back then and a simple ALT-TAB could switch programs.
 
-# September
+# September 3
 
 ## Toolchain
 
 I will switch to WSL. Commit changes.
+
+Okay, switched over. I need a cross compiler toolchain now.
+
+I have a copy of UASM. Could put that to use. I should start by porting the string routines to it. They will be needed for startup.
+
+# September 4
+
+## Problem with chains?
+
+The issue with chains is that an ID cannot be truly verified because it could be reused. This may be an issue if we want to implement virtual address spaces.
+
+## Virtual Address Spaces
+
+I need a sort of VirtualAlloc function. I will need to allocate from several pools and map multiple chains into the same region.
+
+Finding out the chain that a page belongs to is not too simple because it could be in multiple pools, but the process is still similar.
+
+Remember the rule: NO FEATURES. Make it really simple. I really like the multiple pools idea, but also I do not see the reason to have more than three. One for before the memory hole and one after. That should be good enough. Of course there is swap.
+
+The granularity will create some problems too. If I need 4K of memory to map in a region, how am I supposed to allocate it?
+
+Page granularity must either be 4K at all times (with transparent hugepages perhaps) or it must be global. If the system has 64M, allocating in chucks of 64K is viable because there are 1024 blocks to allocate.
+
+It should be up to the user to decide the allocation granularity.
+
+The granularity must be with respect to the ISA memory hole, which we will assume to always be there. The largest logical chuck of allocation is maybe 1M, or something 15 is divisible by, but there is practically no reason to do this since 1M is way too much to swap out at once, even for modern computers.
+
+### Resolution
+
+Allocation granularity options are:
+- 4K
+- 8K
+- 16K
+- 32K
+- 64K
+
+No need for other options. 64K is used by Windows NT to this day.
+
+I will have to make a few changes to the zone allocator:
+- Allocate in granular chunks, not bytes
+
+Why not have a giant table for everything, including swap? That way, swap is orthogonal and is actually not even swap anymore.
+
+The issue is that I cannot allocate swap directly. I cannot copy to it. Swap is no longer swap at all then. It becomes the 100,000x slower version of RAM.
+
+Swapping is generally bad, but for some background tasks, it is okay to disk-back some pages. Ideally this should be done automtatically. One example would be the table used to store the PCI/PnP configurations or something. There is little reason to use it for it to be used except during the loading of drivers.
+
+Making the address space orthogonal and use the same table is fine, and I can allocate specifically too by specifying the base entry of the allocation. If more memory is needed, it will go straight to demand paging right away.
+
+# Septempber 5
+
+## Swapping or Disk Mapping
+
+I like the idea of disk mapping. I can map a total of 1 million items using the 20-bit page index. Disk mapping can be used to implement swap.
+
+My intent with swap is that INT 13H is called directly. The disk driver will only do the job of completing the IO request that way. INT 21H will be called to flush buffers, and this call must be hooked to remove any caches.
+
+Caching does not really get involved here.
+
+I see little reason for disk cache to exist independently.
+
+## Virtual Address Spaces
+
+I can have a special page table entry that terminates an allocation. That way, a complex address range can be freed iteratively.
+
+## The Plan
+
+This whole project is in shambles. No idea what to do anymore.
+
+I do now. Focus on documentation and journal entries. Write the specs or you are wasting time.
+
+I need to flatten the docs. No folders whatsoever. Implementation details should not be in the manual.
+
+# September 7
+
+## SV86 Redesign
+
+The current previous design I intended to use would cause SV86 to be a special context that is incapable for yielding or holding locks. This is a problem because INT could cause a nested call to a trapped function and that needs to run in a proper T1 or T2 context.
+
+It would make allocating memory in an SV86 handler impossible. Just consider that! INT 13H could not possibly work.
+
+The solution is to make SV86 program-local. The user context switches to V86 mode but with elevated privilege implied.
+
+The SV86 flag is then made local to each task (not process). There is only a need for one, as well as an INT/IRET counter.
+
+Disabling preemption for SV86 is a bad idea because it is not actually necessary and makes legacy code fit poorly in a 32-bit system. Some 16-bit real mode code is perfectly fine to preempt as long as it never gets reentered.
+
+SV86 will hold a lock. Preemption-offing is a weak guarantee that cannot work.
+
+The program will have its state changed. But how is that supposed to work? If the kernel mode thread needs to call SV86 and do something with it, how do we get back to kernel mode?
+
+To make this work without making the kernel too complicated, SV86 needs to be preemptible in the sense that its context can be restored at a later point. That means a ring-3 context will be saved to the task registers.
+
+This means the kernel will switch to virtual 8086 mode. Upon an IRQ#0, all the data gets dumped in the current state block.
+
+But the problem is that the stack pointer is important in determining the current task. I am not really sure how well this would all work out for the system entry process.
+
+It goes back to the weak guarantee of no preemption. I like yielding in locks, but it is actually a problem if preemption is made local.
+
+On the other hand, a global preemption context makes SV86 totally safe and separate from scheduling.
+
+A global context seems to have been what Win386 used. Linux does local, but Linux is not the same thing.
+
+Interrupts should be the same. The whole context theory is FAR mroe complicated when the contexts are local. There is T0 acting like a TI if CLI/STI are used. Disabling preemption having almost no guarantee for most kernel functions. The list goes on, and there is hardly any benefit.
+
+But how are we supposed to get a T2 preemptible context from SV86? The answer:
+- If an INT is called, exit SV86 and let T2 call it manually. That way T2 can be entered or SV86 can be entered, all from T2, regardless of if handlers are set.
+
+The system will be structured like this:
+```
+BYTE RUNxH(BYTE vector, PSTDREGS param);
+
+VOID INTxH(BYTE vector, PSTDREGS param);
+```
+
+RUNxH returns the vector of the INT operation that must be done because another INT was found. It is implemented in assembly. RUNxH will simply run the vector.
+
+INTxH is the abstract interface. It will handle the chaining. RUNxH will not require duplicating the context and operates with no penalty to stack use.
+
+Other instructions beside the INT family are emulated inside of #GP.
+
+## Take A Break?
+
+Maybe I should try to make a boot sector game or something. Maybe some kind of space invaders or Brick Breaker and get back into the 512 bytes demoscene. I don't know. Not exactly the most chill experience to cram as much conent into 512 bytes.
+
+I keep saying today is not the day but I cannot count how many days I have said that. What is happening to me? Why do I spend hours gaming every day but I cannot sit down and work on this project?
+
+## TODO List
+
+- Get a cross compiler
+- Set it up
+- Write a bash build script
+- Install bochs for WSL (should have the debugger, right?)
+
+The files will be transfered to the disk using mtools. Done with the current nonsense about mounting a local directory and all that. It could be useful later though.
+
+Unfortunately mtools is extremely annoying to use. Like really.
+
+Do I even have a boot disk? Yes, I have a VDI image which Bochs can accept. 500MB large and full of software to test.
+
+mtools cannot operate on a VDI though, so I must convert it to an IMG.
+
+Just did that. Now install mtools and try it out.
+
+And it works! I need a configuration file for it, but other than that, no problems. mtools will be used from now on to perform.
+
+## Compiler
+
+GCC 9.3 is the highest that should be supported for features because I doubt there will be a newer DJGPP and I want the door to be open for that.
+
+I will build the cross compiler from source. I will use a ramdisk to make the compilation faster too. Build target will be i686.
+
+# September 8
+
+## Compiler Build
+
+Compiler is set up now and works.
+
+## Build System
+
+If we can even call it that. Just a build script that compiles all the object files. DJGPP is supposed to come with some old version of bash. I was not able to set that up, but I do need some standard way to compile things.
+
+The process is essentially:
+```
+i686-elf-gcc $ARGS -c *.c
+i686-elf-ld $LDARGS -o KERNEL.BIN
+```
+
+Inserting this into the file will be done using mtools, which is the proper tool to use.
+
+Under DJGPP, it will be necessary to copy to a boot disk or something. I am not that worried about that though.
+
+## Posix/UNIX Support?
+
+I may decide at a later time to implement a Posix-compatible interface. For this to be possible, I have to ensure that certain things are supported:
+
+- Memory mapped files
+
+I think introducing a page hooking feature should solve that problem.
+
+## Getting Bochs
+
+I may need to build bochs. The Windows version has all the right features, but I cannot easily use it from WSL.
+
+It may be a good idea to make a few changes to the bochs source code. The port E9 hack needs to direct the output to a proper log file. I do not want to have to set up a printer or COM port.
+
+The logfile can be anything I want. Just shoehorn it in there. Clear it on startup or something.
+
+## E9 Hack
+
+I found the code that deals with E9. It is a simple putchar and the output buffer is flushed. Not sure if bochs uses stderr, but I could use that instead.
+
+The syntax for filtering stderr in very nasty and I do not want to deal with that. Better to output to a file. Just a startup variable for cleaning the file and the rest is simple.
+
+It's complaining about X libraries missing. I think I will just use BOCHS.EXE since it is already configured.
+
+## Next Steps
+
+- Write the build scripts in bash
+- Write the main run script
+- Basically that is it
+
+I need to change the location of the kernel to 0xC0000000. I am abandoning the raw memory region idea and have no need for it. The bootloader will need some tweaks.
+
+> Note, the bit array allocator may not work on 64-bit.
+
+## Assembler Choice
+
+I prefer NASM, although it does not have some of the nice macros that UASM or MASM have.
+
+NASM is used by FreeDOS, so I should have no issues with that. Will port existing code.
