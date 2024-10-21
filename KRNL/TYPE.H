@@ -20,11 +20,15 @@
 
 #include <stdbool.h>
 
-/////////////////////////////////////////////////////////////////////////////
-// I n l i n e   A s s e m b l y   a n d   A s s e m b l y   L i n k a g e //
-/////////////////////////////////////////////////////////////////////////////
+#define inline_memcpy(d, s, c) __builtin_memcpy((d), (s), (c))
+#define inline_memset(d, v, c) __builtin_memset((d), (v), (c))
 
-#define NORETURN _Noreturn
+#define ASM(x) __asm__ volatile (x)
+
+#define ALIGNED(a)      __attribute__((aligned(a)))
+#define NORETURN        _Noreturn
+#define SECTION(name)   __attribute__((section(#name)))
+#define NAKED           __attribute__((naked))
 
 #define API __attribute__((cdecl))
 
@@ -68,21 +72,25 @@ typedef char  *PSIGBYTE;
 
 // Create a register that has a 32-bit/16-bit/8-bit high or low version
 #define _DWB_R(n)\
-union {\
-	LONG E##n##X;\
+struct {\
 	union {\
-		BYTE n##L;\
-		struct { BYTE :8; BYTE n##H; };\
+		LONG E##n##X;\
+		union {\
+			BYTE n##L;\
+			struct { BYTE :8; BYTE n##H; };\
+		};\
+		SHORT n##X;\
 	};\
-	SHORT n##X;\
-}
+};
 
 // Create a register that can be 16-bit or 32-bit.
 #define _DW_R(n)\
-union {\
-	LONG E##n;\
-	SHORT n;\
-}
+struct {\
+	union {\
+		LONG E##n;\
+		SHORT n;\
+	};\
+};
 
 /*******************************************************************************
 This is the standard register dump structure. It is also known as a context
@@ -104,7 +112,8 @@ When entering V86, the V86 registers are used, but should be
 accessed using the ES,DS,FS,GS,CS names since the v86 ones are a bit of an
 implementation detail.
 *******************************************************************************/
-typedef struct {
+
+typedef struct __attribute__((packed)) {
 	_DWB_R(A);
 	_DWB_R(B);
 	_DWB_R(C);
@@ -118,8 +127,8 @@ typedef struct {
 	LONG   pm_DS;
 	LONG   pm_FS;
 	LONG   pm_GS;
-	_DW_R(IP);
 
+	_DW_R(IP);
 	LONG   CS;
 	_DW_R(FLAGS);
 	_DW_R(SP);
@@ -135,3 +144,17 @@ typedef struct {
 #undef _DWB_R
 
 #endif /* TYPE_H */
+
+/*
+
+// Switch to this format.
+
+V86_HND MyHook(PSTDREGS r)
+{
+	if (AH(r) == 9) {
+		putchar(AL(r));
+	}
+	AX(r) = 3;
+}
+
+*/

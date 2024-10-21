@@ -14,3 +14,5 @@ cd KRNL
 bash 1_BUILD.SH
 bash 1_INSTL.SH $BOOTDSK
 cd ..
+
+bochs -f runconf/bochsrc.bxrc

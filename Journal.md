@@ -5775,3 +5775,458 @@ I need to change the location of the kernel to 0xC0000000. I am abandoning the r
 I prefer NASM, although it does not have some of the nice macros that UASM or MASM have.
 
 NASM is used by FreeDOS, so I should have no issues with that. Will port existing code.
+
+
+# September 9
+
+## Userspace File Caching?
+
+File caching can be highly independent from the actual filesystem. There is no need to cache directory entries or the FAT. A portable and equally performing solution is to have a high-level API that does this.
+
+I can implement the standard open/close/read/write/seek calls but using direct IO that UNIX provides or the FS functions of the FAT driver. The getdents call can also be done.
+
+Userspace caching can be faster too since there is no need to switch to the kernel if the cache is hit.
+
+Maybe I can find a benchmark and replace the file calls.
+
+The userspace controlling performance-enhancing features sounds like a good idea. System processes should not be bloating the memory on a proper OS. Why not swap out a dormant process that is right on the taskbar?
+
+Actually, this might be a bad idea.
+
+## Plans
+
+I am not far from being able to boot. I need my IO operations back to output in the console.
+
+## OS Name
+
+Seriously consider renaming it.
+
+# Septempber 11
+
+## SV86 Solution
+
+Why not just schedule a reflected IRQ and call it with INTxH? It will be slow anyway, so why not?
+
+## The Linker Script
+
+Something is wrong. Every time I use something in the BSS section, it uses address zero.
+
+Maybe the loader could be at fault?
+
+# September 12
+
+## SV86 Idea
+
+No, we are not doing that. Very bad latency and no real reason for it either.
+
+## Environment Block
+
+DOS stores the environment block in this format:
+```
+VARNAME=Thevariable\0
+```
+
+It is essentially just an array of bytes. The names of veriables are capitalized.
+
+I should provide a method of reading the boot environment block.
+
+https://jeffpar.github.io/kbarchive/kb/078/Q78542/
+
+## The Linker Script
+
+There is no reason to separate the sections in the script. I had an older version that did not do this. Need to retieve that. I had it working at one point.
+
+Unless something is wrong with the loader, and I doubt it (in which case I can fix by rolling back an older version), the linker script should be the sole cause of any issues right now.
+
+## It Works
+
+Don't know how, but it works. Now I need to try the BSS thing.
+
+Aaaaaaaand it' not. Compiler is not to blame. Only the linker can be at fault.
+
+It seems to work now that I adapted a linker script from OSDev.org. Turns out I need to specify its exact location.
+
+
+# September 13
+
+## Central Command
+
+One file will handle task switching, system entry, interrupt handling, and the basic scheduler operations. It will be written in assembly.
+
+Exceptions are the only method of system entry. The IDT will be NULL except for the exception handlers, which will differentiate and dispatch to a handler.
+
+> Use separate tables for kernel and user?
+
+Yes I will. Anything to reduce conditional branching will be faster. Kernel-mode exceptions require very different handling (it is usually a critical error).
+
+For example, the kernel probably should not trust the memory addresses provided by the user and terminate a program because the kernel accessed an invalid location. It is the kernel that is at fault.
+
+If the kernel detects anything that is problematic, it will need to get the requesting program to know this by reporting the exception through simulation. This cannot be done if the kernel decides to do it.
+
+If it the end of the handler chain the exception is not caught:
+- Kernel-initiated will cause critical system error
+- User-initiated will terminate process.
+
+The requesting program can still be terminated under the kernel though. It is obviously fatal for the program.
+
+### The Layout
+
+- Handlers for IRQs essentially the same as before
+- Each exception will pop an error code to a memory location while interrupts are OFF
+-
+
+## NULL Pointers
+
+NULL pointers not being instant errors is concerning. I believe the page fault should ensure that the entire IVT is protected as well.
+
+This can be added later.
+
+## Memory Address Translation
+
+I will need services for getting linear addresses using segment registers and offsets. This will be validated too.
+
+```
+// Returns NULL if the segment is invalid, offset is out of bounds
+// or the expected offset is.
+//
+// If expected is zero, the check is essentially skipped.
+//
+PVOID T_SegToLinear(SHORT seg, LONG off, LONG expect_max_off);
+
+BOOL T_SafePush(PSTDREGS r, LONG count, ...);
+
+```
+
+## NULL Pointers Again
+
+A page fault would be generated if there were an access to the BDA in the timer routine.
+
+## Interrupt Service Routines
+
+I will make interrupt service routines assembly-only unless thunks are used. They should NOT use stack conventions. Does it matter though?
+
+Should I?
+
+# September 14
+
+## Exception Dispatching
+
+Is there a more efficient method of dispatching exceptions?
+
+I need the error code to be removed from the stack no matter what. I also need to differentiate between the exceptions. Very few options exist.
+
+There are 32 exceptions possible. OS/90 implements only 20 (maybe support the rest?). I am thinking about a 512-byte table for dispatching, with each table entry being in 16-byte blocks.
+
+I can afford to use 512 for this purpose, but it is a lot and not totally necessary.
+
+Normally branch targets should be aligned at a high boundary so that the CPU fetches as much executable code as possible in the icache.
+
+# September 15
+
+## Next Steps
+
+I need to enter T2 somehow and have scheduling working. This requires interrupts to be recieved.
+
+For now, I can permit only IRQ#0. I do not need the other interrupts. Reflection to real mode will be very complicated and is not needed now.
+
+# Septempber 16
+
+## Getting to T2
+
+The startup procedure involves the creation of a boot thread to prevent a special case in the scheduler.
+
+To get to this point:
+- IRQ#0 must be ready to be recieved
+- I can really just ignore the rest
+- The IMR decides which interrupts have a real mode handler
+
+It is not that far away from now, although getting it to properly function will be a challenge.
+
+For now, I will use fixed task blocks since the MM is not ready.
+
+Getting into T2 continued:
+- TSS.SS0:ESP0 is irrelevant right now because we are not using ring-3.
+- Entering the initial task requires a special process
+
+To get into the first task, the stack must be switched. I cannot just let IRQ#0 fire away.
+
+As an alternative, I can also declare the initial task block in the BSS.
+
+## Problem? BSS!
+
+How does BSS actually work? The bootloader is contingent on the size of the executable.
+
+Yes, it allocates all of the memory. But it does NOT map it in.
+
+Strange. My executable seems to handle BSS just fine. It may be getting encoded into the executable.
+
+Does not appear to be the case. This is actually bad. BSS by that logic should NOT be working at all.
+
+Did I really not think of this? The only reason BSS is not totally failing is probably the page size round off. Otherwise, it will not work. Just a simple characteristic of flat binaries. BSS is 100% program-managed.
+
+Maybe check the boot code.
+
+It is a total mystery as to why this worked in the slightest.
+
+According to the Bochs debugger, a range the size of 0x100000 or 1M in size is used. Could it be because I have an array that is 32768 ints long or 128K in size?
+
+1M is ridiculous for the kernel, but it is what is happening. Now I will try without that.
+
+Once again, same thing.
+
+What is happening is that XMS is used to allocate all available memory. 1M is mapped based on the location of the kernel.
+
+Since we know the physical location of the end of the kernel image including the BSS section, there is no problem? Yes. All is good.
+
+## Scheduler
+
+I need to enable interrupts. To do that, I need ISRs. There is some existing code for this.
+
+# September 17
+
+If I turn on IRQs, nothing bad will happen. I currently have an IRQ#0 handler.
+
+## Potential Improvements
+
+IRQ#0 can be handled directly. This is essentially a must have.
+
+By doing so, I can have other means of context switching with less stack operations.
+
+For example, I can limit the number of registers actually pushed by using less.
+
+Also, I can use moves instead of pushes. The registers of the interrupted thread can be saved directly to the task block. The new context can be loaded by copying the registers and and running IRET.
+
+The problem with this is V86. I would need to know if the segments should be pushed or simply copied.
+
+For that reason, I will keep the design mostly the same, but IRQ#0 should be 100% branchless and should also not require calling anything. The IRQ dispatch logic is quite branchy and is only okay for low latency.
+
+IRQ#0 handler:
+- No branches at all (try it)
+- Aligned by 64
+- Should run in under 100 clocks on a i386.
+
+I need to make the preemption counter check somehow branchless. I think I could change the IDT entry to skip over code, but that would make the preemption counter disable interrupts, which I would like to avoid.
+
+Okay, just one branch. It will be expected that the counter is likely zero.
+
+# September 18
+
+## Scheduler Working?
+
+I ran the kernel under QEMU and Bochs. Results seem good. No critical errors. The initial thread appears to preempt correctly.
+
+The next steps:
+- Get a working printf implementation (or make one)
+- Clean up the code
+- Make multiple threads run
+
+# September 20
+
+## Task Switching
+
+Whatever I had previously was somehow rewriting the same exact context, hence why the other "thread" did not run.
+
+I changed a few things and will try to test it.
+
+# September 23
+
+## The Reason Why Scheudler Is Not Working
+
+The stacks are not actually switched. Ring-0 does not change stacks or even push the current SS:ESP.
+
+What happens is that the stack is not changed upon returning. This means that the task is unable to switch properly. That is why A prints out and then it gets stuck on B.
+
+The problem with this is that x86 is really not designed to handle this sort of thing. I cannot force it to have a IRET frame.
+
+IRET is also the only way to properly change the stack, flags, and the rest at once.
+
+It is impossible to use LSS because it would not be possible to return.
+
+So unless I do some kind of really disgusting hack, it is quite difficult to actually change the kernel stack the way I want to.
+
+## Kernel Stacks
+
+I need to leave a 4-byte gap so that the calculation works correctly I think.
+
+Maybe it is better to have variable-length stacks. The current plan does not really work with the idea of maximum reentrancy.
+
+## New Approach
+
+First of all, I will change the design to permit the use of variable length and variable location stacks.
+
+This means a single variable will contain the address of the current task.
+
+This somewhat simplifies things, but there is still the issue of how I switch stack.
+
+It is possible. Under a multitasking real mode environment like desqview it can be done, so it should be basically the same here.
+
+```
+<Save current context>
+<Switch to next task>
+<Enter the context ....>
+```
+
+I cannot use the whole use move instructions optimization because I need a register to address the task block.
+
+The sequence of events:
+- Load context into all registers but EBX
+- IRET to set flags
+- Restore EBX
+- Go to process, but we cannot!
+
+If I chang the stack pointer, I cannot get EBX back.
+
+Yes, but if I save EBX somewhere else, there is no problem.
+
+Except there is because without EBX there is no way to enter the process. Maybe I can use a push/ret.
+
+Yes, do that. Push/ret and use a memory location to store the previous value. This prevents having to do another 20 memory operations. 40 is better than 60. OFC the cache density is good, but why waste the clock cycles?
+
+## TODO
+
+- Delete everything that exists right now first.
+- Do not reuse code. Do everything with a separate branch.
+
+## Stacks Again
+
+Linux uses PAGE_SIZE*2 to determine the size of a kernel stack. Linux is a much more complicated operating system, so it needs more stack space, especially on 64-bit.
+
+Assuming the need is half for 32-bit, 4096 bytes is enough for most situations.
+
+3K can be reserved for the stack.
+
+# September 27
+
+## SV86
+
+I am getting bored of the scheduler. Closer to getting it working, but still bored, honestly.
+
+I should try SV86. It seems more fun.
+
+### Doing It
+
+First, I need to get a monitor working.
+
+I have no need for a hook or something like that. The monitor is really the only thing that needs to run when in V86. It handles #GP.
+
+Because SV86 is performance-sensitive, it makes sense to change the interrupt descriptor entirely.
+
+### Emulation of instructions
+
+IO codes will not be emulated at all. IOPL=3 will be used and all INT calls will automatically trap because of ring-0 IDT entries.
+
+The INT instruction is handled by saving a value and pushing values to the stack. The monitor exits so that the caller can decide to go in again.
+
+IRET is a monitor exit as well. It will write a different value to a global variable indicating that the last SV86 entry terminated normally and is not requesting further emulation.
+
+INTO should probably never be called.
+
+### API
+
+- LONG V86xH(BYTE, PSTDREGS)
+- VOID INTxH(BYTE, PSTDREGS)
+
+V86xH enters V86 using the supplied context. It proceeds to execute until it hits an INT. The monitor writes the vector to a variable and tat variable is returned by this function.
+
+INTxH automatically re-invokes V86xH. Using the return address on the stack, the monitor handles the job of switching control flow in the context before it exits.
+
+The algorithm is like this:
+```
+    Call V86xH
+    If it encountered an INT
+        Run it too
+            Do this in a loop
+```
+This can be done recursively and that may not be the worst idea.
+
+I should mention that INT will set up the stack btw. If the INT must be done it real mode, it will be.
+
+# September 28
+
+## SV86
+
+I should write this in assembly.
+
+## Doing It
+
+# October 1
+
+## The Plan
+
+Go back to the scheduler. I need to follow the plan.
+
+### Scheduler?
+
+I technically do not need multithreading at all to work on other components. I will still have to do it anyway, so might as well finish up.
+
+# October 9
+
+So I wrote some SV86 code last night. Will test it later.
+
+Anyway I would like to introduce a crazy idea.
+
+Putting it in another document.
+
+# October 11
+
+## Changes to Strategy
+
+The scheduler has shown to be extremely hard for some reason. I cannot seem to get it to work. Maybe SV86 is what I should focus on. Plenty of things do not need the scheduler.
+
+## Project Status
+
+For academic reasons, this project will be indefinetely suspended until further notice.
+
+In the meantime, I will carefully evaluate what projects I want to have on my portfolio and decide what to work on next.
+
+## All Projects
+
+- I __NEED__ to contribute to an open source project. I am thinking of ELKS.
+    - Try to patch the kernel and make it fully preemptible?
+    - Add shared libraries and a new executable format
+    - Port pthreads (do this first). Try to do it efficiently or something.
+        Maybe hook IRQ#0.
+
+- OS/90 of course (the magnum opus)
+    - Make videos demostrating things that work
+    - Post on YouTube, make it link-private
+
+- ATM/90, the text mode UI library of OS/90
+    - This is quite easy in general
+    - Make videos for it
+    - If you REALLY want to code, just do this
+    - Code cleanup seriously needed
+
+- The 80x50 text mode 3D renderer
+    - This 100% needs video demonstrations
+
+- Some kind of game that uses the renderer
+
+- DSL
+    - This is a VERY difficult project, perhaps harder than the OS actually, at least time-wise
+    - Do not think of this much
+
+
+# October 19
+
+## Debugging Features
+
+I should be able to output a boot long for the user. There should also be a kernel developer log level that can be a build option.
+
+For now, I think I will be fine.
+
+# October 22
+
+## DSL
+
+I do sort of wonder how necessary this is, or to what extent it needs to be developed.
+
+Will I do a full Linux VM? It is a massive undertaking. It is actually a better idea to implement the Linux layer as part of OS/90, either in a driver or the kernel.
+
+This would make most features way more functional. mmap can actually work efficiently. Multitasking does not need to interfere with the rest of the system.
+
+That requires a working OS/90 system. That is far from happening right now, but I really need to start working harder on it.
+
+## SV86
+
+I need to set up the #GP handler.

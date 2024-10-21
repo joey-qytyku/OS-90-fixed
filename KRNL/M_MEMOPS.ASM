@@ -6,7 +6,7 @@ global  M_fast_memset2
 
 section .text
 
-	align   64
+	align   32
 M_fast_memcpy:
 	cld
 	mov     eax,ecx
@@ -17,7 +17,7 @@ M_fast_memcpy:
 	rep     movsb
 	ret
 
-	align   64
+	align   32
 M_fast_memset:
 	cld
 	imul    eax,eax,1010101h
@@ -31,7 +31,7 @@ M_fast_memset:
 	rep     stosb
 	ret
 
-	align   64
+	align   32
 M_fast_memzero:
 	cld
 	xor     eax,eax

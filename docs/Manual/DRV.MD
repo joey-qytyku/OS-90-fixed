@@ -6,12 +6,6 @@ OS/90 drivers use the file extension `.RSX`, which means "resident system extens
 
 # Call Mechanism
 
-> Should I reconsider the permanent HMA? Perhaps.
-
-Example code used to describe code in previous section is NOT CORRECT FOR DRIVERS! OS/90 uses a function pointer table with the address defined as a `static const` pointer which is at a fixed address in the HMA.
-
-Hooking should always be logged to diagnose problems.
-
 # Events
 
 Drivers use a global event system. Any driver can post an event and all drivers must respond. This is done IN ORDER unless otherwise specified.
@@ -23,13 +17,25 @@ Drivers are identified by name in all interfaces exposed to them that permit com
 Most of the events are not required for ordinary system operation and are there to allow for drivers to behave more optimally using certain features too complex to develop an entire API for. For example, we can handle APM or PnP events related to laptop lids or low-power states. Some are purely advisory and have no specific condition to be sent.
 
 ```
+// This is more up-to-date right now.
 enum {
 	GE_LOAD = 0,
 	GE_UNLOAD,
 	GE_DRV_ENABLE,
 	GE_DRV_DISABLE,
-	GE_ENTER_KCP,
-	GE_EXIT_KCP,
+
+	// A DOS VM instance wants to change the vector of an IRQ.
+	// A virtual device driver should respond to this if interrupts must be simulated.
+	//
+	// Interrupts cannot go directly.
+	//
+	GE_SOFTWARE_WANTS_IRQ,
+
+	//
+	// A DOS VM has terminated and it happened to control the IRQ lines
+	// specified by the mask.
+	//
+	GE_IRQ_HOOKER_DONE,
 
 	// Rest are optional
 
@@ -41,7 +47,6 @@ enum {
 	GE_DOCK,
 	GE_UNDOCK,
 	GE_MEMORY_LOW,
-	GE_SWAP_LOW,
 	GE_SUBSYS_WANTS_DEV,
 	GE_SUBSYS_RELEASE_DEV
 };
@@ -75,20 +80,4 @@ typedef struct {
 }EVENT_BLOCK,*PEVENT_BLOCK;
 ```
 
-```c
-
-VOID EntryPoint(PEVENT_BLOCK e)
-{
-	switch (e->code)
-	{
-		case GE_LOAD:
-			// Load stuff
-		break;
-		case GE_
-	}
-}
-```
-
 Cancellation prevents any other driver from receiving this event. This only works for non-required signals. Attempting to cancel a required event code will do nothing.
-
-> Can I add filtering to the events? Allow driver to exclude another driver or prevent the event from being further handled? For example, the low memory thing could cause one driver to do enough to free memory that the others should run fine. This would lead to wasted code, however, since only the first one would actually do it. This feature is fine, but should only be conditional and cannot be allowed for certain events.

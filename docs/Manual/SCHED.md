@@ -176,7 +176,7 @@ About:
 
 ### S_TaskInKernel
 
-Returns 1 if the task is in kernel mode. Redundant for the current task because it obviously is in the kernel if it is calling this.
+Returns 1 if the task is in kernel mode and active. Redundant for the current task because it obviously is in the kernel if it is calling this.
 
 ### S_Terminate
 
@@ -186,21 +186,16 @@ Terminates any task and deallocates the task block. Do not use on current kernel
 
 - VOID S_PreemptOff(VOID)
 - VOID S_PreemptOn(VOID)
-- VOID S_IntsOn(VOID)
-- VOID S_IntsOff(VOID)
 
 ### S_PreemptOn, S_PreemptOff
 
-Enable or disable preemption while the current task remains current. Count is maintained. This can be used to enter critical sections with only voluntary preemption.
-This was added in order to make contexts truly self-containing without limiting the capabilities of the scheduler.
+Enable or disable preemption while the current task remains current. Count is maintained.
 
-### S_IntsOn, S_IntsOff
-
-Tasks maintain an interrupt counter as with preemption. This allows a task to run with interrupts off. The yield operation is fully working, which makes it possible to hold locks within T0 so long as the standard ones are used.
-
-> NEVER use CLI or STI unless you are ready to run code as if it were TI, since anything that acquires locks or is intended to be multithreaded will CRASH THE WHOLE SYSTEM.
+Do not call anything that yields.
 
 ### VOID S_WaitForExitKernel(PTASK task, HEXIT_KERNEL h)
+
+> Is this possible or necessary?
 
 This function will wait for another thread to not be in the kernel and the function pointer is called when true. The handler is not an instant event and has significant latency.
 

@@ -117,29 +117,37 @@ ConfPIC macro
 	; Industry standard architecture uses edge triggered interrupts
 	; 8-BYTE interrupt vectors are default (ICW[:2] = 0)
 	; which is correct for protected mode.
-
+	jmp     $+2
 	;ICW1 to both PIC's
 	mov     AL,(ICW1 or ICW1_ICW4) ;;;;
 	out     20h,al
+	jmp     $+2
 	out     0A0h,al
+	jmp     $+2
 
 	;Set base interrupt vectors
 	mov     al,IRQ_BASE
 	out     21h,al
+	jmp     $+2
 	mov     al,IRQ_BASE+8
 	out     0A1h,al
+	jmp     $+2
 
 	;ICW3, set cascade
 	mov     AL,4        ; For master it is a bit mask
 	out     21h,AL
+	jmp     $+2
 	mov     AL,2        ; For slave it is an INDEX
 	out     0A1h,AL
+	jmp     $+2
 
 	;Send ICW4
 	mov     AL,ICW4_8086
 	out     21h,AL
+	jmp     $+2
 	mov     AL,ICW4_8086 or ICW4_SLAVE ; Assert PIC2 is slave
 	out     0A1h,AL
+	jmp     $+2
 
 	; Rewrite mask register with mask on stack
 	call    SetIrqMask

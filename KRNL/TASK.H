@@ -16,10 +16,6 @@
 #ifndef TASK_H
 #define TASK_H
 
-#include "stdregs.h"
-
-#define SUBSYS_BLOCK_SIZE 28
-
 typedef VOID (*KTHREAD_PROC)(PVOID);
 
 typedef BOOL (*T0_TASK_PREHOOK)(STDREGS*);
@@ -30,24 +26,19 @@ typedef VOID (*T2_TASK_EXITHOOK)(STDREGS*);
 
 typedef VOID (*T2_TASK_HND_EXCEPTION)(LONG, LONG);
 
-typedef struct Task_ {
+typedef __attribute__((packed)) struct Task_ {
 	STDREGS regs;
 	PVOID   _next;
 	PVOID   _prev;
 	SHORT   _time_slices;
 	SHORT   _counter;
 	LONG    flags;
-	LONG    preempt;
-	LONG    cli_count;
-	BYTE    subsystem[8];
 
 	T0_TASK_PREHOOK pre;
 	T0_TASK_POSTHOOK post;
 	T2_TASK_EXITHOOK onexit;
 
 	char name[8]; // Need this? I guess for debugging.
-
-	BYTE    _subsystem_block[SUBSYS_BLOCK_SIZE];
 }TASK, *PTASK;
 
 #define TFLAG_MASK 0b111
@@ -92,18 +83,11 @@ pre,post,onexit:        These are scheduler hooks. Scheduler hooks can be
 
 			Note that `onexit` is called within a preemptible context.
 			The rest are atomic.
-
-preempt:                The preemption counter was once a global atomic variable
-			that blocked preemption when nonzero, but was made
-			task-local. This is because a thread that has preemption
-			disabled should be able to swith to another without
-			carrying over the same preemption state.
-
-cli_count:              Same idea as preemption but for IRQs too.
 *******************************************************************************/
 
 static inline PTASK GET_CURRENT_TASK(VOID)
 {
+	register LONG _ESP __asm__("esp");
 	return (PTASK)(_ESP & (~4095));
 }
 

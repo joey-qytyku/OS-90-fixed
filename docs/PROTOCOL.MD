@@ -13,4 +13,4 @@ The rules are:
 
 - Features are cringe. They exponentially increase development time and should be added sparingly with a very good reason to do so.
 
-- Use C until there is clear evidence that assembly is better.
+- Use C unless assembly is better.

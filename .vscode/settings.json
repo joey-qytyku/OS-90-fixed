@@ -61,9 +61,6 @@
         "bios.h": "c",
         "driverheader.h": "c",
         "scdebug.h": "c",
-        "PRINTF.C": "cpp",
-        "PRINTF.H": "cpp",
-        "SCHED.C": "cpp",
         "sched.h": "c",
         "stdbool.h": "c",
         "contexts.h": "c",
@@ -81,14 +78,8 @@
         "bitset": "c",
         "algorithm": "c"
 },
-    "folder-color.pathColors": [
-        {
-            "folderPath": "os90/kernel/src/implement/",
-            "color": "foldercolorizer.DarkViolet"
-        }
-    ],
-"C_Cpp.default.compilerPath": "/home/joey/opt/cross1/bin/i386-linux-gcc",
 "files.encoding": "cp437",
-"C_Cpp.errorSquiggles": "disabled",
-"editor.wordWrap": "off",
+"editor.wordWrap": "wordWrapColumn",
+"workbench.editor.wrapTabs": true,
+"editor.wordWrapColumn": 80,
 }

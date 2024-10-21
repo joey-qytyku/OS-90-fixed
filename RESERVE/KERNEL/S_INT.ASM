@@ -92,7 +92,7 @@ Restore MACRO
 
         .CODE
 
-        align   32
+        align   64
 EXC_0:  push    0
 EXC_1:  push    1
 EXC_2:  push    2
@@ -332,6 +332,50 @@ SetStage2ISR:
         mov     [stage2_isr_list+eax*4],eax
         ret
 
+RemapPIC:
+	call    GetIrqMask
+	push    eax
+	; Different bits tell OCWs and ICWs appart in CMD port
+	; Industry standard architecture uses edge triggered interrupts
+	; 8-BYTE interrupt vectors are default (ICW[:2] = 0)
+	; which is correct for protected mode.
+	jmp     $+2
+	;ICW1 to both PIC's
+	mov     AL,(ICW1 or ICW1_ICW4) ;;;;
+	out     20h,al
+	jmp     $+2
+	out     0A0h,al
+	jmp     $+2
+
+	;Set base interrupt vectors
+	mov     al,IRQ_BASE
+	out     21h,al
+	jmp     $+2
+	mov     al,IRQ_BASE+8
+	out     0A1h,al
+	jmp     $+2
+
+	;ICW3, set cascade
+	mov     AL,4        ; For master it is a bit mask
+	out     21h,AL
+	jmp     $+2
+	mov     AL,2        ; For slave it is an INDEX
+	out     0A1h,AL
+	jmp     $+2
+
+	;Send ICW4
+	mov     AL,ICW4_8086
+	out     21h,AL
+	jmp     $+2
+	mov     AL,ICW4_8086 or ICW4_SLAVE ; Assert PIC2 is slave
+	out     0A1h,AL
+	jmp     $+2
+
+	; Rewrite mask register with mask on stack
+	call    SetIrqMask
+
+        ret     4
+
         align   64
 ;อออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออออ
 ; Handler for IRQ0. TODO update time in BDA.
@@ -435,15 +479,7 @@ stage2_isr_list:
         DD      0,0,0,0,0
         DD      0,0,0,0,0
 
-IDT_INFO:
-        DW      2048
-        DD      IDT
-
         .DATA?
-
-        align   16
-IDT:
-        DB      2048 DUP(?)
 
 preempt_count RESD 0
 
