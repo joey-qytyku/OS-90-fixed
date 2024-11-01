@@ -3,24 +3,72 @@
 
 #include <stddef.h>
 
-// TODO copy from other project
+extern int      M_fast_memcpy_,
+		M_fast_memset_,
+		M_fast_memzero_,
+		M_fast_memset2_;
 
-void M_fast_memcpy_(void * __restrict to, void * __restrict from, size_t size);
-// #pragma aux M_fast_memcpy       parm   [EDI] [ESI] [ECX]\
-// 				modify [EAX EDI ESI ECX];
+// REMEMBER THE CLOBBERS!!
+// Honestly, I should probably save the registers.
+// Loops will probably need the registers
+// For now, no.
 
-void M_fast_memset_();
-// #pragma aux M_fast_memset       parm   [EDI] [EAX] [ECX] \
-// 				modify [EDI EAX EBX ECX];
+__attribute__((always_inline))
+static inline void M_fast_memcpy(
+	void * __restrict to,
+	void * __restrict from,
+	size_t size)
+{
+	__asm__ volatile(
+		"call M_fast_memcpy_"
+		:
+		: "D" (to), "S" (from), "c" (size)
+		: "edi", "esi", "ecx", "memory", "cc"
+	);
+}
 
-void M_fast_memzero_(void *buff, size_t size);
-// #pragma aux M_fast_memzero      parm   [EDI] [ECX] \
-// 				modify [EAX EBX ECX EDI];
+__attribute__((always_inline))
+static inline void M_fast_memzero(
+	void *buff,
+	size_t size)
+{
+	__asm__ volatile(
+		"call M_fast_memzero_"
+		:
+		:"D"(buff),"c"(size)
+		:"memory","eax","ecx","edi","cc"
+	);
+} // GOOD
 
-void M_fast_memset2_(void *buff, int val, size_t words);
-// #pragma aux M_fast_memset2      parm   [EDI] [EAX] [ECX] \
-// 				modify [EAX EBX ECX EDI];
+//
+// This does NOT work 100% like stdlib memset.
+//
+__attribute__((always_inline))
+static inline void M_fast_memset(
+	void *buff,
+	int val,
+	size_t size)
+{
+	__asm__ volatile(
+		"call M_fast_memset_"
+		:
+		:"a"(val), "D"(buff),"c"(size)
+		:"memory","cc"
+	);
+} // GOOD
 
-
+__attribute__((always_inline))
+static inline void M_fast_memset2(
+	void *buff,
+	int val,
+	size_t size)
+{
+	__asm__ volatile(
+		"call M_fast_memset2_"
+		:
+		:"a"(val), "D"(buff),"c"(size)
+		:"memory","cc"
+	);
+} // GOOD
 
 #endif /* MEMOPS_H */

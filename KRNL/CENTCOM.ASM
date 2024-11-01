@@ -3,7 +3,7 @@ extern TSS
 global EXC_0
 
 global EXC_0, ISR_15, ISR_7, ISR_REST, IRQ0, RemapPIC, SetIrqMask
-global V86_Monitor
+global V86_Monitor, INTxH, V86xH
 
 	_EAX    EQU 0   * 4
 	_EBX    EQU 1   * 4
@@ -121,16 +121,28 @@ Exc_nocode 19
 
         align   16
 EXC_CONT:
+        mov     eax,10h
+        mov     ds,ax
+        mov     es,ax
+
         ; If the stage-2 handler is written in assembly, it can use EDX
         ; to access the saved registers.
 
         mov     edx,esp
-        mov     ebx,[EXC_CODE]
+        pop     ebx             ; Pop exception index from the stack.
+
+        ; Is EBX actually what I think it is?
+        ; Is it an error code?
+        ; No the errcode is pushed out and the stack contains the index.
 
         ; Interrupts are currently off, enable
-        sti
+        ; I think the handler should enable manually, TBH.
+        ; sti
 
+        xchg    bx,bx
+        push    edx
         call    [handler_table+ebx*4]
+
         Restore
         iret
 
@@ -138,8 +150,9 @@ EXC_CONT:
 EXC_CODE DD 0
 
         align 4
+        ; Set the handler? It is not set!
 handler_table:
-        DD 0 times 20
+        times 20 DD 0
 
 ;============================================================================
 ; IRQ Related Routines
@@ -362,6 +375,13 @@ RemapPIC:
 ;
         align   64
 IRQ0:
+        ; Currently testing V86, this will do nothing ATM.
+        push    eax
+        mov     al,20h
+        out     20h,al
+        pop     eax
+        iret
+
         ; Fixed, used to be 7
         test    dword [ss:esp+4],3
         jz      SWITCH_FROM_R0
@@ -385,7 +405,7 @@ SWITCH_FROM_R0:
         mov     ds,ebx
         mov     es,ebx
 
-        ; This is where I would do the scheduling stuff
+        ; This is where I would do the scheduling stuff?
 
         mov     ebx,esp
         and     ebx,~4095
@@ -492,15 +512,22 @@ S_Deactivate:
 
 ; CDECL saved: EBX, ESI, EDI, EBP
 
-V86xH: ;BYTE v, PSTDREGS r
+        ; Later, I will need to change it.
+        ; Hooks cannot really work like this.
+        ; I will have to pass the CS:IP.
+        ; Or I get it from the STDREGS. Yes.
+
+        ; Are my IRQ vectors set properly?
+
+V86xH: ;PSTDREGS r
+        xchg    bx,bx
         inc     dword [preempt_count]
         mov     [saved_ebx],ebx
-        mov     [saved_ebp],esi
-        mov     [saved_ebp],edi
+        mov     [saved_esi],esi
+        mov     [saved_edi],edi
         mov     [saved_ebp],ebp
 
         mov     ebx,[esp+4]     ; stdregs ptr
-        mov     esi,[esp+8]     ; vector
 
         mov     [saved_regbuffptr],ebx
 
@@ -509,20 +536,21 @@ V86xH: ;BYTE v, PSTDREGS r
         shl     edi,4
         add     edi,[ebx+_ESP]
 
-        shl     esi,2
-
         std
 
         ; Push FLAGS. It will be loaded.
         movzx   eax,word [ebx+_EFLAGS]
-        lodsw
+        stosw
 
         ; CS
         movzx   eax,word [ebx+_CS]
-        lodsw
+        stosw
 
         ; IP
-        mov     eax,word [ebx+_EIP]
+        movzx   eax,word [ebx+_EIP]
+        stosw
+
+        ; Breaks here.....
 
         ; Update ESP value accurately
         add     dword [ebx+_ESP],6
@@ -540,10 +568,13 @@ V86xH: ;BYTE v, PSTDREGS r
 
         ; Set the SS0:ESP0 in the TSS. This is the stack pointer we want to have
         ; when an exception hits. SS0 is always 0x10, so no need to set it.
+        mov     word [TSS+8], 10h
         mov     [TSS+4],esp
 
         ; Save the current #GP handler, we will just change it
-        push    dword [handler_table+0Dh*4]
+        push    dword [handler_table+(0Dh*4)]
+
+        mov     dword [handler_table+(0Dh)*4],V86_Monitor
 
         ; Now we will push to our stack an IRET frame that will enter SV86.
         ; These will be pushed off and totally discarded later.
@@ -557,11 +588,14 @@ V86xH: ;BYTE v, PSTDREGS r
         ; more than one time. This makes sense. After a real INT, the CPU
         ; will preserve the register, so yes we set it and save it.
 
+        push    dword [ebx+_SS]
         push    dword [ebx+_ESP]
         push    dword [ebx+_EFLAGS]
         or      dword [esp],(1<<17)|(3<<12)     ; VM=1, IOPL=3
         push    dword [ebx+_CS]
         push    dword [ebx+_EIP]
+
+        ; Check here first
 
         ; Load registers
         mov     eax,[ebx+_EAX]
@@ -579,9 +613,9 @@ V86xH: ;BYTE v, PSTDREGS r
         ; Before IRET, it already set EAX appropriately.
 V86_CONT_POINT:
         ; Restore the handler
-        pop     [handler_table+0Dh*4]
+        pop     dword [handler_table+0Dh*4]
 
-        dec     dword [int_level]
+        dec     dword [int_level] ; TODO remove?
 
         ; Restore the callee-saved registers
         mov     ebx,[saved_ebx]
@@ -590,7 +624,6 @@ V86_CONT_POINT:
         mov     ebp,[saved_ebp]
 
 	ret
-        ; Need an int level counter?
 
 INTxH:
         ret
@@ -600,8 +633,10 @@ INTxH:
 ; EDX points to the STDREGS.
 ;
 V86_Monitor:
-        mov     ebx,[eax+_EIP]
-	movzx   eax,word [esp+_CS]
+        ; NOTE, DO NOT PUSH ANYTHING WITHOUT POPPING BEFORE .END
+        xchg bx,bx
+        mov     ebx,[edx+_EIP]
+	movzx   eax,word [edx+_CS]
         shl     eax,4
         add     ebx,eax
 
@@ -609,7 +644,7 @@ V86_Monitor:
 
         movzx   eax,byte[ebx]
 
-        cmp     al,0CDh         ; Is it INTxH
+        cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
 
         ;
@@ -661,18 +696,64 @@ V86_Monitor:
         cmp     al,0CFh ; Is it iret?
         jnz     .not_iret
 
-        ;
-        ; Pop FLAGS, CS, and IP from the stack.
-        ;
-        jmp $
+        ; IRET is:
+        ; Pop IP, CS, and EFLAGS
+
+        mov     esi,[edx+_ESP]
+        mov     ebx,[edx+_SS]
+        shl     ebx,4
+        add     esi,ebx
+
+        xor     eax,eax
+
+        std
+        lodsw
+        mov     word [edx+_EIP],ax
+        lodsw
+        mov     word [edx+_CS],ax
+        lodsw
+        mov     word [edx+_EFLAGS],ax
+
+        add     word [edx+_ESP],6
 
         jmp     .end
 
 .not_iret:
-
+        mov     eax,8086DEADh
+        xchg bx,bx
         jmp $ ;;;;;;;;;;;;;;
+
 .end:
-        ret
+        ; To exit the monitor, we must continue ring-0 execution at the
+        ; remaining code of V86xH. The problem is that the context pointed to
+        ; at EDX needs to be propagated in the STDREGS argument and we cannot
+        ; change it right now.
+
+        ; Currently, the stack space used by V86xH initially is cleaned
+        ; and reflects what it contained before it pushed anything, or at the
+        ; start of the function minus any epilogue (there isnt one, a save
+        ; buffer was used for EBP).
+        ;
+        ; To be safe, currently using saved_regbuffptr in case code changes.
+        ; Future note: the current GP handler is saved on stack of V86xH.
+        ;
+
+        ; Copy results back into V86xH argument using saved_regbuffptr as the
+        ; argument.
+        cld
+        mov     esi,edx
+        mov     edi,[saved_regbuffptr]
+        mov     ecx,20
+        rep     movsd
+
+        ; Now we will tear down the stack and go straight into the rzero context
+        ; of V86xH to continue.
+        ; No IRET is needed.
+        add     esp,(20*4)+4    ; Clear out return value and STDREGS
+        ; Indicate
+        jmp     V86_CONT_POINT
+
+        ; No return, that is it.
 
 section .bss
 

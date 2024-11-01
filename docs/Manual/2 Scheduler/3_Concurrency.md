@@ -6,11 +6,18 @@ All memory pages are locked in OS/90 by default. Ensure that locked memory is us
 
 API descriptions should describe the virtual memory safety. If locked memory must be used, such a fact will be specified. Changing page properties of any sort on pointers returned is usually illegal, especially if a constant pointer is returned.
 
-- Locked pages must be used for all kernel stacks and interrupt service routines.
+- Never lock or unlock a page that is not allocated by the memory API, especially real mode memory, as this can interfere with thread safety.
+
+- Never hold a lock within an ISR ever, or use any other primitive. You may test a lock, however, though caution is advised.
+
+- Never hold a lock in T0 or T1.
+
+- Never yield in T0 or T1.
+
+- Locked pages must be used for all kernel stacks and interrupt service routines. Never unlock such pages.
+
 - Atomic data structures such as locks must always exist on locked pages. (RATIONALE NEEDED)
+	- The rationale is that a page fault handler will run in a preemptible context and there is no guarantee that the lock will behave properly because the access is deffered and the lock could possbly be accessed by an exception handler.
 - Only functions capable of running in a certain Tx should be used in a given context.
-- Never hold a lock within an ISR ever, or use any other primitive.
-- T1 and T2 are quite interchangable due to yield semantics, but not always. Check the CT of every callback.
-- Any user-provided atomics must call S_Yield somewhere. They must work in T0, T1, and T2.
 
-
+- Any user-provided atomics must call S_Yield somewhere.

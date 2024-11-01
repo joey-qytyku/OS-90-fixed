@@ -17,6 +17,34 @@
 #include "Z_IO.H"
 #include "TASK.H"
 
+#include "SV86.H"
+
+struct tss
+{
+	LONG back_link;
+	LONG esp0;
+	LONG ss0;
+	LONG esp1;
+	LONG ss1;
+	LONG esp2;
+	LONG ss2;
+	LONG cr3;
+	LONG eip;
+	LONG eflags;
+	LONG eax, ecx, edx, ebx;
+	LONG esp, ebp, esi, edi;
+	LONG es;
+	LONG cs;
+	LONG ss;
+	LONG ds;
+	LONG fs;
+	LONG gs;
+	LONG ldt;
+	LONG trace;
+	LONG bitmap_base;
+	BYTE bitmap[8192];
+}__attribute__((packed));
+
 typedef struct __attribute__((packed)) {
 	SHORT   limit;
 	LONG    base;
@@ -35,21 +63,22 @@ extern char ISR_15, ISR_7, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
-// SOMETHING IS TERRIBLY WRONG WITH BSS
-
 // NULL
 // CSEG
 // DSEG
 // TSS
 // LDT
 //
-//
 SEGMENT_DESCRIPTOR gdt[8];
 SEGMENT_DESCRIPTOR ldt[128];
-BYTE tss[104];
 
-ALIGNED(64)
-IDT_ENTRY idt[2048];
+// V86 is special and requires an IOPB ALONE to dictate
+// if it should be direct.
+// We have an allow bitmap for that and setting the IOPB base
+// to something else denies all.
+struct tss TSS;
+
+ALIGNED(64) IDT_ENTRY idt[2048];
 
 // Base is wrong?
 DESC_TAB_REG gdtr = {63,   (LONG)&gdt};
@@ -69,7 +98,7 @@ static VOID SetIsr(PBYTE addr, BYTE i)
 	idt[i].access = 0b10001110;
 }
 
-static VOID DoTheThings(VOID)
+static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 {
 	static const BYTE access_cseg = 0x9A;
 	static const BYTE access_dseg = 0x92;
@@ -92,8 +121,8 @@ static VOID DoTheThings(VOID)
 	);
 	L_SegmentCreate(
 		0x18,
-		(LONG)&tss,
-		103,
+		(LONG)&TSS,
+		sizeof(TSS)-1,
 		access_tss,
 		0x40
 	);
@@ -105,6 +134,7 @@ static VOID DoTheThings(VOID)
 		0
 	);
 
+	// Technically only 20 are supported ATM.
 	for (LONG i = 0; i < 32; i++) {
 		SetIsr(&EXC_0 + i*16, i);
 	}
@@ -124,28 +154,32 @@ static VOID DoTheThings(VOID)
 	SetIsr(&ISR_7, 0xA7);
 	SetIsr(&ISR_15, 0xAF);
 
-	// Note: LTR marks busy. Does it matter though?
-	ASM(
-		"lidt idtr;"
-		"lgdt gdtr;"
-		"mov $0x20,%ax;"
-		"lldt %ax;"
-		"mov $0x18,%ax;"
-		"ltr %ax;"
-		"mov $0x10,%ax;"
-		"mov %ax,%ds;"
-		"mov %ax,%es;"
-		"mov %ax,%ss;"
+	TSS.bitmap_base = __builtin_offsetof(struct tss, bitmap);
 
-		"xor %ax,%ax;"
-		"mov %ax,%fs;"
-		"mov %ax,%gs;"
+	// Note: LTR marks busy. This does not matter because we never enter
+	// task state segments anyway.
+	__asm__ volatile(
+		"lidt idtr\n"
+		"lgdt gdtr\n"
+		"mov $0x20,%%ax\n"
+		"lldt %%ax\n"
+		"mov $0x18,%%ax\n"
+		"ltr %%ax\n"
+		"mov $0x10,%%ax\n"
+		"mov %%ax,%%ds\n"
+		"mov %%ax,%%es\n"
+		"mov %%ax,%%ss\n"
+
+		"xor %%ax,%%ax\n"
+		"mov %%ax,%%fs\n"
+		"mov %%ax,%%gs\n"
 		"jmpl $0x8,$cont__;"
 		"cont__:"
-	:::"memory","ax"); // Do not forget LTR
+		:::"memory","ax"
+	);
 }
 
-static VOID ConfigurePIT()
+static VOID ConfigurePIT(VOID)
 {
     const BYTE count[2] = {0xB0, 0x4};
 
@@ -156,30 +190,17 @@ static VOID ConfigurePIT()
 
 static void pc(char c)
 {
-	outb(0xE9, c);
-}
-
-// The stack pointer seems wrong?
-static VOID _Noreturn OtherThread(VOID)
-{
-	// __asm__("xchgw %bx,%bx");
-	// __asm__("cli");
-	// FuncPrintf(pc, "[%x]\n", init_thread.regs.ESP);
-	// FuncPrintf(pc, "[%x]\n", init_thread.regs.EIP);
-	// FuncPrintf(pc, "[%x]\n", init_thread.regs.ESP);
-
-	while (1) {
-		outb(0xE9, 'B');
-		// __asm__(
-		// 	"movl $0x8000000A,%eax;"
-		// 	"movl $0x88000000,%ebx;"
-		// 	"movl $0x88800000,%ecx;"
-		// 	"movl $0x88880000,%edx;"
-		// 	"movl $0x80000000,%esi;"
-		// 	"movl $0x80000000,%edi;"
-		// 	// "xchgw %bx,%bx"
-		// );
-	}
+	// outb(0xE9, c);
+	STDREGS r = {
+		.AH = 0xE,
+		.AL = 0x41,
+		.EBX = 0,
+		.EIP = IVT[0x10].ip,
+		.CS  = IVT[0x10].cs,
+		.SS = 0x9000,
+		.ESP = 2048
+	};
+	LONG v = V86xH(&r);
 }
 
 // Why do I not hit more than one breakpoint?
@@ -195,54 +216,26 @@ That means if I am in ring-0, I should NOT
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-VOID _Noreturn KernelMain(VOID)
+VOID NORETURN KernelMain(VOID)
 {
 	// Zero BSS first, important
 
-	__builtin_memset(&END_DATA, 0, &BSS_SIZE);
+	inline_memset(&END_DATA, 0, &BSS_SIZE);
 
-	DoTheThings();
+	Gdt_Ldt_Idt_Tss_Tr();
 
 	ConfigurePIT();
 
 	RemapPIC();
 
-	init_thread._prev = &other_thread;
-	init_thread._next = &other_thread;
-	init_thread.regs.CS = 0x8;
+	// This is NOT WORKING
+	// Is stdregs correct?
+	FuncPrintf(&pc, "Hello, world\n\r");
 
-	other_thread._next = &init_thread;
-	other_thread._prev = &init_thread;
-
-	other_thread.regs.EAX=0x8086AA55;
-	other_thread.regs.CS = 0x8;
-	other_thread.regs.EIP = (LONG)&OtherThread;
-	other_thread.regs.pm_ES  = 0x10;
-	other_thread.regs.SS  = 0x10;
-	other_thread.regs.ESP = ((PVOID)&other_thread) + 4096-4;
-	other_thread.regs.pm_DS  = 0x10;
-	other_thread.regs.EFLAGS = 1<<9;
-
-	ASM("sti":::"memory");
-
-	while (1) {
-		outb(0xE9, 'A');
-		outb(0xE9, '\n');
-		__asm__(
-			"movl $0x8000000A,%eax;"
-			"movl $0x88000000,%ebx;"
-			"movl $0x88800000,%ecx;"
-			"movl $0x88880000,%edx;"
-			"movl $0x80000000,%esi;"
-			"movl $0x80000000,%edi;"
-			// "xchgw %bx,%bx"
-		:::"memory");
-	}
+	__asm__ volatile("jmp .":::"memory");
 }
 
-NORETURN
-NAKED
-SECTION(.init)
+__attribute__(( noreturn, naked, section(".init") ))
 VOID EntryPoint(VOID)
 {
 	__asm__ volatile ("movl $(init_thread+4096), %esp");

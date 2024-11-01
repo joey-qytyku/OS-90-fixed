@@ -35,7 +35,7 @@ Making the JFT actually local is not useful and makes it harder to perform IO fr
 
 OS/90 considers the JFT to be global. It is resized to 255 handles. Creating new programs will not change the JFT references.
 
-Wait, what? How do I decide the location of the JFT.
+Each PSP has an address to the JFT and it does not have to be the default one, which keeps compatibility.
 
 The JFT's first entries are:
 - stdin (0)
@@ -74,7 +74,7 @@ DOS esentially executes programs like a stack. This is the PSP of the task that 
 
 ### Segment of First Byte
 
-Segments
+DOS programs are totally contigious in memory upon initial execution.
 
 ## System File Table
 
@@ -94,7 +94,7 @@ OS/90 uses a single address space for DOS. The conventional memory is unpagable 
 
 The memory manager of DOS is used. Best fit allocation strategy is used.
 
-Conventional memory is deliberately underreported. The invocation function takes the number of kilobytes to permit the program to allocate (not immediately). If the program is a `.COM`, it normally would need the entire conventional memory but this not possible, so allocated memory on startup is restricted to about
+Conventional memory is deliberately underreported. The invocation function takes the number of kilobytes to permit the program to allocate (not immediately). If the program is a `.COM`, it normally would need the entire conventional memory but this not possible, so allocated memory on startup is restricted to the size of the COM file.
 
 ## XMS Emulation
 
@@ -190,8 +190,6 @@ DPMI recognizes the following attributes of extended memory, reported by functio
 
 OS/90 does NOT report swap space to the program. It is none of its business. Swap space is virtual memory and reports as regular allocatable pages.
 
-
-
 # Microsoft Extensions
 
 OS/90 supports extensions for DOS as specified by leaked Microsoft documents, which should permit running 16-bit Windows under it. This permits protected mode to call 16-bit real mode functions.
@@ -263,7 +261,7 @@ Each program has its own environment. The size must be adjusted.
 
 There are currently no plans to support VDS. Programs that use DPMI usually allocate their own memory for it, generally conventional. Windows has a VxD for simulating DMA. OS/90 has a driver for emulating DMA as well, with partially arbitrated access.
 
-There is little need for this interface. As far as I know, few programs ever used it. OS/90 also allows drivers to allocate DMA buffers easily using the zone system.
+There is little need for this interface. As far as I know, few programs ever used it.
 
 ## DOS Protected Mode Services (DPMS)
 

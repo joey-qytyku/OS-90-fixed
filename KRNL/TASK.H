@@ -91,12 +91,12 @@ static inline PTASK GET_CURRENT_TASK(VOID)
 	return (PTASK)(_ESP & (~4095));
 }
 
-VOID  S_Terminate(PTASK pt);
-VOID  S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args);
-PTASK S_NewTask(VOID);
-VOID  S_Yield(VOID);
-VOID  S_Sched(PTASK pt);
-VOID  S_Deactivate(PTASK pt);
-VOID  S_SelfTerminate(VOID);
+// VOID  S_Terminate(PTASK pt);
+// VOID  S_ExecKernelThread(KTHREAD_PROC kp, PVOID pass_args);
+// PTASK S_NewTask(VOID);
+// VOID  S_Yield(VOID);
+// VOID  S_Sched(PTASK pt);
+// VOID  S_Deactivate(PTASK pt);
+// VOID  S_SelfTerminate(VOID);
 
 #endif /* TASK_H */

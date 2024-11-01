@@ -130,7 +130,7 @@ I will support all syscalls that I can. The version reported can be a choice.
 
 It is not currently known what software will be able to run. A full distribution may not be practical as anything related to the kernel will probably not work.
 
-Alpine Linux may be a good candidate since it is used for Docker. Maybe someone can install Gentoo on it?
+Alpine Linux may be a good candidate since it is used for Docker. Maybe someone can install Gentoo on it? Nah.
 
 # Technical Details
 

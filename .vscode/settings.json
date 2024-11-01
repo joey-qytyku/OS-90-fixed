@@ -76,8 +76,13 @@
         "sv86.h": "c",
         "hash_map": "c",
         "bitset": "c",
-        "algorithm": "c"
-},
+        "algorithm": "c",
+        "L_SEGMNT.C": "cpp",
+        "L_SEGMNT.H": "cpp",
+        "PRINTF.C": "cpp",
+        "A_MAIN.C": "cpp",
+        "TYPE.H": "cpp"
+    },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",
 "workbench.editor.wrapTabs": true,

@@ -23,16 +23,16 @@ T0:
 - Entered from T1 or T2 by disabling interrupts
 - Preemption off
 - Exceptions are acceptable, including page faults.
-- It is safe to yield to another task while in T0
-- If no yielding takes place within the handler, T0 is an __effective TI__.
-- __Only reentrant code will work.__
+- Yield and atomics are PROHIBITED
 
-T1: Preemption is disabled but interrupts remain the same. Entered by incrementing the local preemption counter.
+T1:
+- Preemption is disabled but interrupts remain enabled. Entered by incrementing the local preemption counter.
+- Yield and atomics are PROHIBITED
 
 T2:
 - Preemption and interrupts are on
 - Exceptions are safe to generate
-- Mutexes are safe
+- Yield and atomics are PERMITTED
 
 TI, T0 and T1 are preemption-off contexts.
 
@@ -50,7 +50,7 @@ For the purposes of error checking or any odd scenario where it is necessary to 
 
 ## Yield Semantics In Detail
 
-Mutex locks and other synchronization primitives all have implicit yield characteristics to avoid wasting CPU time. This means that no-preemption and no-interrupts sections have weak guarantees that depend on what function calls are used
+Mutex locks and other synchronization primitives all have implicit yield characteristics to avoid wasting CPU time. This means that CPU
 
 Each API call has this specified somewhere.
 

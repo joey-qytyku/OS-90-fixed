@@ -6230,3 +6230,237 @@ That requires a working OS/90 system. That is far from happening right now, but 
 ## SV86
 
 I need to set up the #GP handler.
+
+## Buffer overflow Page
+
+When I map memory regions, I will add a sentinel page that reports an error if accessed. It can just be a "null" mapping but I can use something else to indicate that it is not.
+
+This can apply to userspace too and terminate a process when an error occurs.
+
+# October 23
+
+## Notes on Memory
+
+- Uncommitted memory has no reason to be executable or read-only.
+- Reserving a range has no real purpose because it will be filled with RAM anyway.
+
+I will do away with reserved memory and have a simple alloc/free interface, where alloc can also force a location.
+
+# October 24
+
+## Userspace
+
+I am using DJGPP to develop the UI toolkit.
+
+This is not exactly a permanent arrangement for a number of reasons. First of all, DJGPP uses a segmented flat model which is not ABI compatible. I could try to extend its memory, which may involve a massive memory copy, but it is theoretically possble.
+
+OS/90 userspace programs cannot run in a segmented model because DJGPP does not support it, but they cannot do certain incorrect things because there is segmentation to prevent that.
+
+# October 26
+
+## Documentation
+
+I do not like markdown that much. I will keep it for this journal, but I will adapt the documentation to a new style that is easier to read.
+
+```
+================================================================================
+    Major Heading
+================================================================================
+
+--------------------------------------------------------------------------------
+    Minor Heading
+--------------------------------------------------------------------------------
+```
+
+Function descriptions will follow this style.
+```
+    VOID ExampleFunction(VOID);
+................................
+
+   BRIEF
+~~~~~~~~~~
+
+   NOTES
+~~~~~~~~~~
+This function does nothing.
+
+ WARNINGS
+~~~~~~~~~~
+This is not a real function
+
+ SEE ALSO
+~~~~~~~~~~
+
+```
+
+# October 29
+
+## DSL/90 Ideas
+
+A full Linux VM is a cool idea, but requires a lot of work. The main thing I struggle to understand is some of the rules regarding creating new processes and threads.
+
+I think that UNIX operates under the principle of each thread is really just a process.
+
+The context of a process is abstractly defined as containing:
+- The register dump (ofc)
+- Parent and child pointers
+- mmap regions
+- shared libraries in the address space
+- special handles (stdin/out/err)
+- argv and environment block, deep copied too
+- signal handler list
+
+DSL is simpler because shared libraries and mmap regions are 100% shared in the same address space.
+
+mmap in particular cannot at all be local to the process. We will just keep a global list of mappings.
+
+Shared libraries are interesting. Normally they are to run in totally separate address spaces. Some components like the .text section are sharable, but only considering some restrictions.
+
+In ELF-i386, there is the GOT and PLT, which are needed for properly addressing sharable data that could change location but not contents. I am not sure how much I need to deal with that, but I expect that the ELF format will describe some of these details.
+
+### The ELF Format
+
+ELF is actually not the most complicated format ever. It has a lot of components, but it makes logical sense.
+
+### Signal Handlers
+
+Most signal handlers will terminate the program if a handler is not already set.
+
+Some handlers are called until the program finally terminates itself. For example, catching segfault and not terminating will repeatedly cause it to be called again.
+
+Segmentation faults can occur for a number of reasons. Accessing a buffer break allocated by the OS for example is a special error that only OS/90 can catch. SIGSEGV can also be caused by a null dereference which must always be an error, or accessing memory outside the Linux memory area.
+
+### Terminal Handling
+
+For ncurses programs to work and most other apps, it is necessary to emulate the terminals correctly.
+
+This means supporting raw/cooked mode (may use IOCTL), termcap, ANSII codes, etc.
+
+# October 30
+
+## Components to Unit Test
+
+- ATM/90
+- FAT and IDE drivers
+- What else?
+
+### PCI and PnP
+
+A DOS environment is far more preferable for things like this. The only issue with using DJGPP for it is the fact that API calls from the kernel do not exist and need to be handled manually.
+
+API calls normally have to address the call table, but we will not do this and just write it in.
+
+## General Structure of the PCI Bus Driver
+
+The PCI bus uses an 8-bit bus selector, a 5-bit device selector, a 3-bit function selector, and finally an 8-bit offset that is always 4-byte aligned.
+
+The point of the PCI driver is to enumerate all the devices, configure their IRQ lines, and leave the rest mostly alone.
+
+The BIOS is required to perform the configuration process so we mostly just trust it, but if an IRQ is not already taken by real mode, it may be kept track of as reclaimable by the PCI driver.
+
+After enumeration, all devices and their currently used IRQ lines are listed, and any lines that are still masked at this point (they are at startup) are also taken. This can be reconfigured to allow other buses to exist.
+
+Under PCI, it is necessary to share interrupts because there can be many devices installed. This is reduced by using the line number field.
+
+### Legacy Interrupt Vectors
+
+Bus and device drivers have to account for real mode drivers potentially existing. Any attempt to handle an interrupt in protected mode requires a 32-bit driver of course.
+
+The bus may never reconfigure an interrupt line until it checks if a real mode handler exists and loads a driver before enabling the device in any way.
+
+Some legacy devices can be reconfigured, but this is not at all mandated as it is with PCI and is overall too convoluded.
+
+The PnP BIOS is capable of detecting legacy devices and making it clear what resources are off-limits for devices. In the case of ISA PnP, I can NEVER trust its present configuration.
+
+I think some kind of PnP root driver will be needed to actually enumerate resources. This may go to the kernel.
+
+## STDREGS
+
+Why even have all those fields? I seem to be getting warnings and errors from it.
+
+Just use a macro.
+
+```
+regs.eax = R16(0xE, 'C');
+```
+This is actually more terse.
+
+The only issue is with fetching values, so I guess not.
+
+## PDCurses
+
+The problem with curses is that I cannot really make it a global UI toolkit. It relies on some global information.
+
+First of all, any compatibility with existing curses applications is out of the window. It would be nice but it is NOT feasible at all. There can only be one instance actually running and the color pairs information makes it essentially impossible to port existing programs.
+
+They will have to run under a DOS box.
+
+The advantage here is that
+1: The ATM API can be build on top of an already existing interface
+2: The exsiting PDCurses library can be linked straight into the program.
+
+With -Os I get a total library size of 40700 bytes.
+
+## Using Curses
+
+Curses is not a pleasant API in general, but it is complete and working.
+
+It is not really suitable for making complex GUIs, but a layer can be built on top of it to solve that problem.
+
+It will be essentially the same as ATM is planned in some ways, but the drawing parts are mostly automated.
+
+Something like this:
+```
+SCRLPLANE *scrlplane = CreatePlane(
+    GetParentWindow(this_win),
+    SP_BOTH,
+    100, 100
+);
+HBOX * hbox = CreateHBox(plane);
+// Width 0 means as long as needed
+BUTTON *buttons[4] = {
+    CreateButton(hbox, BT_STYLE_0, 1,0, "Test", NULL),
+    CreateButton(hbox, BT_STYLE_1, 1,0, "Test", NULL),
+    CreateButton(hbox, BT_STYLE_2, 1,0, "Test", NULL),
+    CreateButton(hbox, BT_STYLE_3, 1,0, "Test", NULL)
+};
+```
+
+
+# October 31
+
+## Why Curses Actually?
+
+Making my own API sounds cooler actually.
+
+Currently, I am trying to get the mouse/keyboard driver to work properly. I am not that far from that.
+
+## No Curses
+
+It is better to write a separate API.
+
+## ATM Note, Use Getchar?
+
+I am not sure what kind of black magic is done underneath to make getchar non-blocking, but I do think that DJGPP supports that.
+
+# November 1
+
+## Problem With Getchar
+
+This does not allow all the F-keys to be used and some other ones are not supported either.
+
+I have to make a KB driver. No idea why it stopped working.
+
+## For the OS
+
+I am trying to get SV86 to work. The register dump does not appear to be loaded correctly.
+
+Why does my code just magically rot and stop working?
+
+I can confidently say that stdregs is NOT correct.
+
+The handling of high and low registers is wrong. If I use EAX, it loads properly.
+
+Fixed it. I just put high and low in a packed structure and made a union with the 16-bit register.
+
+Looks like I got the 'A' character to print. That was the first thing I did when I started OSDev'ing.

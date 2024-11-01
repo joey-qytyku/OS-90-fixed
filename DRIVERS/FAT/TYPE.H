@@ -86,11 +86,12 @@ typedef char  *PSIGBYTE;
 #define _DWB_R(n)\
 struct {\
 	union {\
-		LONG E##n##X;\
+		LONG e##n##x;\
 		union {\
-			SHORT n##X;\
-			struct { BYTE n##L; BYTE n##H; };\
-		}__attribute__((packed));\
+			BYTE n##l;\
+			struct { BYTE :8; BYTE n##h; };\
+		};\
+		SHORT n##x;\
 	};\
 };
 
@@ -98,7 +99,7 @@ struct {\
 #define _DW_R(n)\
 struct {\
 	union {\
-		LONG E##n;\
+		LONG e##n;\
 		SHORT n;\
 	};\
 };
@@ -125,35 +126,31 @@ implementation detail.
 *******************************************************************************/
 
 typedef struct __attribute__((packed)) {
-	_DWB_R(A);
-	_DWB_R(B);
-	_DWB_R(C);
-	_DWB_R(D);
+	_DWB_R(a);
+	_DWB_R(b);
+	_DWB_R(c);
+	_DWB_R(d);
 
-	_DW_R(SI);
-	_DW_R(DI);
-	_DW_R(BP);
+	_DW_R(si);
+	_DW_R(di);
+	_DW_R(bp);
 
-	LONG   pm_ES;
-	LONG   pm_DS;
-	LONG   pm_FS;
-	LONG   pm_GS;
+	LONG   pm_es;
+	LONG   pm_ds;
+	LONG   pm_fs;
+	LONG   pm_gs;
 
-	_DW_R(IP);
-	LONG   CS;
-	_DW_R(FLAGS);
-	_DW_R(SP);
-	LONG   SS;
+	_DW_R( ip);
+	LONG   cs;
+	_DW_R( flags);
+	_DW_R( sp);
+	LONG   ss;
 
-	LONG v86_ES;
-	LONG v86_DS;
-	LONG v86_FS;
-	LONG v86_GS;
+	LONG v86_es;
+	LONG v86_ds;
+	LONG v86_fs;
+	LONG v86_gs;
 }STDREGS, *PSTDREGS;
-
-// This is to stop code that may do something that is not implemented yet
-// for testing purposes, to see if an interface is required.
-#define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx");}
 
 #undef _DW_R
 #undef _DWB_R

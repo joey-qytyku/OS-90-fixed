@@ -1,0 +1,110 @@
+================================================================================
+	Virtual 8086 Mode
+================================================================================
+
+--------------------------------------------------------------------------------
+HV86
+V86_ATE
+V86_REFLECT
+
+INTxH()
+RUNxH()
+HOOKxH()
+
+These are the basic services provided by the kernel for controlling and making requests to the BIOS or DOS from protected mode.
+
+There exist a chain of handlers for each INT call. The chain starts from the very end and approaches the begining. It returns the old handler to chain back, returns `V86_PM_DONE` if handled in full within protected mode, or V86_PM_REFLECT to send it to real mode unconditionally.
+
+The V86 hook handler takes a PSTDREGS structure. The `v86_` prefixed members are to be used.
+
+If reflected, SV86 is entered and preemption is 100% disabled. The only things that will run are the real mode code and the general protection fault handler.
+
+If SV86 makes a further call using INT, it will be handled with the chain, but the SV86 handler is required to check the preemption status.
+
+Anything that tries to acquire a lock when SV86 is active will be dangerous. The context is not T1, but a special SV86 context type.
+
+--------------------------------------------------------------------------------
+	API Listing
+--------------------------------------------------------------------------------
+
+................................................................................
+	LONG INTxH(BYTE x, PSTDREGS r);
+................................................................................
+
+	   BRIEF
+	~~~~~~~~~~
+
+This is the general interface. The return value is AX zero extended to a LONG after the INT is processed. If the original registers need to be preserved, note that they will be clobbered.
+
+If the supplied SS:SP pair are zero, a stack is automatically chosen.
+
+	   WARNINGS
+	~~~~~~~~~~~~~
+
+	   CONTEXTS
+	~~~~~~~~~~~~~~
+
+T1 or T2. Internally non-reentrant but guarded with preemption-off.
+
+### Monitor Input and Reflect
+
+Here is an example of monitoring the input to a call without changing the parameters. In the case of doing so (for whatever reason) ensure that the context is not clobbered incorrectly.
+
+	Example Code
+	~~~~~~~~~~~~
+................................................................................
+static HV86 old;
+
+PVOID Handler(PSTDREGS r)
+{
+	if (r->ah == 0xE) {
+		printf("Printing character %x", r->al);
+		return V86_REFLECT;
+	}
+	else {
+		return (PVOID)old;
+	}
+}
+
+VOID DriverMain(VOID)
+{
+	HOOKxH(0x10, &old, Handler);
+}
+................................................................................
+
+
+................................................................................
+	LONG V86xH(PSTDREGS r);
+................................................................................
+
+	Brief
+	~~~~~
+
+Simulates an INT instruction. The vector must be coded in the register structure. No capture is used whatsoever.
+
+This returns the vector of the first INT instruction enountered while executing so that the caller could decide to call a hook first of continue.
+
+--------------------------------------------------------------------------------
+	Implement An API
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+	Advice
+--------------------------------------------------------------------------------
+
+SV86 is always slower than a capture handler. Anything done in 32-bits will be faster.
+
+If the API interfaces with a device (as many do), the implementor driver has many options for emulation:
+
+o Emulate the entire device and make each content local (e.g. text mode console). In this case, there is little or no actual access to devices.
+o Permit one at a time FULL access. Vectors may be hooked to detect attempts to access a device. Other tasks must wait until a "done" condition is raised.
+o Limited number of emulation contexts served by semaphore and patially emulated or fully emulated.
+o Kill the program if the operation is unsafe.
+
+Implementing INT 21H features for outputting text involve total emulation of the text framebuffer per task.
+
+Expanded memory (EMS) emulation is also a form of total emulation, as the device does not do any IO or user interaction.
+
+Most OS/90 device drivers let one process access something at a time, but in some situations it is not possible to easily determine when a task is really done unless it terminates. The DMA controller is one example, but that is not an API. An API like VDS (Virtual DMA Services) is however, and would need to be part of an emulation-based driver (likely simulating what a single-tasking API would do using arbitrated access).
+
+Terminating the program cannot be done using the scheduler calls because a proper cleanup may not take place.

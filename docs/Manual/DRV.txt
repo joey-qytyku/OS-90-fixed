@@ -1,10 +1,26 @@
-This section will describe the interface of all drivers, hence the title. This applies to subsystems and device drivers.
+This section will describe the interface of all drivers, hence the title.
 
 # Naming Conventions
 
 OS/90 drivers use the file extension `.RSX`, which means "resident system extension."
 
-# Call Mechanism
+--------------------------------------------------------------------------------
+	Call Mechanism
+--------------------------------------------------------------------------------
+
+OS/90 uses the SysV i386 calling conventions.
+
+- Arguments pushed in reverse order on the stack.
+- Callee saved: EBX, ESI, EDI, EBP
+- Return: EAX or EDX:EAX.
+- Direction flag: Must be clear on entry and exit. This allows string operations to run faster by not repeatedly running CLD if the flag is already off (it usually is). [1] [2]
+
+[1]: https://www.sco.com/developers/devspecs/abi386-4.pdf
+[2]: https://learn.microsoft.com/en-us/cpp/c-runtime-library/direction-flag?view=msvc-170
+
+Some functions may deviate and use regparm instead, but the rest holds true.
+
+The call mechanism is currently a call table at a fixed address called `Kernel`.
 
 # Events
 
@@ -25,7 +41,8 @@ enum {
 	GE_DRV_DISABLE,
 
 	// A DOS VM instance wants to change the vector of an IRQ.
-	// A virtual device driver should respond to this if interrupts must be simulated.
+	// A virtual device driver should respond to this if
+	// interrupts must be simulated and it cares about this interrupt.
 	//
 	// Interrupts cannot go directly.
 	//
@@ -47,12 +64,22 @@ enum {
 	GE_DOCK,
 	GE_UNDOCK,
 	GE_MEMORY_LOW,
-	GE_SUBSYS_WANTS_DEV,
+	GE_SUBSYS_WANTS_DEV, // TODO REMOVE
 	GE_SUBSYS_RELEASE_DEV
 };
 ```
 
-## Required Events
+--------------------------------------------------------------------------------
+	Environment
+--------------------------------------------------------------------------------
+
+All pages allocated for code and data are writable, ring-0, and locked. Allowing swapping must be done manually with linker script tricks, but is permissible.
+
+It should be assumed that accessing a read-only page from kernel generates an exception.
+
+--------------------------------------------------------------------------------
+	Required Events
+--------------------------------------------------------------------------------
 
 GE_LOAD is called when a driver is loaded and must initialize. Dynamically loaded drivers will also cause this event to be sent. GE_LOAD can be masked if the driver does not care about further noticies, but only after it is set up (otherwise it would make no sense)
 
@@ -81,3 +108,37 @@ typedef struct {
 ```
 
 Cancellation prevents any other driver from receiving this event. This only works for non-required signals. Attempting to cancel a required event code will do nothing.
+
+--------------------------------------------------------------------------------
+	Common Tasks For Drivers
+--------------------------------------------------------------------------------
+
+	File IO
+	~~~~~~~
+INTxH must be used, however, ensure the VM bit is disabled (it should be by default anyway) and a capture handler will detect it as a protected mode request, permitting the use of 32-bit file operations.
+
+A 32-bit code descriptor must be allocated for this purpose and put into the CS field.
+
+
+
+--------------------------------------------------------------------------------
+	Building drivers
+--------------------------------------------------------------------------------
+
+The process is:
+- Link an ELF executable using GCC toolchain.
+- Use a linker script to generate an extended flat binary with approprate data.
+
+There are no DLLs, no symbol imports, or anything like that.
+
+--------------------------------------------------------------------------------
+	Kernel Versions
+--------------------------------------------------------------------------------
+
+New kernel versions may change the call table entries, but this is not a problem. They can be changed by using a tool called DRVUP.EXE.
+
+```
+	drvup <OLDSTAB> <NEWSTAB> <DRVFOLDER>
+```
+
+The drivers are patched.
