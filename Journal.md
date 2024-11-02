@@ -6464,3 +6464,37 @@ The handling of high and low registers is wrong. If I use EAX, it loads properly
 Fixed it. I just put high and low in a packed structure and made a union with the 16-bit register.
 
 Looks like I got the 'A' character to print. That was the first thing I did when I started OSDev'ing.
+
+# November 2
+
+## SV86
+
+> The plan went to the other doc, will copy
+
+EnterSV86 will unconditionally enter SV86. The return value is a pointer to the opcode that caused a fault.
+
+### Potential Issues
+
+Not being to simply return is actually slower. I have to call EnterSV86 every time an instruction occurs that needs emulation.
+
+The thing is that going back from the #GP handler is more efficient that returning to the caller (not that slow however) and then performing another expensive ring-3 switch.
+
+Things like pushf or popf are faster if I do not return to the caller and far less overhead is incurred.
+
+I think I should keep the existing design.
+
+Wait really? The exception handler IS switching rings.
+
+It can be:
+```
+Enter -> #GP trap -> Ring 3
+```
+
+Or
+```
+Enter -> #GP trap and return Enter -> Enter ring3
+```
+
+The total number of ring switches is essentially the same. The advantage of the first approach is not having to finish the whole function to emulate a single opcode or call procedures to do it.
+
+So we are keeping it all the same.

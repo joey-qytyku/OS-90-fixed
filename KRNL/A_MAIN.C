@@ -193,7 +193,7 @@ static void pc(char c)
 	// outb(0xE9, c);
 	STDREGS r = {
 		.AH = 0xE,
-		.AL = 0x41,
+		.AL = c,
 		.EBX = 0,
 		.EIP = IVT[0x10].ip,
 		.CS  = IVT[0x10].cs,

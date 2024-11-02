@@ -29,6 +29,8 @@ global V86_Monitor, INTxH, V86xH
         _tss_ESP0 EQU 4
         _tss_SS0 EQU 8
 
+        ; I think IRET is IOPL sensitive and it is returning to the wrong place.
+
 %macro Save 0
         push    GS
         push    FS
@@ -119,8 +121,24 @@ Exc_code   17
 Exc_nocode 18
 Exc_nocode 19
 
+; Note, current layout for exceptions is technically not reentrant.
+; I need to change that later. Error code should be passed on stack.
+
+;
+; Things are working. The real problem is that after the INT the code causes
+; a fault because the segment limit is exceeded. That is why the opcode is 00.
+; Other than that registers work 100% correctly.
+;
+; It is running something incorrect. Maybe has something to do with my
+; input parameters.
+;
+
+
         align   16
 EXC_CONT:
+        pop     dword [ss:EXC_INX]
+        Save
+
         mov     eax,10h
         mov     ds,ax
         mov     es,ax
@@ -129,25 +147,24 @@ EXC_CONT:
         ; to access the saved registers.
 
         mov     edx,esp
-        pop     ebx             ; Pop exception index from the stack.
-
-        ; Is EBX actually what I think it is?
-        ; Is it an error code?
-        ; No the errcode is pushed out and the stack contains the index.
 
         ; Interrupts are currently off, enable
         ; I think the handler should enable manually, TBH.
         ; sti
 
-        xchg    bx,bx
+        ; xchg bx,bx
+
         push    edx
+        mov     ebx,[EXC_INX]
         call    [handler_table+ebx*4]
+        add     esp,4
 
         Restore
         iret
 
         align 4
 EXC_CODE DD 0
+EXC_INX  DD 0
 
         align 4
         ; Set the handler? It is not set!
@@ -471,7 +488,7 @@ SWITCH_FROM_R0:
         mov     edi,[ebx+_EDI]
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
-        xchg bx,bx
+        ; xchg bx,bx
         iret                    ; Bravo six, going dark
 
 PREP_SWITCH_FROM_R0_TO_R3:
@@ -520,7 +537,7 @@ S_Deactivate:
         ; Are my IRQ vectors set properly?
 
 V86xH: ;PSTDREGS r
-        xchg    bx,bx
+        ; xchg    bx,bx
         inc     dword [preempt_count]
         mov     [saved_ebx],ebx
         mov     [saved_esi],esi
@@ -572,7 +589,7 @@ V86xH: ;PSTDREGS r
         mov     [TSS+4],esp
 
         ; Save the current #GP handler, we will just change it
-        push    dword [handler_table+(0Dh*4)]
+        push    dword [handler_table+(0Dh)*4]
 
         mov     dword [handler_table+(0Dh)*4],V86_Monitor
 
@@ -591,7 +608,7 @@ V86xH: ;PSTDREGS r
         push    dword [ebx+_SS]
         push    dword [ebx+_ESP]
         push    dword [ebx+_EFLAGS]
-        or      dword [esp],(1<<17)|(3<<12)     ; VM=1, IOPL=3
+        or      dword [esp],(1<<17);|(0<<12)     ; VM=1, IOPL=0(!)
         push    dword [ebx+_CS]
         push    dword [ebx+_EIP]
 
@@ -606,6 +623,7 @@ V86xH: ;PSTDREGS r
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
 
+        ; xchg bx,bx
         ; Bravo six, going dark.
         iret
 
@@ -631,18 +649,25 @@ INTxH:
 ;
 ; This is a stage-2 handler.
 ; EDX points to the STDREGS.
+; Only for SV86.
 ;
 V86_Monitor:
-        ; NOTE, DO NOT PUSH ANYTHING WITHOUT POPPING BEFORE .END
-        xchg bx,bx
-        mov     ebx,[edx+_EIP]
-	movzx   eax,word [edx+_CS]
-        shl     eax,4
-        add     ebx,eax
+        ; Ints should be on actually, currently they are left off
+        ; with no way to restore.
 
-        ; EBX = First byte of instruction
+        ; NOTE, DO NOT PUSH ANYTHING WITHOUT POPPING BEFORE .END
+        ; xchg bx,bx
+	movzx   ebx,word [edx+_CS]
+	movzx   ecx,word [edx+_EIP]
+        shl     ebx,4
+
+        ; The CS:EIP is wrong. Not sure why.
+
+        add     ebx,[edx+_EIP]
 
         movzx   eax,byte[ebx]
+
+        ; EBX = First byte of instruction
 
         cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
@@ -719,8 +744,53 @@ V86_Monitor:
         jmp     .end
 
 .not_iret:
-        mov     eax,8086DEADh
-        xchg bx,bx
+        cmp     al,9Ch
+        jnz      .not_pushf
+
+        ; Pushf is IOPL-sensitive and faults on V86. This may be to emulate
+        ; the value of IF for the monitor. Here we run it normally
+        ; and go back to the original context.
+
+        inc     word[edx+_EIP]
+
+        ; We just copy the current flags to the stack.
+        sub     word[edx+_ESP],2
+        movzx   eax,word[edx+_EFLAGS]
+        movzx   edi,word[edx+_ESP]
+        movzx   ecx,word[edx+_SS]
+        shl     ecx,4
+        add     ecx,edi
+
+        ; Can I reduce the boilerplate and caclculate only once?
+
+        mov     word[ecx],ax
+
+
+        ; I think the error is that the VM flag was not turned on.
+        ; Debugger does not say it is on.
+        jmp     .cont
+
+.not_pushf:
+        cmp     al,9Dh
+        jnz     .not_popf
+
+        ; Emulate popf
+
+        inc     word [edx+_EIP]
+
+        mov     ebx,[edx+_SS]
+        shl     ebx,4
+        add     word[edx+_ESP],2
+        add     ebx,[edx+_ESP]
+
+        movzx   eax,byte [ebx-2]
+
+        mov     word[edx+_EFLAGS],ax
+        jmp     .cont
+
+.not_popf:
+        mov     edx,8086DEADh
+        ; xchg bx,bx
         jmp $ ;;;;;;;;;;;;;;
 
 .end:
@@ -750,10 +820,16 @@ V86_Monitor:
         ; of V86xH to continue.
         ; No IRET is needed.
         add     esp,(20*4)+4    ; Clear out return value and STDREGS
-        ; Indicate
+        ; Indicate? What?
+
+        ; No return in this case, that is it.
         jmp     V86_CONT_POINT
 
-        ; No return, that is it.
+
+.cont:
+        ; Go on after emulating a non-break opcode
+        ret
+
 
 section .bss
 
