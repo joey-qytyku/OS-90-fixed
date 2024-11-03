@@ -643,9 +643,6 @@ V86_CONT_POINT:
 
 	ret
 
-INTxH:
-        ret
-
 ;
 ; This is a stage-2 handler.
 ; EDX points to the STDREGS.
@@ -661,8 +658,6 @@ V86_Monitor:
 	movzx   ecx,word [edx+_EIP]
         shl     ebx,4
 
-        ; The CS:EIP is wrong. Not sure why.
-
         add     ebx,[edx+_EIP]
 
         movzx   eax,byte[ebx]
@@ -672,11 +667,6 @@ V86_Monitor:
         cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
 
-        ;
-        ; Write the INT vector requested to saved EAX
-        ;
-        movzx   eax,byte[ebx+1]
-        mov     [edx+_EAX],eax
 
         ; Push CS:IP and eflags of current context on the stack so that
         ; iret
@@ -715,6 +705,10 @@ V86_Monitor:
         mov     ecx,20
         rep     movsd
 
+        ; Return the encountered vector in EAX.
+        movzx   eax,byte[ebx+1]
+
+        ; Leave the monitor.
         jmp     .end
 
 .not_intxh:
@@ -741,6 +735,8 @@ V86_Monitor:
 
         add     word [edx+_ESP],6
 
+        ; EAX=FFFFFFFF to indicate that we are out of this INT level.
+        mov     eax,~0
         jmp     .end
 
 .not_iret:
@@ -764,7 +760,6 @@ V86_Monitor:
         ; Can I reduce the boilerplate and caclculate only once?
 
         mov     word[ecx],ax
-
 
         ; I think the error is that the VM flag was not turned on.
         ; Debugger does not say it is on.
@@ -806,6 +801,9 @@ V86_Monitor:
         ;
         ; To be safe, currently using saved_regbuffptr in case code changes.
         ; Future note: the current GP handler is saved on stack of V86xH.
+        ;
+        ; !!!!! EAX cannot be clobbered here. It is the return value of
+        ; V86xH.
         ;
 
         ; Copy results back into V86xH argument using saved_regbuffptr as the

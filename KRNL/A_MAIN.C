@@ -203,15 +203,13 @@ static void pc(char c)
 	LONG v = V86xH(&r);
 }
 
-// Why do I not hit more than one breakpoint?
-
 /*
 https://pdos.csail.mit.edu/6.828/2005/readings/i386/s09_06.htm
 
 If there is no privilige escalation, the stack is not saved.
 This is important. I am not supposed to copy in the stack location.
 
-That means if I am in ring-0, I should NOT
+That means if I am in ring-0, I should NOT...
 */
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */

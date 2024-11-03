@@ -7,10 +7,7 @@ struct __ivt { SHORT ip:16; SHORT cs:16; };
 
 static struct __ivt * const IVT = (PVOID)0;
 
-typedef PVOID (*HV86)(PSTDREGS);
-
-#define V86_ATE         ((PVOID)0UL)
-#define V86_REFLECT     ((PVOID)1UL)
+typedef BOOL (*HV86)(PSTDREGS);
 
 LONG INTxH(BYTE x, PSTDREGS r);
 

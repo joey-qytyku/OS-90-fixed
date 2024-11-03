@@ -48,7 +48,7 @@
 #define OSNULL ((PVOID)0xFFFFFFFF)
 
 #ifdef NULL
-#error "OS/90 does not use NULL. See related documentation."
+#warning "OS/90 does not use NULL. See related documentation."
 #endif
 
 // Need?

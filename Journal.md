@@ -6498,3 +6498,59 @@ Enter -> #GP trap and return Enter -> Enter ring3
 The total number of ring switches is essentially the same. The advantage of the first approach is not having to finish the whole function to emulate a single opcode or call procedures to do it.
 
 So we are keeping it all the same.
+
+## SV86 Hook Chains
+
+There are two ways:
+- Linked list
+
+VOID Handler(PSTDREGS r)
+{
+    ;
+}
+
+- Return-linked call-down
+
+```
+PVOID Handler(PSDREGS r)
+{
+    // ...
+    return (PVOID)prev_handler;
+}
+```
+In effect, the kernel runs the chain sequentially and no excessive stack space is used.
+
+- Compulsory call-down
+
+```
+LONG Handler(PSTDREGS r)
+{
+    return PrevHandler(r);
+}
+```
+
+This has no additional slowdown because the argument will need to be pushed anyway.
+
+As usual, the most recent hook is the one that runs.
+
+Calling the previous handler requires a jump instruction with optimized C because the arguments are the same. This is 6 bytes for the memory reference one.
+
+Basically, the argument is still on the stack. As long as everything else is cleaned, a jump is fine. This may reqire an epilogue or a three-code sequence to clean the stack arbitrarily.
+
+### Decision
+
+Number 3 does not incurr any exessive stack use and is simpler.
+
+There is no ATE return value. Calling the next one is a calldown operation.
+
+# November 3
+
+Actually, not having a return value may be incorrect. After running the hook chain, we must determine if a reflection is needed.
+
+They will return chain then.
+
+## Some Notes about V86
+
+Userspace programs can contact SV86 and hooks if they do not set their own handler. Some APIs can be implemented in protected mode as extensions however and may need either an INIT hook to change vectors or a separate chain list.
+
+
