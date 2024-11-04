@@ -134,7 +134,7 @@ Exc_nocode 19
 ;
 
 
-        align   16
+        align   64
 EXC_CONT:
         pop     dword [ss:EXC_INX]
         Save
@@ -149,8 +149,7 @@ EXC_CONT:
         mov     edx,esp
 
         ; Interrupts are currently off, enable
-        ; I think the handler should enable manually, TBH.
-        ; sti
+        sti
 
         ; xchg bx,bx
 
@@ -235,7 +234,9 @@ ISR_REST:
         ; The real mode ISR will send EOI.
         ;--------------------------------------------------------------------
         mov     edx,eax
-        DB      9Ah,0,0,0,0,38h,00
+        ; Reformat we are using NASM right
+
+        call    :102000h
         jmp     .NO_EOI
 
 .SPUR:
@@ -537,7 +538,7 @@ S_Deactivate:
         ; Are my IRQ vectors set properly?
 
 V86xH: ;PSTDREGS r
-        ; xchg    bx,bx
+        xchg    bx,bx
         inc     dword [preempt_count]
         mov     [saved_ebx],ebx
         mov     [saved_esi],esi
@@ -548,29 +549,43 @@ V86xH: ;PSTDREGS r
 
         mov     [saved_regbuffptr],ebx
 
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+        ; We have to decrement SP before pushing!
+        ; Currently, it points to the last thing on the stack.
+        ; We don't want to overwrite it.
+        ; x86 decrements first and then writes.
+        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+        ; Force ESP high to zero. Having it higher can actually cause a fault
+        ; because segment limits are forced to 64K on V86 mode.
+        ; This also removes the need to use zero extends which are 2 clocks
+        ; slower on the 80386.
+        mov     word [ebx+_ESP+2],0
+
         ; EDI = the stack address being used for SV86
         mov     edi,[ebx+_SS]
         shl     edi,4
         add     edi,[ebx+_ESP]
+        sub     edi,2           ; x86 decs before push
 
-        std
+        std     ; Copy bacward
 
         ; Push FLAGS. It will be loaded.
-        movzx   eax,word [ebx+_EFLAGS]
+        mov     eax,[ebx+_EFLAGS]
         stosw
 
         ; CS
-        movzx   eax,word [ebx+_CS]
+        mov     eax,[ebx+_CS]
         stosw
 
         ; IP
-        movzx   eax,word [ebx+_EIP]
+        mov     eax,[ebx+_EIP]
         stosw
 
-        ; Breaks here.....
-
         ; Update ESP value accurately
-        add     dword [ebx+_ESP],6
+        ; It has to be 6 because we pushed 3 onto the stack and did not
+        ; modify the ESP value originally.
+        sub     dword [ebx+_ESP],6
 
         ;
         ; The SV86 stack provided in the context block now contains
@@ -585,7 +600,7 @@ V86xH: ;PSTDREGS r
 
         ; Set the SS0:ESP0 in the TSS. This is the stack pointer we want to have
         ; when an exception hits. SS0 is always 0x10, so no need to set it.
-        mov     word [TSS+8], 10h
+        mov     word [TSS+8],10h
         mov     [TSS+4],esp
 
         ; Save the current #GP handler, we will just change it
@@ -653,7 +668,7 @@ V86_Monitor:
         ; with no way to restore.
 
         ; NOTE, DO NOT PUSH ANYTHING WITHOUT POPPING BEFORE .END
-        ; xchg bx,bx
+        xchg bx,bx
 	movzx   ebx,word [edx+_CS]
 	movzx   ecx,word [edx+_EIP]
         shl     ebx,4
@@ -667,7 +682,6 @@ V86_Monitor:
         cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
 
-
         ; Push CS:IP and eflags of current context on the stack so that
         ; iret
         ; can return if needed. We will not actually continue running.
@@ -675,6 +689,7 @@ V86_Monitor:
         mov     edi,[edx+_SS]
         shl     edi,4
         add     edi,[edi+_ESP]
+        sub     edi,2
 
         std
         movzx   eax,word[edi+_EFLAGS]
@@ -723,6 +738,9 @@ V86_Monitor:
         shl     ebx,4
         add     esi,ebx
 
+        ; The first location we want to pop is already pointed to by SS:SP.
+        ; No need to offset by 2.
+
         xor     eax,eax
 
         std
@@ -744,12 +762,13 @@ V86_Monitor:
         jnz      .not_pushf
 
         ; Pushf is IOPL-sensitive and faults on V86. This may be to emulate
-        ; the value of IF for the monitor. Here we run it normally
-        ; and go back to the original context.
+        ; the value of IF for the monitor since it is pushed on real mode
+        ; Here we run it normally and go back to the original context.
 
         inc     word[edx+_EIP]
 
         ; We just copy the current flags to the stack.
+        ; There is no concern about VM or IOPL, they are never modified by pushf
         sub     word[edx+_ESP],2
         movzx   eax,word[edx+_EFLAGS]
         movzx   edi,word[edx+_ESP]
@@ -761,15 +780,13 @@ V86_Monitor:
 
         mov     word[ecx],ax
 
-        ; I think the error is that the VM flag was not turned on.
-        ; Debugger does not say it is on.
         jmp     .cont
 
 .not_pushf:
         cmp     al,9Dh
         jnz     .not_popf
 
-        ; Emulate popf
+        ; Emulate popf. The IF flag are copied as expected.
 
         inc     word [edx+_EIP]
 
@@ -784,8 +801,20 @@ V86_Monitor:
         jmp     .cont
 
 .not_popf:
+        cmp     al,0FBh
+        jnz     .not_sti
+
+        ; Enable interrupts in the flags register. BIOS code usually never
+        ; runs this because it never uses interrupts actually! But many drivers
+        ; will and need an IRQ to communicate with devices.
+
+        or      dword[edx+_EFLAGS],200h
+        inc     dword[edx+_EIP]
+        jmp     .cont
+
+
+.not_sti:
         mov     edx,8086DEADh
-        ; xchg bx,bx
         jmp $ ;;;;;;;;;;;;;;
 
 .end:

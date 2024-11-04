@@ -1,10 +1,5 @@
 #include "SV86.H"
 
-// Stub handler? Yes.
-static HV86 v86_handlers[256];
-
-BOOL
-
 /*
 
 Here is how it all works.
@@ -22,16 +17,33 @@ in that special case.
 
 */
 
+// Stub handler? Yes.
+static HV86 v86_handlers[256];
+
+static BOOL Stub(PSTDREGS r)
+{
+	(VOID)r;
+	return 1;
+}
+
+
 LONG INTxH(BYTE v, PSTDREGS r)
 {
 	if (v86_handlers[v](r) == 1) {
 		r->CS  = IVT[v].cs;
 		r->EIP = IVT[v].ip;
+		// Give it a stack too?
 		LONG int_got = V86xH(r);
 
-		if (int_got != (~0)) {
+		if (int_got != 0xFFFFFFFFu) {
 			return INTxH(int_got, r);
 		}
 	}
 	return (LONG)r->AX;
+}
+
+VOID InitV86(VOID)
+{
+	for (int i = 0; i < 256; i++)
+		v86_handlers[i] = Stub;
 }

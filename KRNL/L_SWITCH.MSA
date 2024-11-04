@@ -1,0 +1,66 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                     Copyright (C) 2022-2024, Joey Qytyku                ;;
+;;                                                                         ;;
+;; This file is part of OS/90.                                             ;;
+;;                                                                         ;;
+;; OS/90 is free software. You may distribute and/or modify it under       ;;
+;; the terms of the GNU General Public License as published by the         ;;
+;; Free Software Foundation, either version two of the license or a later  ;;
+;; version if you chose.                                                   ;;
+;;                                                                         ;;
+;; A copy of this license should be included with OS/90.                   ;;
+;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; IS THIS UP TO DATE?
+SWSTACK EQU     1032F0h
+SWBASE  EQU     103000h
+
+SWBASE_RM_OFF  EQU (SWBASE  - 0FFFF0h)+16
+SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
+
+; THIS FILE MUST BE BUILT WITH NASM
+
+;-------------------------------------------------------------------------------
+; This is a procedure that is called by an IRQ handler, but by address rather
+; than symbol.
+;
+; On x86, the CPU must be in 16-bit protected or it will freeze. We will now
+; be executing inside 102000:0000. The stack/data segment will remain flat
+; and base zero and overrides will be used for 32-bit addressing. This avoids
+; using another segment which is unnecessary.
+;
+; Data must be accessed by adding 0FFFF0h.
+;
+; Interrupts are assumed to be off here.
+; EDX is the interrupt vector to invoke.
+;
+; All registers are destroyed except ESP.
+; SREGS are set to default kernel ones.
+;
+        bits    16
+        xchg    bx,bx
+
+        ;------------------------------------------------------
+        ; Calculate the real vector to invoke
+        ;
+        ; All IRQs #8 and above are relative to vector 70h in
+        ; real mode.
+        ;------------------------------------------------------
+
+        cmp     dl,7
+        ja      .above
+        jmp     .else
+.above:
+        add     edx,70h-8
+.else:
+        add     edx,8   ; They start at #8 anyway
+
+
+        align   16
+SAVE_ESP:       DD 0
+SAVE_IDTR:
+        DW      0,0,0,0
+RM_IDTR:
+        DW      1024,0,0,0
+; Wrong order?

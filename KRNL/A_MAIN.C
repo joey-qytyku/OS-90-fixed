@@ -68,6 +68,7 @@ extern char BSS_SIZE;
 // DSEG
 // TSS
 // LDT
+// RMCS
 //
 SEGMENT_DESCRIPTOR gdt[8];
 SEGMENT_DESCRIPTOR ldt[128];
@@ -226,9 +227,22 @@ VOID NORETURN KernelMain(VOID)
 
 	RemapPIC();
 
-	// This is NOT WORKING
-	// Is stdregs correct?
-	FuncPrintf(&pc, "Hello, world\n\r");
+	InitV86();
+
+	static const char *str = "Hello, world!\n\r$";
+
+	inline_memcpy(0x90000+0x800, str, 16);
+
+	__asm__("sti");
+
+	// STDREGS r = {
+	// 	.AH = 9,
+	// 	.v86_DS = 0x9000,
+	// 	.DX = 0x800,
+	// 	.SS = 0x9000,
+	// 	.ESP = 0x800
+	// };
+	// INTxH(0x21, &r);
 
 	__asm__ volatile("jmp .":::"memory");
 }
