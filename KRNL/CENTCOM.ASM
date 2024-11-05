@@ -234,9 +234,8 @@ ISR_REST:
         ; The real mode ISR will send EOI.
         ;--------------------------------------------------------------------
         mov     edx,eax
-        ; Reformat we are using NASM right
-
-        call    :102000h
+        call    30h:16+2000h
+        ; That just trashed all the registers, but we dont care now.
         jmp     .NO_EOI
 
 .SPUR:

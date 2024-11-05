@@ -12,12 +12,17 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
+#include "L_SWITCH.H"
+
 #include "M_MEMOPS.H"
 #include "L_SEGMNT.H"
 #include "Z_IO.H"
 #include "TASK.H"
 
 #include "SV86.H"
+
+extern BYTE _binary_L_SWITCH_BIN_start;
+extern BYTE _binary_L_SWITCH_BIN_size;
 
 struct tss
 {
@@ -63,12 +68,26 @@ extern char ISR_15, ISR_7, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
-// NULL
-// CSEG
-// DSEG
-// TSS
-// LDT
-// RMCS
+enum {
+	GDT_NULL        = 0x00,
+	GDT_CSEG        = 0x08,
+	GDT_DSEG        = 0x10,
+	GDT_TSS         = 0x18,
+	GDT_LDT         = 0x20,
+	GDT_RMCS_CODE   = 0x28,
+	GDT_RMCS_DATA   = 0x30,
+	GDT_WIN16       = 0x40
+};
+
+// NULL         0x00
+// CSEG         0x08
+// DSEG         0x10
+// TSS          0x18
+// LDT          0x20
+// RMCS-CODE    0x28
+// RMCS-DATA    0x30
+// --           0x38
+// Win16 BDA    0x40
 //
 SEGMENT_DESCRIPTOR gdt[8];
 SEGMENT_DESCRIPTOR ldt[128];
@@ -107,31 +126,55 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 	static const BYTE access_ldt  = 0x82;
 
 	L_SegmentCreate(
-		0x8,
+		GDT_CSEG,
 		0,
 		0xFFFFFF,
 		access_cseg,
 		0xC0
 	);
 	L_SegmentCreate(
-		0x10,
+		GDT_DSEG,
 		0,
 		0xFFFFFF,
 		access_dseg,
 		0xC0
 	);
 	L_SegmentCreate(
-		0x18,
+		GDT_TSS,
 		(LONG)&TSS,
 		sizeof(TSS)-1,
 		access_tss,
 		0x40
 	);
 	L_SegmentCreate(
-		0x20,
+		GDT_LDT,
 		(LONG)&ldt,
 		sizeof(ldt)-1,
 		access_ldt,
+		0
+	);
+
+	L_SegmentCreate(
+		GDT_WIN16,
+		0x400,
+		255,
+		access_ldt,
+		0
+	);
+
+	L_SegmentCreate(
+		GDT_RMCS_CODE,
+		0x100000,
+		0xFFFF,
+		access_cseg,
+		0
+	);
+
+	L_SegmentCreate(
+		GDT_RMCS_DATA,
+		0x100000,
+		0xFFFF,
+		access_dseg,
 		0
 	);
 
@@ -223,15 +266,21 @@ VOID NORETURN KernelMain(VOID)
 
 	Gdt_Ldt_Idt_Tss_Tr();
 
+	// Copy RMCS data
+	inline_memcpy(  0x102000,
+			&_binary_L_SWITCH_BIN_start,
+			&_binary_L_SWITCH_BIN_size
+	);
+
 	ConfigurePIT();
 
 	RemapPIC();
 
 	InitV86();
 
-	static const char *str = "Hello, world!\n\r$";
+	// static const char *str = "Hello, world!\n\r$";
 
-	inline_memcpy(0x90000+0x800, str, 16);
+	// inline_memcpy(0x90000+0x800, str, 16);
 
 	__asm__("sti");
 

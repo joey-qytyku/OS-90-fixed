@@ -6554,3 +6554,11 @@ They will return chain then.
 Userspace programs can contact SV86 and hooks if they do not set their own handler. Some APIs can be implemented in protected mode as extensions however and may need either an INIT hook to change vectors or a separate chain list.
 
 
+
+# November 4
+
+## Idea for Task Switching
+
+I can eliminate the need for branching in the task switch subprogram by using a pointer to a jump label in the task block.
+
+

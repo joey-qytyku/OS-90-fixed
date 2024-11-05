@@ -106,4 +106,19 @@ Dynamic structures should have this sort of hierarchy. Ask if one is sufficient 
 
 ### Goto
 
-`goto` is good as long as it is not jumping backward.
+`goto` is good as long as it is not jumping backward. In general, C is meant to be more logical than assembly, but if the opposite is true, by all means use `goto`.
+
+### Robustness
+
+- Develop "library" style functions in another operating system.
+- Use sentinel bytes to check for buffer overflows even in userspace
+- Test edge cases
+- Always check error codes
+- Never run CPU instructions that are not detected first
+- Always expect memory allocations to potentially fail
+- Run tests with inline asserts and testing functions.
+- Try to check pointers before dereferencing
+- If unsure about the behavior of various hardware configurations or confused by datasheets, do tests and use asserts in debug code.
+- Avoid assembly language unless it is clearly better.
+- Check generated code to see if a rewrite in assembly is needed
+

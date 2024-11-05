@@ -26,11 +26,13 @@ SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
 ; than symbol.
 ;
 ; On x86, the CPU must be in 16-bit protected or it will freeze. We will now
-; be executing inside 102000:0000. The stack/data segment will remain flat
-; and base zero and overrides will be used for 32-bit addressing. This avoids
-; using another segment which is unnecessary.
+; be executing inside 102000:0000. We are in a tiny model region with a special
+; code and data segment.
 ;
-; Data must be accessed by adding 0FFFF0h.
+; To be compatible with real mode addressing, the base address of the PM
+; segments are FFFF0. This means the base of the binary must be ORG 16+2000h
+; to skip the HMA gap and get to the base address. This is also compatible
+; with using a segment value of FFFF.
 ;
 ; Interrupts are assumed to be off here.
 ; EDX is the interrupt vector to invoke.
@@ -39,8 +41,9 @@ SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
 ; SREGS are set to default kernel ones.
 ;
         bits    16
+        ORG 16+2000h
         xchg    bx,bx
-
+        ; What about EBP!!!! Save it outside of this maybe?
         ;------------------------------------------------------
         ; Calculate the real vector to invoke
         ;
@@ -56,6 +59,78 @@ SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
 .else:
         add     edx,8   ; They start at #8 anyway
 
+        xchg bx,bx
+
+        ; Save the stack pointer. It will be destroyed and is no longer valid
+        ; here.
+        mov     [SAVE_ESP],esp
+
+        ; Use the correct data and segments.
+        mov     eax,30h
+        mov     ds,ax
+        mov     ss,ax
+
+        ; Change the stack pointer to the correct location.
+        mov     sp,2000h+512
+
+        ; Save the IDTR. The GDTR is not actually destroyed by real mode.
+        sidt    [SAVE_IDTR]
+
+        ; Switch to real mode
+        mov     eax,cr0
+        xor     eax,1
+
+        ; Load the IDTR with something correct with real mode. Yes it works
+        ; like this! The IDTR is valid in real mode.
+        lidt    [RM_IDTR]
+
+        ; Now in real mode. Make CS contain a proper segment so we can return
+        ; from INT later.
+
+        jmp     0FFFFh:cont
+cont:
+        mov     eax,0FFFF0h
+        mov     ds,ax
+        mov     ss,ax
+
+        ; ES will address the IVT
+        xor     ax,ax
+        mov     es,ax
+
+        ; Now we run the INT. But we do not want to use self-modifying code
+        ; and cannot call an arbitrary int. The instruction will be simulated
+        ; with push/jmp
+
+        pushf
+        push    0FFFFh
+        push    cont2
+        jmp     [es:edx*4]
+cont2:
+        ; We are now back. Switch to protected mode...
+
+        ; First load the IDTR
+        lidt    [SAVE_IDTR]
+
+        ; Go to 16-bit protected mode.
+        mov     eax,cr0
+        inc     eax
+
+        ; To get back to the caller, stack switch must occur.
+        mov     eax,10h
+        mov     ss,ax
+        mov     es,ax
+
+        ; Get old ESP back
+        mov     esp,[SAVE_ESP]
+
+        ; Now we can change DS, no need for variables.
+        mov     ds,ax
+
+        ; SS:ESP is now correct.
+
+        ; Perform a 32-bit return. This will use 32-bit stack values despite
+        ; the code segment being 16-bit. Yes x86 really is like that.
+        DB 66h,0C3h
 
         align   16
 SAVE_ESP:       DD 0

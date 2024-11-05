@@ -151,25 +151,12 @@ typedef struct __attribute__((packed)) {
 	LONG v86_GS;
 }STDREGS, *PSTDREGS;
 
+#undef _DW_R
+#undef _DWB_R
+
 // This is to stop code that may do something that is not implemented yet
 // for testing purposes, to see if an interface is required.
 #define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx");}
 
-#undef _DW_R
-#undef _DWB_R
 
 #endif /* TYPE_H */
-
-/*
-
-// Switch to this format.
-
-V86_HND MyHook(PSTDREGS r)
-{
-	if (AH(r) == 9) {
-		putchar(AL(r));
-	}
-	AX(r) = 3;
-}
-
-*/

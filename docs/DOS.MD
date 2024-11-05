@@ -266,3 +266,29 @@ There is little need for this interface. As far as I know, few programs ever use
 ## DOS Protected Mode Services (DPMS)
 
 This API is independent of DPMI or VCPI and can use both. It allows for resident drivers to run in protected mode. Not currently supported. Existing implementations may still be able to run on top of built-in DPMI.
+
+# Creating DOS Virtual Machines (ALPHA/TODO/WIP)
+
+## API
+
+```
+LONG CreateDosVM(       PCSTR   path,
+                        PCSTR   arguments,
+                        PBYTE   env_block,
+                        PSHORT  default_fhandles_x5,
+                        SHORT   cmem_max_pgraphs,
+                        LONG    extended_dpmi_handles,
+                        LONG    extended_pages,
+                        BYTE    extended_percent_lockable
+                        PVOID   text_framebuffer_4k,
+                        PEMU_CONTEXT parent
+
+
+);
+
+SHORT CreateRedirHandle();
+
+VOID FreeRedirHandle();
+
+
+```
