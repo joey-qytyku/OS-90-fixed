@@ -5,10 +5,8 @@ The high memory area is reserved for the kernel. This document is here for futur
 ```
 == Map of the HMA ==
 
-100000-101FFF Startup page tables, reclaimable (8192 bytes)
-102000-1021FF Real mode switcher (512 bytes)
-1022F0-1025FF Switcher stack (1024 bytes)
-103000-107FFF SV86 default real mode stack (20KB)
+100000-102FFF Startup page tables, reclaimable (8192 bytes)
+103000-107FFF Real mode switcher (512 bytes)
 10FFF0        Kernel startup stack start (512 bytes down)
 ```
 

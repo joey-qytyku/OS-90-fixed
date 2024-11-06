@@ -267,9 +267,9 @@ VOID NORETURN KernelMain(VOID)
 	Gdt_Ldt_Idt_Tss_Tr();
 
 	// Copy RMCS data
-	inline_memcpy(  0x102000,
-			&_binary_L_SWITCH_BIN_start,
-			&_binary_L_SWITCH_BIN_size
+	inline_memcpy(  0x103000,
+			L_SWITCH_BIN,
+			L_SWITCH_BIN_len
 	);
 
 	ConfigurePIT();

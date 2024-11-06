@@ -188,10 +188,11 @@ ISR_7:
         align   16
 ISR_REST:
         Save
+        xchg bx,bx
         ;--------------------------------------------------------------------
         ; Get in-service register, but as a bit mask, not an index.
         ;--------------------------------------------------------------------
-        call    GetInService
+        call    GetInService ; In service is faulty!
 
         ;--------------------------------------------------------------------
         ; Is the in service zero? If so, IRQ is spurious.
@@ -212,7 +213,7 @@ ISR_REST:
         ;--------------------------------------------------------------------
         ; If the interrupt has no 32-bit handler, reflect to DOS/BIOS
         ;--------------------------------------------------------------------
-        cmp     dword [stage2_isr_list+eax*4],0
+        cmp     dword [stage2_isr_list+ebx*4],0
         jz      .REFLECT
 
         ;--------------------------------------------------------------------
@@ -229,6 +230,7 @@ ISR_REST:
         jz      .EOI_BOTH
 
 .REFLECT:
+        xchg bx,bx
         ;--------------------------------------------------------------------
         ; Call the reflection entry point in HMA and exit without EOI.
         ; The real mode ISR will send EOI.
@@ -315,10 +317,10 @@ GetInService:
         cli
         xor     eax,eax
 
-        mov     AL,00001010b
-        out     20h,AL
+        mov     al,0x0b
+        out     20h,al
 	jmp $+2
-        out     0A0h,AL
+        out     0A0h,al
 	jmp $+2
 
         in      al,20h
@@ -328,7 +330,7 @@ GetInService:
         in      al,0A0h
 	jmp $+2
 
-        shl     ebx,8
+        shl     eax,8
         or      eax,ebx
 
         pop     ebx

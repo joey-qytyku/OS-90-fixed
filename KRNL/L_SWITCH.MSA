@@ -12,21 +12,12 @@
 ;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; IS THIS UP TO DATE?
-SWSTACK EQU     1032F0h
-SWBASE  EQU     103000h
-
-SWBASE_RM_OFF  EQU (SWBASE  - 0FFFF0h)+16
-SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
-
-; THIS FILE MUST BE BUILT WITH NASM
-
 ;-------------------------------------------------------------------------------
 ; This is a procedure that is called by an IRQ handler, but by address rather
 ; than symbol.
 ;
 ; On x86, the CPU must be in 16-bit protected or it will freeze. We will now
-; be executing inside 102000:0000. We are in a tiny model region with a special
+; be executing inside 103000:0000. We are in a tiny model region with a special
 ; code and data segment.
 ;
 ; To be compatible with real mode addressing, the base address of the PM
@@ -41,7 +32,7 @@ SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
 ; SREGS are set to default kernel ones.
 ;
         bits    16
-        ORG 16+2000h
+        ORG 16+3000h
         xchg    bx,bx
         ; What about EBP!!!! Save it outside of this maybe?
         ;------------------------------------------------------
@@ -71,7 +62,7 @@ SWSTACK_RM_OFF EQU (SWSTACK - 0FFFF0h)+16
         mov     ss,ax
 
         ; Change the stack pointer to the correct location.
-        mov     sp,2000h+512
+        mov     sp,3000h+2000h
 
         ; Save the IDTR. The GDTR is not actually destroyed by real mode.
         sidt    [SAVE_IDTR]
