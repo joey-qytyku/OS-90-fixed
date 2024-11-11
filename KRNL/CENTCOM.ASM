@@ -2,7 +2,9 @@ extern TSS
 
 global EXC_0
 
-global EXC_0, ISR_15, ISR_7, ISR_REST, IRQ0, RemapPIC, SetIrqMask
+global ISR_1, IRQ0
+
+global EXC_0, ISR_REST, IRQ0, RemapPIC, SetIrqMask
 global V86_Monitor, INTxH, V86xH
 
 	_EAX    EQU 0   * 4
@@ -177,38 +179,82 @@ handler_table:
 ; TODO, save ebx
 
         align   16
-ISR_15:
-        mov     BYTE  [ss:actual_irq],15
+ISR_1:  mov     byte [ss:actual_irq],1
+        jmp     ISR_REST
+
+        align   16
+ISR_2:  mov     byte [ss:actual_irq],2
+        jmp     ISR_REST
+
+        align   16
+ISR_3:  mov     byte [ss:actual_irq],3
+        jmp     ISR_REST
+
+        align   16
+ISR_4:  mov     byte [ss:actual_irq],4
+        jmp     ISR_REST
+
+        align   16
+ISR_5:  mov     byte [ss:actual_irq],5
+        jmp     ISR_REST
+
+        align   16
+ISR_6:  mov     byte [ss:actual_irq],6
         jmp     ISR_REST
 
         align   16
 ISR_7:
-        mov     BYTE [ss:actual_irq],7
+        mov     byte [ss:actual_irq],7
         jmp     ISR_REST
+
+ISR_8:  mov     byte [ss:actual_irq],8
+        jmp     ISR_REST
+
+        align   16
+ISR_9:  mov     byte [ss:actual_irq],9
+        jmp     ISR_REST
+
+        align   16
+ISR_A:  mov     byte [ss:actual_irq],10
+        jmp     ISR_REST
+
+        align   16
+ISR_B:  mov     byte [ss:actual_irq],11
+        jmp     ISR_REST
+
+        align   16
+ISR_C:  mov     byte [ss:actual_irq],12
+        jmp     ISR_REST
+
+        align   16
+ISR_D:  mov     byte [ss:actual_irq],13
+        jmp     ISR_REST
+
+        align   16
+ISR_E:  mov     byte [ss:actual_irq],14
+        jmp     ISR_REST
+
+        align   16
+ISR_F:  mov     byte [ss:actual_irq],15
+        jmp     ISR_REST
+
         align   16
 ISR_REST:
-        Save
-        xchg bx,bx
-        ;--------------------------------------------------------------------
-        ; Get in-service register, but as a bit mask, not an index.
-        ;--------------------------------------------------------------------
-        call    GetInService ; In service is faulty!
+        ; OS/90 kernel mode does not define the contents of GS and FS in a
+        ; thread-local context.
+        ; It is not saved by IRQs consequently.
 
-        ;--------------------------------------------------------------------
-        ; Is the in service zero? If so, IRQ is spurious.
-        ; Otherwise, continue as usual.
-        ; Spurious is unlikely.
-        ;--------------------------------------------------------------------
-        test    eax,eax
-        jnz     .SPUR
+        Save
+
+
+        ; TODO: Handle spurious interrupts
 
 .CONT:
         ;--------------------------------------------------------------------
         ; This was not a spurious interrupt.
         ;--------------------------------------------------------------------
-        ; Convert the bit mask to an index. It is known that mask != 0.
-        ;--------------------------------------------------------------------
-        bsf     ebx,eax
+
+        mov     ebx,[actual_irq]
 
         ;--------------------------------------------------------------------
         ; If the interrupt has no 32-bit handler, reflect to DOS/BIOS
@@ -230,13 +276,12 @@ ISR_REST:
         jz      .EOI_BOTH
 
 .REFLECT:
-        xchg bx,bx
         ;--------------------------------------------------------------------
         ; Call the reflection entry point in HMA and exit without EOI.
         ; The real mode ISR will send EOI.
         ;--------------------------------------------------------------------
-        mov     edx,eax
-        call    30h:16+2000h
+        mov     edx,ebx
+        call    28h:16+3000h
         ; That just trashed all the registers, but we dont care now.
         jmp     .NO_EOI
 
@@ -254,13 +299,11 @@ ISR_REST:
         out     0A0h,al
 	jmp $+2
 
-        align   16
 .EOI_MASTER:
         mov     al,20h
         out     20h,al
 	jmp $+2
 
-        align   16
 .NO_EOI:
         Restore
         iret
@@ -311,7 +354,7 @@ GetIrqMask:
         ret
 
         align   16
-GetInService:
+GetInService:           ; Prob wrong or todo remove?
         pushf
         push    ebx
         cli
@@ -395,6 +438,7 @@ RemapPIC:
         align   64
 IRQ0:
         ; Currently testing V86, this will do nothing ATM.
+        nop
         push    eax
         mov     al,20h
         out     20h,al

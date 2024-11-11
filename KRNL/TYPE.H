@@ -23,12 +23,7 @@
 #define inline_memcpy(d, s, c) __builtin_memcpy((d), (s), (c))
 #define inline_memset(d, v, c) __builtin_memset((d), (v), (c))
 
-#define ASM __asm__ volatile
-
-#define ALIGNED(a)      __attribute__((aligned(a)))
-#define NORETURN        __attribute__((__noreturn__))
-#define SECTION(name)   __attribute__((section(#name)))
-#define NAKED           __attribute__((naked))
+#define BIT(x) (1<<(x))
 
 #define API __attribute__((cdecl))
 
@@ -119,9 +114,6 @@ to its full extent. The V86 segment registers at the end are only generated
 in cases when switching from a V86 context. alloca can be used in such
 situations.
 
-When entering V86, the V86 registers are used, but should be
-accessed using the ES,DS,FS,GS,CS names since the v86 ones are a bit of an
-implementation detail.
 *******************************************************************************/
 
 typedef struct __attribute__((packed)) {
@@ -134,14 +126,34 @@ typedef struct __attribute__((packed)) {
 	_DW_R(DI);
 	_DW_R(BP);
 
-	LONG   pm_ES;
-	LONG   pm_DS;
-	LONG   pm_FS;
-	LONG   pm_GS;
+	SHORT   pm_ES;
+	SHORT   :8;
+	SHORT   pm_DS;
+	SHORT   :8;
+	SHORT   pm_FS;
+	SHORT   :8;
+	SHORT   pm_GS;
+	SHORT   :8;
 
 	_DW_R(IP);
-	LONG   CS;
+	SHORT   CS;
+	SHORT   :8;
+
+	#define I86_C   BIT(0)
+	#define I86_PF  BIT(2)
+	#define I86_AF  BIT(4)
+	#define I86_ZF  BIT(6)
+	#define I86_SF  BIT(7)
+	#define I86_TF  BIT(8)
+	#define I86_IF  BIT(9)
+	#define I86_DF  BIT(10)
+	#define I86_OF  BIT(11)
+	#define I86_IOPL (BIT(12) | BIT(13))
+	#define I86_NT  (BIT(14))
+	#define I86_VM  BIT(17)
+	#define I86_AC  BIT(18)
 	_DW_R(FLAGS);
+
 	_DW_R(SP);
 	LONG   SS;
 
@@ -149,14 +161,12 @@ typedef struct __attribute__((packed)) {
 	LONG v86_DS;
 	LONG v86_FS;
 	LONG v86_GS;
+	#undef _DW_R
+	#undef _DWB_R
 }STDREGS, *PSTDREGS;
-
-#undef _DW_R
-#undef _DWB_R
 
 // This is to stop code that may do something that is not implemented yet
 // for testing purposes, to see if an interface is required.
 #define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx");}
-
 
 #endif /* TYPE_H */

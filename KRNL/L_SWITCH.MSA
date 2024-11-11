@@ -33,7 +33,6 @@
 ;
         bits    16
         ORG 16+3000h
-        xchg    bx,bx
         ; What about EBP!!!! Save it outside of this maybe?
         ;------------------------------------------------------
         ; Calculate the real vector to invoke
@@ -50,26 +49,27 @@
 .else:
         add     edx,8   ; They start at #8 anyway
 
-        xchg bx,bx
-
-        ; Save the stack pointer. It will be destroyed and is no longer valid
-        ; here.
-        mov     [SAVE_ESP],esp
-
         ; Use the correct data and segments.
         mov     eax,30h
         mov     ds,ax
+        mov     [SAVE_ESP],esp
         mov     ss,ax
+        mov     es,ax
 
         ; Change the stack pointer to the correct location.
-        mov     sp,3000h+2000h
+        ; We will also clear ESP just to be safe.
+        mov     esp,3000h+2000h
 
         ; Save the IDTR. The GDTR is not actually destroyed by real mode.
+        ; Make sure the operation uses 32-bit operands so the full address is
+        ; loaded.
+        DB 66h
         sidt    [SAVE_IDTR]
 
         ; Switch to real mode
         mov     eax,cr0
-        xor     eax,1
+        xor     eax,8000_0001h
+        mov     cr0,eax
 
         ; Load the IDTR with something correct with real mode. Yes it works
         ; like this! The IDTR is valid in real mode.
@@ -80,53 +80,81 @@
 
         jmp     0FFFFh:cont
 cont:
-        mov     eax,0FFFF0h
+        mov     ax,0FFFFh
         mov     ds,ax
         mov     ss,ax
+
+        ; Could this be a stack error? Maybe SP is to high?
 
         ; ES will address the IVT
         xor     ax,ax
         mov     es,ax
+        mov     fs,ax
+        mov     gs,ax
+
+        xor     eax,eax
+        xor     ebx,ebx
+        xor     ecx,ecx
+        xor     esi,esi
+        xor     edi,edi
+        xor     ebp,ebp
 
         ; Now we run the INT. But we do not want to use self-modifying code
-        ; and cannot call an arbitrary int. The instruction will be simulated
-        ; with push/jmp
+        ; and cannot call an arbitrary int. The instruction will be simulated.
+
+        ;xchg bx,bx
+
+        mov     al,'I'
+        out     0E9h,al
+
+        mov     al,1111_1101b
+        out     21h,al
 
         pushf
-        push    0FFFFh
-        push    cont2
-        jmp     [es:edx*4]
-cont2:
-        ; We are now back. Switch to protected mode...
+        call    far [es:edx*4]
 
-        ; First load the IDTR
-        lidt    [SAVE_IDTR]
+        mov     al,'O'
+        out     0E9h,al
 
-        ; Go to 16-bit protected mode.
         mov     eax,cr0
-        inc     eax
+        xor     eax,8000_0001h
+        mov     cr0,eax
 
-        ; To get back to the caller, stack switch must occur.
         mov     eax,10h
         mov     ss,ax
         mov     es,ax
-
-        ; Get old ESP back
-        mov     esp,[SAVE_ESP]
-
-        ; Now we can change DS, no need for variables.
         mov     ds,ax
+        mov     esp,[dword 0FFFF0h + SAVE_ESP]
+
+        DB 66h
+        lidt    [dword 0FFFF0h + SAVE_IDTR]
+
+        ; The address is 5xxx something aligned by 16.
+        ; Why is it not saving the top part?
+
+        ; Does stack segment size matter? I wonder.
 
         ; SS:ESP is now correct.
+        ; WAIT IS IT NOT!
 
-        ; Perform a 32-bit return. This will use 32-bit stack values despite
+        ; Perform a 32-bit far return. This will use 32-bit stack values despite
         ; the code segment being 16-bit. Yes x86 really is like that.
-        DB 66h,0C3h
+        retfd
+
+        ;
+        ; The addressing is correct. Loading the real mode IDT works correctly.
+        ; There is a problem with the stack pointer load.
+        ;
+        ; It could hae something to do with protected mode addressing?
+        ;
+        ; In PM it seems that the IDT loaded is incorrect.
+        ;
 
         align   16
 SAVE_ESP:       DD 0
 SAVE_IDTR:
-        DW      0,0,0,0
+        DW      0,0,0,0,0,0
 RM_IDTR:
-        DW      1024,0,0,0
+        DW      1024,0,0,0,0
+MAGIC:  DD      0xDEADBEEF
 ; Wrong order?

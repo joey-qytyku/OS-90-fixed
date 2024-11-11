@@ -1,8 +1,6 @@
 #ifndef E_DOS_H
 #define E_DOS_H
 
-#define EFLAGS_VM 0x00020000
-
 //
 // DOS functions (21H) that must be hooked.
 //

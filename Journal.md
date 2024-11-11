@@ -6561,4 +6561,172 @@ Userspace programs can contact SV86 and hooks if they do not set their own handl
 
 I can eliminate the need for branching in the task switch subprogram by using a pointer to a jump label in the task block.
 
+# Novemeber 6
+
+## The task switching idea
+
+Its great actually. I need to set the procedures on events like system entries and exits however. This is for the exception handlers of course.
+
+This would not be a major problem for SV86.
+
+There are a few different types of switches:
+- R0 -> R0
+- R3 -> R3
+- R3 -> R0
+- R0 -> R3
+
+The regster transfers required for each vary.
+
+## Next Things To Do
+
+Get Interrupts to Work
+
+## Interrupts
+
+I do not need to read the ISR all the time. It is a total waste of clock cycles and is done inefficiently right now anyway.
+
+The only time it matters is if the ISR is zero or not, indicating a spurious IRQ. Otherwise, we dont need to care.
+
+### At all?
+
+Having an ISR for each IRQ is not a good idea. I need to branch them out somehow.
+
+Here is a layout:
+```
+[IRQ#xx]
+
+
+```
+
+# November 7
+
+## IRQ Solution
+
+If I want to fully eliminate the IRQ problem with minimal branches and avoid accessing the PIC so I cannot make any mistakes.
+
+One solution is to create an ISR for each. Since STDREGS does not follow the pusha structure and I don't want to use that to begin with (its kind of slow) I have to place a number of instructions for pushing and popping.
+
+Because the values of GS and FS are undefined in ring-0, they do not need to be saved by any ISR.
+
+The push/pop set is:
+```
+        push    DS
+        push    ES
+
+        push    EBP
+        push    EDI
+        push    ESI
+
+        push    EDX
+        push    ECX
+        push    EBX
+        push    EAX
+
+        ; {...}
+
+        pop     EAX
+        pop     EBX
+        pop     ECX
+        pop     EDX
+
+        pop     ESI
+        pop     EDI
+        pop     EBP
+
+        pop     ES
+        pop     DS
+```
+This is 18 bytes long.
+
+A solution could be to create separate IDT entries for each IRQ. Since there is no temporal locality, cache is not harmed.
+
+The only problem is wasted bytes for no particular reason.
+
+A better idea would be to do the same thing as exceptions.
+
+## Faster Scheduler
+
+Pushing to the stack is a waste. It is theoretically better to copy the registers directly and temporarily use one for addressing.
+
+> Enhance the trackpoint
+
+# November 8 (LATER)
+
+I am trying to get interrupts to work.
+
+## Memory API
+
+Why not have isolated address spaces?
+
+Immediately, I run into some challenges:
+- Accessing the independent virtual regions
+- Drivers have to be mapped to a special region of the VAS
+- Allocatng VAS may need to be done semi-properly
+- OS will be slightly slower
+- Less bug-prone.
+
+A lot of static limits could be a viable solution for reducing some of the complexity.
+
+I also wont literally allocate a full page directory for each process even if some pages alias. I would prefer to copy a full page directory entry for 4M or mapping per copy, which is very large and can be done on ring-3 task switches.
+
+Memory management structures will be static and unchanging. The RMR is not really needed. I will have to implement some level of mapping ranges allocation.
+
+Actually, page tables can be dynamically allocated now.
+
+### Decision
+
+The PCI bus starts its memory mapped region at 0xC000_0000 which leaves about 3 GB of memory. The problem is this is not even totally predictable and outside the capability of anything other than E820 to detect.
+
+I do not need to worry because XMS already allocates the largest possible block of memory. Any XMS manager that tries to use PAE will certainly not work.
+
+PAE will not make sense for OS/90. Memory exceeding the amount of addressing space is illogical unless a HIMEM-style system is used. I know linux has something similar to this but with isolated address spaces it can map some things to high memory, it just struggles to access that data across threads so it has a special API for that.
+
+I can have an API that enabled it to work with some sort of bank switching or lock/unlock.
+
+
+# Novemeber 9, 10
+
+## Memory
+
+No changes.
+
+## Sitrep on interrupts
+
+Currently not working, but the switch to real mode works and the interrupt is correctly serviced.
+
+The only problem relates to the access of memory in protected mode.
+
+## Problems With Reflection
+
+For some reason I am getting a floating point error message that never ends in Bochs and qemu reports a divide by zero.
+
+Exceptions should never occur in BIOS code or interrupt handlers. I have a feeling I am running bogus code or something.
+
+Actually the divide by zero message was because I actually called divide by zero. I though zeroing out the registers would aleviate any potential addressing problem.
+
+It appears that qemu only works because the interrupts are not actually being recieved at all. The counter in the debug screen does not change at all.
+
+So what is wrong? It appears to be partially running total nonsense code. The keyboard handler is at 0070:0016. Does this even actually run?
+
+Floating point should never be used by the BIOS. This may be a massive assumption, but it really should not occur, at least not without manually saving the FPU registers as no interrupt handler really should be using the FPU anyway and a BIOS API will never change them.
+
+So I am confident that nonsense code is being executed. I do not think the OS is capable of exiting real mode either because of the loop.
+
+Actually, it seems qemu does get the interrupts but it stops after the first few or so.
+
+I may want the interrupt mask register to reflect what already was masked when the OS started. Although none of the other interrupts should be occuring at all.
+
+## Still Not Working
+
+An invalid opcode message is printed by the BIOS and bochs complains about some kind of bound check, which I managed to capture and debug. It is caused by a jump operation!
+
+There is no segment bound problem either, and there never really should be. Addresses are supposed to wrap around in real mode. The jump is also relative yet somehow causes an error.
+
+## IRQ Mask
+
+If an IRQ has a handler assigned to it, what happens when another is reflected to real mode?
+
+In general, interrupts should never be enabled by an ISR, but they could be. Perhaps only the current interrupt should be serviced at a time with the rest disabled.
+
+Also, the mask could be destroyed too.
 

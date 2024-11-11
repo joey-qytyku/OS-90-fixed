@@ -64,7 +64,7 @@ typedef struct __attribute__((packed)) {
 }IDT_ENTRY;
 
 extern char EXC_0;
-extern char ISR_15, ISR_7, ISR_REST, IRQ0;
+extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
@@ -98,14 +98,11 @@ SEGMENT_DESCRIPTOR ldt[128];
 // to something else denies all.
 struct tss TSS;
 
-ALIGNED(64) IDT_ENTRY idt[2048];
+__attribute__(( aligned(64) )) IDT_ENTRY idt[2048];
 
 // Base is wrong?
 DESC_TAB_REG gdtr = {63,   (LONG)&gdt};
 DESC_TAB_REG idtr = {2047, (LONG)&idt};
-
-ALIGNED(4096) TASK init_thread;
-ALIGNED(4096) TASK other_thread;
 
 // BYTE rmca[];
 
@@ -164,7 +161,7 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 
 	L_SegmentCreate(
 		GDT_RMCS_CODE,
-		0x100000,
+		0xFFFF0,
 		0xFFFF,
 		access_cseg,
 		0
@@ -172,7 +169,7 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 
 	L_SegmentCreate(
 		GDT_RMCS_DATA,
-		0x100000,
+		0xFFFF0,
 		0xFFFF,
 		access_dseg,
 		0
@@ -188,15 +185,10 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 	// IRQ#0 is handled with a different IDT entry.
 
 	// Set IDT entries for 1-6
-	for (LONG i = 0xA1; i <= 0xA6; i++)
-		SetIsr(&ISR_REST, i);
-
-	for (LONG i = 0xA8; i <= 0xAF; i++)
-		SetIsr(&ISR_REST, i);
+	for (LONG i = 0; i < 15; i++)
+		SetIsr(&ISR_1+(i)*16, i+0xA1);
 
 	SetIsr(&IRQ0, 0xA0);
-	SetIsr(&ISR_7, 0xA7);
-	SetIsr(&ISR_15, 0xAF);
 
 	TSS.bitmap_base = __builtin_offsetof(struct tss, bitmap);
 
@@ -258,7 +250,7 @@ That means if I am in ring-0, I should NOT...
 
 /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-VOID NORETURN KernelMain(VOID)
+VOID KernelMain(VOID)
 {
 	// Zero BSS first, important
 
@@ -282,7 +274,9 @@ VOID NORETURN KernelMain(VOID)
 
 	// inline_memcpy(0x90000+0x800, str, 16);
 
-	__asm__("sti");
+	__asm__ volatile ("finit":::"memory");
+
+	__asm__ volatile ("sti");
 
 	// STDREGS r = {
 	// 	.AH = 9,
@@ -299,6 +293,6 @@ VOID NORETURN KernelMain(VOID)
 __attribute__(( noreturn, naked, section(".init") ))
 VOID EntryPoint(VOID)
 {
-	__asm__ volatile ("movl $(init_thread+4096), %esp");
+	__asm__ volatile ("movl $(0x100000+65520), %esp");
 	__asm__ volatile ("jmp KernelMain":::"memory");
 }
