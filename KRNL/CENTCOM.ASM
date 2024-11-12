@@ -151,7 +151,7 @@ EXC_CONT:
         mov     edx,esp
 
         ; Interrupts are currently off, enable
-        sti
+        ; sti
 
         ; xchg bx,bx
 
@@ -582,13 +582,14 @@ S_Deactivate:
 
         ; Are my IRQ vectors set properly?
 
-V86xH: ;PSTDREGS r
-        xchg    bx,bx
+V86xH:
         inc     dword [preempt_count]
         mov     [saved_ebx],ebx
         mov     [saved_esi],esi
         mov     [saved_edi],edi
         mov     [saved_ebp],ebp
+
+        ; xchg bx,bx
 
         mov     ebx,[esp+4]     ; stdregs ptr
 
@@ -713,7 +714,6 @@ V86_Monitor:
         ; with no way to restore.
 
         ; NOTE, DO NOT PUSH ANYTHING WITHOUT POPPING BEFORE .END
-        xchg bx,bx
 	movzx   ebx,word [edx+_CS]
 	movzx   ecx,word [edx+_EIP]
         shl     ebx,4
@@ -846,7 +846,7 @@ V86_Monitor:
         jmp     .cont
 
 .not_popf:
-        cmp     al,0FBh
+        cmp     al,0FBh         ; It is STI
         jnz     .not_sti
 
         ; Enable interrupts in the flags register. BIOS code usually never
@@ -859,6 +859,14 @@ V86_Monitor:
 
 
 .not_sti:
+        cmp     al,0FAh         ; Is it CLI
+        jnz     .not_cli
+
+        and     dword[edx+_EFLAGS],~(200h)
+        inc     dword[edx+_EIP]
+        jmp     .cont
+
+.not_cli:
         mov     edx,8086DEADh
         jmp $ ;;;;;;;;;;;;;;
 

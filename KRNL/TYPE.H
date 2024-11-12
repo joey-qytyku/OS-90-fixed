@@ -115,6 +115,19 @@ in cases when switching from a V86 context. alloca can be used in such
 situations.
 
 *******************************************************************************/
+#define I86_C   BIT(0)
+#define I86_PF  BIT(2)
+#define I86_AF  BIT(4)
+#define I86_ZF  BIT(6)
+#define I86_SF  BIT(7)
+#define I86_TF  BIT(8)
+#define I86_IF  BIT(9)
+#define I86_DF  BIT(10)
+#define I86_OF  BIT(11)
+#define I86_IOPL (BIT(12) | BIT(13))
+#define I86_NT  (BIT(14))
+#define I86_VM  BIT(17)
+#define I86_AC  BIT(18)
 
 typedef struct __attribute__((packed)) {
 	_DWB_R(A);
@@ -126,36 +139,19 @@ typedef struct __attribute__((packed)) {
 	_DW_R(DI);
 	_DW_R(BP);
 
-	SHORT   pm_ES;
-	SHORT   :8;
-	SHORT   pm_DS;
-	SHORT   :8;
-	SHORT   pm_FS;
-	SHORT   :8;
-	SHORT   pm_GS;
-	SHORT   :8;
+	LONG    pm_ES;
+	LONG    pm_DS;
+	LONG    pm_FS;
+	LONG    pm_GS;
 
 	_DW_R(IP);
-	SHORT   CS;
-	SHORT   :8;
+	LONG    CS;
 
-	#define I86_C   BIT(0)
-	#define I86_PF  BIT(2)
-	#define I86_AF  BIT(4)
-	#define I86_ZF  BIT(6)
-	#define I86_SF  BIT(7)
-	#define I86_TF  BIT(8)
-	#define I86_IF  BIT(9)
-	#define I86_DF  BIT(10)
-	#define I86_OF  BIT(11)
-	#define I86_IOPL (BIT(12) | BIT(13))
-	#define I86_NT  (BIT(14))
-	#define I86_VM  BIT(17)
-	#define I86_AC  BIT(18)
 	_DW_R(FLAGS);
 
 	_DW_R(SP);
-	LONG   SS;
+
+	LONG    SS;
 
 	LONG v86_ES;
 	LONG v86_DS;

@@ -100,7 +100,6 @@ struct tss TSS;
 
 __attribute__(( aligned(64) )) IDT_ENTRY idt[2048];
 
-// Base is wrong?
 DESC_TAB_REG gdtr = {63,   (LONG)&gdt};
 DESC_TAB_REG idtr = {2047, (LONG)&idt};
 
@@ -258,26 +257,21 @@ VOID KernelMain(VOID)
 
 	Gdt_Ldt_Idt_Tss_Tr();
 
-	// Copy RMCS data
-	inline_memcpy(  0x103000,
-			L_SWITCH_BIN,
-			L_SWITCH_BIN_len
-	);
+	// // Copy RMCS data
+	// inline_memcpy(  0x103000,
+	// 		L_SWITCH_BIN,
+	// 		L_SWITCH_BIN_len
+	// );
 
 	ConfigurePIT();
 
 	RemapPIC();
 
-	InitV86();
-
-	// static const char *str = "Hello, world!\n\r$";
-
-	// inline_memcpy(0x90000+0x800, str, 16);
-
-	__asm__ volatile ("finit":::"memory");
+	// InitV86();
 
 	__asm__ volatile ("sti");
 
+	// Running nonsense again.
 	// STDREGS r = {
 	// 	.AH = 9,
 	// 	.v86_DS = 0x9000,
@@ -286,6 +280,8 @@ VOID KernelMain(VOID)
 	// 	.ESP = 0x800
 	// };
 	// INTxH(0x21, &r);
+
+	FuncPrintf(pc, "Hello, world!\n\r");
 
 	__asm__ volatile("jmp .":::"memory");
 }

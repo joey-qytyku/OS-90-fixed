@@ -63,8 +63,7 @@ VOID Hex32ToString(LONG value, VOID (*func)(char))
 	}
 }
 
-// Add support for aligned tabs
-// Also should work to make this truly compatible (except for float ofc)
+// Should work to make this truly compatible (except for float ofc)
 void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 {
 	va_list args;

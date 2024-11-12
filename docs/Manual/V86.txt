@@ -4,8 +4,6 @@
 
 --------------------------------------------------------------------------------
 HV86
-V86_ATE
-V86_REFLECT
 
 INTxH()
 RUNxH()
@@ -13,15 +11,7 @@ HOOKxH()
 
 These are the basic services provided by the kernel for controlling and making requests to the BIOS or DOS from protected mode.
 
-There exist a chain of handlers for each INT call. The chain starts from the very end and approaches the begining. It returns the old handler to chain back, returns `V86_PM_DONE` if handled in full within protected mode, or V86_PM_REFLECT to send it to real mode unconditionally.
-
-The V86 hook handler takes a PSTDREGS structure. The `v86_` prefixed members are to be used.
-
-If reflected, SV86 is entered and preemption is 100% disabled. The only things that will run are the real mode code and the general protection fault handler.
-
-If SV86 makes a further call using INT, it will be handled with the chain, but the SV86 handler is required to check the preemption status.
-
-Anything that tries to acquire a lock when SV86 is active will be dangerous. The context is not T1, but a special SV86 context type.
+There exist a chain of handlers for each INT call.
 
 --------------------------------------------------------------------------------
 	API Listing
@@ -46,12 +36,12 @@ If the supplied SS:SP pair are zero, a stack is automatically chosen.
 
 T1 or T2. Internally non-reentrant but guarded with preemption-off.
 
-### Monitor Input and Reflect
-
-Here is an example of monitoring the input to a call without changing the parameters. In the case of doing so (for whatever reason) ensure that the context is not clobbered incorrectly.
 
 	Example Code
 	~~~~~~~~~~~~
+
+Here is an example of monitoring the input to a call without changing the parameters. In the case of doing so (for whatever reason) ensure that the context is not clobbered incorrectly.
+
 ................................................................................
 static HV86 old;
 
@@ -89,10 +79,28 @@ This returns the vector of the first INT instruction enountered while executing 
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
+	Addressing Extensions
+--------------------------------------------------------------------------------
+
+If a DPMI server does not support extended DOS API translation, it will send all INT calls to DOS without regard for the contents of segment registers.
+
+However, the caller's context of DOS protected mode can be from protected mode. It then can be translated by the kernel before being passed to INTxH.
+
+OS/90 implements DOS API translations compatible with Microsoft extensions and also extends INT 13H for 32-bit disk access.
+
+The input context having the VM bit turned off is an indicator that it is not protected mode. This is a context taken directly from a task block.
+
+Some API's may be called from ring-0 and require extensions to be applied. If you want the addressing to work in protected mode, ensure that EFLAGS has VM turned on before calling.
+
+Ring-0 callers must be supported by any extended interface, but ring-3 selectors should not be referencing ring-0. OS/90 drivers always perform proper checks.
+
+When calling any interface, remember that anything that interacts with the user will probably not work correctly. Use debug logging, not AH=9, as the latter may print the string to some random process.
+
+--------------------------------------------------------------------------------
 	Advice
 --------------------------------------------------------------------------------
 
-SV86 is always slower than a capture handler. Anything done in 32-bits will be faster.
+SV86 is always slower than a capture handler. Anything done in 32-bits will be faster as there is no need to switch rings twice.
 
 If the API interfaces with a device (as many do), the implementor driver has many options for emulation:
 
@@ -106,5 +114,7 @@ Implementing INT 21H features for outputting text involve total emulation of the
 Expanded memory (EMS) emulation is also a form of total emulation, as the device does not do any IO or user interaction.
 
 Most OS/90 device drivers let one process access something at a time, but in some situations it is not possible to easily determine when a task is really done unless it terminates. The DMA controller is one example, but that is not an API. An API like VDS (Virtual DMA Services) is however, and would need to be part of an emulation-based driver (likely simulating what a single-tasking API would do using arbitrated access).
+
+> Termination hook?
 
 Terminating the program cannot be done using the scheduler calls because a proper cleanup may not take place.

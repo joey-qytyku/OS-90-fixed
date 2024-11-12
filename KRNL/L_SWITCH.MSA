@@ -60,6 +60,20 @@
         ; We will also clear ESP just to be safe.
         mov     esp,3000h+2000h
 
+        ; Save the interrupt mask register. For some reason, interrupts are
+        ; re-enabled by real mode and the timer IRQ causes interference.
+        ; To ensure such issues never happen, we will mask them all out later.
+
+        in      al,21h
+        mov     [OLD_MASK_M],al
+        in      al,0A1h
+        mov     [OLD_MASK_S],al
+
+        ; Mask all interrupts
+        mov     al,255
+        out     21h,al
+        out     0A1h,al
+
         ; Save the IDTR. The GDTR is not actually destroyed by real mode.
         ; Make sure the operation uses 32-bit operands so the full address is
         ; loaded.
@@ -92,7 +106,6 @@ cont:
         mov     fs,ax
         mov     gs,ax
 
-        xor     eax,eax
         xor     ebx,ebx
         xor     ecx,ecx
         xor     esi,esi
@@ -107,14 +120,16 @@ cont:
         mov     al,'I'
         out     0E9h,al
 
-        mov     al,1111_1101b
-        out     21h,al
-
         pushf
         call    far [es:edx*4]
 
         mov     al,'O'
         out     0E9h,al
+
+        mov     al,[OLD_MASK_M]
+        out     21h,al
+        mov     al,[OLD_MASK_S]
+        out     0A1h,al
 
         mov     eax,cr0
         xor     eax,8000_0001h
@@ -129,26 +144,9 @@ cont:
         DB 66h
         lidt    [dword 0FFFF0h + SAVE_IDTR]
 
-        ; The address is 5xxx something aligned by 16.
-        ; Why is it not saving the top part?
-
-        ; Does stack segment size matter? I wonder.
-
-        ; SS:ESP is now correct.
-        ; WAIT IS IT NOT!
-
         ; Perform a 32-bit far return. This will use 32-bit stack values despite
         ; the code segment being 16-bit. Yes x86 really is like that.
         retfd
-
-        ;
-        ; The addressing is correct. Loading the real mode IDT works correctly.
-        ; There is a problem with the stack pointer load.
-        ;
-        ; It could hae something to do with protected mode addressing?
-        ;
-        ; In PM it seems that the IDT loaded is incorrect.
-        ;
 
         align   16
 SAVE_ESP:       DD 0
@@ -156,5 +154,7 @@ SAVE_IDTR:
         DW      0,0,0,0,0,0
 RM_IDTR:
         DW      1024,0,0,0,0
-MAGIC:  DD      0xDEADBEEF
+OLD_MASK_M: DB 0
+OLD_MASK_S: DB 0
+
 ; Wrong order?

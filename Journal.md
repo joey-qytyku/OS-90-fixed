@@ -6730,3 +6730,35 @@ In general, interrupts should never be enabled by an ISR, but they could be. Per
 
 Also, the mask could be destroyed too.
 
+
+## Yes That Is the Answer
+
+# November 11
+
+It looks like masking the timer interrupt caused everything to work. Perhaps the keyboard driver tries to implement some king of timeout or something else related to time. Whatever it does obviously cannot work because the timer frequency is way too high or something like that.
+
+Results are better with SeaBIOS and no major error messages occur. The only problem is the display not initializing.
+
+## Got It Working?
+
+I added the interrupt mask feature and the keyboard IO works fine without errors on the default bochs BIOS.
+
+Interrupts also remain enabled and operational in the main loop of the kernel. No unusual behavior so far. Reflection seems to work perfectly.
+
+## Regression or Bootloader Problem?
+
+I get an error when trying to reference the IDT.
+
+This did not happen before.
+
+I think this has more to do with my attempt at calling INTxH. Perhaps the page tables got overwritten.
+
+Yes I am quite confident that page tables were overwritten in the HMA. There are only two mapping ranges when it runs properly, one for real mode and one for the kernel.
+
+Actually I called V86xH to print a string.
+
+Yes it seems like a regression now. I had it working once. V86xH is not working.
+
+I should change the permissions of the page to ring-0 to catch the error.
+
+Some details: the segment appears to be wrong. It just calls C000:0000.
