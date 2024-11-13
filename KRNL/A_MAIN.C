@@ -233,7 +233,8 @@ static void pc(char c)
 		.EIP = IVT[0x10].ip,
 		.CS  = IVT[0x10].cs,
 		.SS = 0x9000,
-		.ESP = 2048
+		.ESP = 2048,
+		.EFLAGS = I86_IF
 	};
 	LONG v = V86xH(&r);
 }
@@ -258,24 +259,26 @@ VOID KernelMain(VOID)
 	Gdt_Ldt_Idt_Tss_Tr();
 
 	// // Copy RMCS data
-	// inline_memcpy(  0x103000,
-	// 		L_SWITCH_BIN,
-	// 		L_SWITCH_BIN_len
-	// );
+	inline_memcpy(  0x103000,
+			L_SWITCH_BIN,
+			L_SWITCH_BIN_len
+	);
 
 	ConfigurePIT();
 
 	RemapPIC();
 
-	// InitV86();
+	InitV86();
 
 	__asm__ volatile ("sti");
 
-	// Running nonsense again.
+	// Infinite recursion this time?
+	// That may be exhausting the stack.
+
 	// STDREGS r = {
-	// 	.AH = 9,
+	// 	.AH = 2,
 	// 	.v86_DS = 0x9000,
-	// 	.DX = 0x800,
+	// 	.DL     = 'A',
 	// 	.SS = 0x9000,
 	// 	.ESP = 0x800
 	// };

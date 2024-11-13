@@ -644,15 +644,19 @@ V86xH:
         ; Increment the INT counter?
         inc     dword [int_level]
 
-        ; Set the SS0:ESP0 in the TSS. This is the stack pointer we want to have
-        ; when an exception hits. SS0 is always 0x10, so no need to set it.
-        mov     word [TSS+8],10h
-        mov     [TSS+4],esp
 
         ; Save the current #GP handler, we will just change it
         push    dword [handler_table+(0Dh)*4]
 
         mov     dword [handler_table+(0Dh)*4],V86_Monitor
+        ; pushfd
+
+        ; Set the SS0:ESP0 in the TSS. This is the stack pointer we want to have
+        ; when an exception hits. SS0 is always 0x10, so no need to set it.
+        ; THIS IS THE CORRECT TIME TO DO IT. Otherwise, we will not be
+        ; able to pop off the saved information
+        mov     word [TSS+8],10h
+        mov     [TSS+4],esp
 
         ; Now we will push to our stack an IRET frame that will enter SV86.
         ; These will be pushed off and totally discarded later.
@@ -669,7 +673,7 @@ V86xH:
         push    dword [ebx+_SS]
         push    dword [ebx+_ESP]
         push    dword [ebx+_EFLAGS]
-        or      dword [esp],(1<<17);|(0<<12)     ; VM=1, IOPL=0(!)
+        or      dword [esp],(1<<17);|(3<<12)     ; VM=1, IOPL=0(!)
         push    dword [ebx+_CS]
         push    dword [ebx+_EIP]
 
@@ -692,14 +696,15 @@ V86xH:
         ; Before IRET, it already set EAX appropriately.
 V86_CONT_POINT:
         ; Restore the handler
+        ; popfd
         pop     dword [handler_table+0Dh*4]
 
         dec     dword [int_level] ; TODO remove?
 
         ; Restore the callee-saved registers
         mov     ebx,[saved_ebx]
-        mov     esi,[saved_ebp]
-        mov     edi,[saved_ebp]
+        mov     esi,[saved_esi]
+        mov     edi,[saved_edi]
         mov     ebp,[saved_ebp]
 
 	ret

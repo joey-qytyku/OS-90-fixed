@@ -6762,3 +6762,18 @@ Yes it seems like a regression now. I had it working once. V86xH is not working.
 I should change the permissions of the page to ring-0 to catch the error.
 
 Some details: the segment appears to be wrong. It just calls C000:0000.
+
+# November 12
+
+Hello world is now working. The register structure is fixed. Interrupt do not work with the printf though.
+
+All my page tables get totally trashed for some reason and I execute at invalid addresses.
+
+I will see if interrupts do this.
+
+- Tables are good after interrupts only
+- Interrupts on after printf is good
+
+Not getting any errors now. Strange. No idea if interrupts will work while in v86. Can only hope.
+
+Until then, I need to work on finalizing the INTxH interface until it can call INT 21H.
