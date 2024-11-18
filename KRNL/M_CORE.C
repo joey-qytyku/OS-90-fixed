@@ -2,7 +2,7 @@
 #include "SV86.H"
 
 // First few entries correspond with the output of M_GetInfo.
-struct {
+struct mmctrl {
 	LONG    emf;
 	LONG    emp;
 
@@ -13,7 +13,7 @@ struct {
 	LONG    vsp;
 
 	LONG    cm;
-}mmctrl;
+};
 
 static struct mmctrl mm;
 

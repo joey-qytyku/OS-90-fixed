@@ -71,20 +71,9 @@ static const PLONG pdir_ptr = ((PLONG)0x100000);
 
 #define PTE_MOD_MASK    (0b111<<9)
 
-typedef VOID (PAGE_PROC*)(
-	LONG    page_table_entry,
-	PVOID   virtual_address
-);
-
 #define HIGHEST_CHAIN_ID ((1<<20)-1)
 
 // The structure is interesting, but I probably can leave some of these static.
 // Maybe the alignment issues after linking are better.
 
-extern MM_STRUCT g_mm;
-
 #endif /* MM_H */
-
-
-API_DECL(BOOL, Vm_PageOp, PVOID base, LONG page_count, LONG opmask);
-API_DECL(PVOID, Vm_Alloc, );
