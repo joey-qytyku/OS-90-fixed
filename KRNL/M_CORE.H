@@ -15,8 +15,6 @@
 #ifndef MM_H
 #define MM_H
 
-#include <OSK/SD/SYNC.H>
-
 #define MB(x) ((x) * 1048576)
 #define KB(x) ((x) * 1024)
 
@@ -61,7 +59,6 @@ static const PLONG pdir_ptr = ((PLONG)0x100000);
 #define PO_RO()
 
 #define PO_RW
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Page part of uncommitted block (Awaiting commit)

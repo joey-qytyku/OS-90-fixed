@@ -17,3 +17,27 @@ Attempting to dereference an OSNULL pointer is a critical error that must never 
 NULL is not defined, but there is `OSNULL`, which indicates the environment difference in the name.
 
 This has no noticable impact on code density. Even comparisons are abbreviated in x86 for long operands, along with signed immediate push operations.
+
+--------------------------------------------------------------------------------
+	Directory Structure
+--------------------------------------------------------------------------------
+
+OS90
+	DRV
+	PKG
+	SRC
+	LIB
+	BIN
+	HOME
+	BOOT.CFG
+	SYSLOG.TXT
+
+All drivers in OS90/DRV are loaded at boot time.
+
+HOME is shown in the desktop environment.
+
+--------------------------------------------------------------------------------
+	Configuration File
+--------------------------------------------------------------------------------
+
+The configuration follows the same general format as the one used by DOS. Only KEY=OPTION is supported and only CRLF should be used.

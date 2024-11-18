@@ -16,6 +16,12 @@ Features:
 
 About 2 gigabytes. This includes virtual address space too.
 
+## What version of DOS should be used?
+
+OS/90 works on any version of DOS compatible with at least 4.0. If Windows 3.1 support is needed (not sure if it will work ATM) only MS-DOS works.
+
+DR-DOS is also an option and may be more stable in some ways. So is PC-DOS.
+
 # Developer FAQ
 
 ## How do i get started?

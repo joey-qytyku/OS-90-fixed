@@ -1,38 +1,41 @@
 #include <stdarg.h>
 #include "Z_IO.H"
 
-// typedef unsigned int  LONG;
-// typedef unsigned short SHORT;
-// typedef unsigned char  BYTE;
+//
+// This be look hard to understand, but I got it from transforming existing
+// code and checking the assembler output.
+//
+// This prints out commas and does so fast as well.
+//
 
-// typedef LONG   *PLONG;
-// typedef SHORT *PSHORT;
-// typedef BYTE  *PBYTE;
-
-// typedef int   SIGLONG;
-// typedef short SIGSHORT;
-// typedef char  SIGBYTE;
-
-// typedef const BYTE *PCSTR;
-
-// #define VOID void
-// #define PVOID void*
-// #define BOOL bool
-#define MAX_STR_LENGTH_OF_UINT32 10
-
-// Reason for -2?
-
-// Move func argument
 VOID UInt32ToString2(LONG value, VOID (*func)(char))
 {
+	static const int lookup[] = {
+		1000000000,
+		100000000,
+		10000000,
+		1000000,
+		100000,
+		10000,
+		1000,
+		100,
+		10,
+		1
+	};
+
+	static const BYTE lookup_need_comma[8] = {
+		1,0,0,1,0,0,1
+	};
+
 	if (value == 0) {
 		func('0');
 		return;
 	}
 
 	int found_first_zero = 0;
-	for (int i = 1000000000; i > 0; i /= 10) {
-		LONG d = ((value / i) % 10);
+
+	for (int j = 0; j < 10; j++) {
+		LONG d = ((value / lookup[j]) % 10);
 
 		// We only care about zeroes if we
 		// have encountered the first non-zero
@@ -43,11 +46,14 @@ VOID UInt32ToString2(LONG value, VOID (*func)(char))
 		}
 		// If a non-zero is found, all zeroes after
 		// matter so first condition is not true.
-		if (d != 0) {
+		else if (d != 0) {
 			found_first_zero = 1;
 		}
-
 		func('0' + d);
+
+		if (lookup_need_comma[j]) {
+		    func(',');
+		}
 	}
 }
 
@@ -77,7 +83,7 @@ void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 			{
 				case '%':
 					func('%');
-					// Increment?
+					i++;
 				continue;
 
 				case 'u':
@@ -93,6 +99,22 @@ void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 						func
 					);
 					i++;
+				continue;
+
+				case 'M':
+					UInt32ToString2(
+						va_arg(args, LONG)/(1024*1024),
+						func
+					);
+					func('M');
+				continue;
+
+				case 'K':
+					UInt32ToString2(
+						va_arg(args, LONG)/1024,
+						func
+					);
+					func('K');
 				continue;
 
 				case 's': // TODO

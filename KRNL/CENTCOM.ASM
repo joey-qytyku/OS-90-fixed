@@ -170,7 +170,7 @@ EXC_INX  DD 0
         align 4
         ; Set the handler? It is not set!
 handler_table:
-        times 20 DD 0
+        times 20 DD 0FFFF_FFFFh
 
 ;============================================================================
 ; IRQ Related Routines
@@ -589,7 +589,7 @@ V86xH:
         mov     [saved_edi],edi
         mov     [saved_ebp],ebp
 
-        ; xchg bx,bx
+        xchg bx,bx
 
         mov     ebx,[esp+4]     ; stdregs ptr
 
@@ -641,10 +641,6 @@ V86xH:
         ; necessary.
         ;
 
-        ; Increment the INT counter?
-        inc     dword [int_level]
-
-
         ; Save the current #GP handler, we will just change it
         push    dword [handler_table+(0Dh)*4]
 
@@ -673,7 +669,7 @@ V86xH:
         push    dword [ebx+_SS]
         push    dword [ebx+_ESP]
         push    dword [ebx+_EFLAGS]
-        or      dword [esp],(1<<17);|(3<<12)     ; VM=1, IOPL=0(!)
+        or      dword [esp],(1<<17)     ; VM=1, IOPL=0
         push    dword [ebx+_CS]
         push    dword [ebx+_EIP]
 
@@ -688,7 +684,6 @@ V86xH:
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
 
-        ; xchg bx,bx
         ; Bravo six, going dark.
         iret
 
@@ -697,15 +692,20 @@ V86xH:
 V86_CONT_POINT:
         ; Restore the handler
         ; popfd
+        xchg    bx,bx
         pop     dword [handler_table+0Dh*4]
-
-        dec     dword [int_level] ; TODO remove?
 
         ; Restore the callee-saved registers
         mov     ebx,[saved_ebx]
         mov     esi,[saved_esi]
         mov     edi,[saved_edi]
         mov     ebp,[saved_ebp]
+
+
+
+        ;;;;; The EIP on the stack is incorrect. That is the problem ;;;;;
+        ;
+        ; Then an exception without a handler executes.
 
 	ret
 
@@ -891,7 +891,6 @@ V86_Monitor:
         ;
         ; !!!!! EAX cannot be clobbered here. It is the return value of
         ; V86xH.
-        ;
 
         ; Copy results back into V86xH argument using saved_regbuffptr as the
         ; argument.
@@ -901,6 +900,20 @@ V86_Monitor:
         mov     ecx,20
         rep     movsd
 
+        ;;;;;;;;;;;;;; This is the problem.
+        ;
+        ; This is intended to totally tear down the stack. Anything that
+        ; got pushed will get removed.
+        ;
+        ; Really it should not be responsible for that.
+        ; Going back is enough. cdecl clears the arguments anyway so this is
+        ; just dumb and wrong.
+        ;
+        ; Wait, actually we are in an exception context. We want to clean
+        ; the stack frame out and return. Relax man.
+        ;
+
+
         ; Now we will tear down the stack and go straight into the rzero context
         ; of V86xH to continue.
         ; No IRET is needed.
@@ -908,6 +921,7 @@ V86_Monitor:
         ; Indicate? What?
 
         ; No return in this case, that is it.
+        ; BTW the segment regsters were set already to kernel values.
         jmp     V86_CONT_POINT
 
 

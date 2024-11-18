@@ -6777,3 +6777,101 @@ I will see if interrupts do this.
 Not getting any errors now. Strange. No idea if interrupts will work while in v86. Can only hope.
 
 Until then, I need to work on finalizing the INTxH interface until it can call INT 21H.
+
+
+# November 13
+
+I enabled ring 3 write protection and it is clear that a stack over flow is the source of my problems.
+
+This has nothing to do with the RMCS, but it is overwritten at some point which causes interrupts to fail too.
+
+The V86 interface is somehow broken and is causing this overflow.
+
+# November 14
+
+## Potential Problems
+
+Each execution of V86xH will clean up a certain amount of stack space.
+
+The TSS has ESP set to the current value. Interrupts that occur while inside the V86 context will use this value to set ESP.
+
+If I use this to clean the stack in any way, problems can occur.
+
+# November 15
+
+## The Problem
+
+After the 1st call to V86xH, the system fails.
+
+Results look different let me rerun.
+
+A page fault happens when the system reaches a protected address and the handler fails because the address is wrong.
+
+This may have something to do with my return handler.
+
+I will make the default handlers FFFFFFFF so that I can catch the instruction that x3faulted.
+
+That does not really help.
+
+Anyway, I think that the return mechanism is faulty.
+
+It looks like an IO instruction may have had something to do with it. Now that I fixed the problem with the TSS IOPB, things should be better now.
+
+Although this is a full on crash and not a monitor hang. Or it was interpreted as another fault somehow.
+
+Still not working, but I corrected something at least.
+
+## Got Done Today
+
+- Fixed TSS problem
+- Human readable integer printf capability
+
+Thats enough now. Time for physics homework.
+
+## Debugging Functionality
+
+```
+dlog() - Driver debug log
+
+assert_equal(msg)
+
+assert_nnull(msg)
+
+assert_null(msg)
+
+```
+
+Examples:
+
+```
+LONG Add(PLONG i, PLONG j)
+{
+    assert_nnull(i);
+    assert_nnull(j);
+
+    return *i + *j;
+}
+
+```
+
+The debugging library will be designed to not actually modify the original code significantly. It does not insert inline conditionals and instead uses function calls. Each test function is wrapped in a macro with memory fences to ensure correct ordering.
+
+assert_nnull()
+```
+push dword [esp+8]
+call _assert_nnull
+```
+
+The calling conventions are cdecl and the attribute no_caller_saved_registers so that nothing has to be pushed and all arguments are cleaned automatically.
+
+# November 16
+
+## STDCALL
+
+I will use STDCALL for all API functions. It is way more code dense. Existing code does not need to change much since most API calls are written in C.
+
+# November 17
+
+STDCALL is objectively better. It works for variadics by fallback to caller cleanup.
+
+For the kernel, it matters a lot less.

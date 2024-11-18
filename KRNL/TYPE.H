@@ -115,20 +115,25 @@ in cases when switching from a V86 context. alloca can be used in such
 situations.
 
 *******************************************************************************/
-#define I86_C   BIT(0)
-#define I86_PF  BIT(2)
-#define I86_AF  BIT(4)
-#define I86_ZF  BIT(6)
-#define I86_SF  BIT(7)
-#define I86_TF  BIT(8)
-#define I86_IF  BIT(9)
-#define I86_DF  BIT(10)
-#define I86_OF  BIT(11)
-#define I86_IOPL (BIT(12) | BIT(13))
-#define I86_NT  (BIT(14))
-#define I86_VM  BIT(17)
-#define I86_AC  BIT(18)
+#define I86_C   0x0001
+#define I86_PF  0x0004
+#define I86_AF  0x0010
+#define I86_ZF  0x0040
+#define I86_SF  0x0080
+#define I86_TF  0x0100
+#define I86_IF  0x0200
+#define I86_DF  0x0400
+#define I86_OF  0x0800
+#define I86_IOPL 0x3000
+#define I86_NT  0x4000
 
+#define I86_VM  0x00020000
+#define I86_AC  0x00040000
+
+//
+// This should probably be aligned by 4 in most situations, but there is no
+// hard requirement. It most likely will be automatically.
+//
 typedef struct __attribute__((packed)) {
 	_DWB_R(A);
 	_DWB_R(B);
@@ -163,6 +168,6 @@ typedef struct __attribute__((packed)) {
 
 // This is to stop code that may do something that is not implemented yet
 // for testing purposes, to see if an interface is required.
-#define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx");}
+#define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx":::"memory");}
 
 #endif /* TYPE_H */

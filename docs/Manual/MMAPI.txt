@@ -4,8 +4,6 @@
 
 The OS/90 memory manager supports:
 o Demand paging (e.g. loading a program larger than RAM)
-o Multi-granularity zone-based page frame allocations
-o ISA DMA buffer allocation
 o Single address space
 o Uncommitted memory
 
@@ -20,14 +18,14 @@ If there is no more memory, demand-paged space is allocated. A demand paging win
 ................................................................................
 
 0 - Free extended memory pages
-1 - Size of extended memory
+1 - Size of extended memory in pages
 
 2 - Free disk backed space in pages (DBS)
 3 - Size of DBS in pages
 
 4 - Address space pages free
 5 - Address space pages total
-6 - Largest range that can be allocated
+6 - Largest range that can be allocated of mapped or uncommitted pages
 
 7 - Free conventional memory
 8 - Largest conventional memory block
@@ -64,7 +62,7 @@ Returns an opmask componenet that enables/disables the page bit. These are macro
 > Maybe use a struct with bit fields.
 
 ................................................................................
-	PVOID Vm_Alloc( PVOID   force_addr,
+	PVOID M_XMAlloc(PVOID   force_addr,
 			LONG    commit,
 			LONG    uncommit,
 			LONG    bits);
@@ -96,7 +94,7 @@ Conforming to:
 	- Allocation break page is used to section off.
 
 ................................................................................
-	BOOL Vm_PageOp( PVOID base,
+	BOOL M_PageOp(  PVOID base,
 			LONG page_count,
 			LONG opmask);
 ................................................................................
@@ -117,7 +115,7 @@ Return:
 Example:
 
 ................................................................................
-	VOID Vm_Free(PVOID base);
+	VOID M_XMFree(PVOID base);
 ................................................................................
 
 ................................................................................

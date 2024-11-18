@@ -1,0 +1,34 @@
+================================================================================
+	Debugging Library
+================================================================================
+
+The debugging library is a component of the kernel that can optionally be used by any part of the kernel or drivers.
+
+The debugging library provides assertions and logging. Single-stepping and stack tracing are currently not supported and require the use of an emulator or other tools.
+
+The system can be configured to write to a memory log buffer that trims the head upon overflow, write to a file on the disk, or output to the text console during boot, or all of these at the same time.
+
+Failed asserts in kernel mode are fatal errors. A debug kernel image is the most useful for driver development as the assertions are added to the kernel and allow for errors to be caught from the driver.
+
+OS/90 has the following "event levels" to determine the filtering characteristics or the recoverability of a log event:
+
+o LU    Relevant to the user, not exclusing to debugging
+o LR    Debugging related and not fatal under any condition
+o LA    Assert level. Debug option only and fatal if failed
+o LV    Verbose (returns, variable sets)
+
+assert_u32(int cond, unsigned int v1, unsigned int v2)
+assert_u16(int cond, unsigned short v1, unsigned short v2)
+
+assert_u8(int cond, unsigned char v1, unsigned char v2)
+
+logf(const char prefix[8], const char *format, ...)
+
+................................................................................
+lv_set(var, val)
+lv_ret(value)
+................................................................................
+
+These are 100% macros that make no additional calls other than the logger. Uses verbose level.
+
+

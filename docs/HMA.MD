@@ -5,8 +5,12 @@ The high memory area is reserved for the kernel. This document is here for futur
 ```
 == Map of the HMA ==
 
-100000-102FFF Startup page tables, reclaimable (8192 bytes)
-103000-107FFF Real mode switcher (512 bytes)
+100000-100FFF   Startup page directory
+101000-101FFF   PT#1
+102000-102FFF   PT#2
+103000-107FFF   Real mode switcher (512 bytes)
+
+
 10FFF0        Kernel startup stack start (512 bytes down)
 ```
 

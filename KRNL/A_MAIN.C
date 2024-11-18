@@ -45,8 +45,8 @@ struct tss
 	LONG fs;
 	LONG gs;
 	LONG ldt;
-	LONG trace;
-	LONG bitmap_base;
+	SHORT :16;
+	SHORT bitmap_base;
 	BYTE bitmap[8192];
 }__attribute__((packed));
 
@@ -76,19 +76,9 @@ enum {
 	GDT_LDT         = 0x20,
 	GDT_RMCS_CODE   = 0x28,
 	GDT_RMCS_DATA   = 0x30,
-	GDT_WIN16       = 0x40
+	GDT_WIN16       = 0x38
 };
 
-// NULL         0x00
-// CSEG         0x08
-// DSEG         0x10
-// TSS          0x18
-// LDT          0x20
-// RMCS-CODE    0x28
-// RMCS-DATA    0x30
-// --           0x38
-// Win16 BDA    0x40
-//
 SEGMENT_DESCRIPTOR gdt[8];
 SEGMENT_DESCRIPTOR ldt[128];
 
@@ -98,7 +88,7 @@ SEGMENT_DESCRIPTOR ldt[128];
 // to something else denies all.
 struct tss TSS;
 
-__attribute__(( aligned(64) )) IDT_ENTRY idt[2048];
+__attribute__(( aligned(64) )) IDT_ENTRY idt[256];
 
 DESC_TAB_REG gdtr = {63,   (LONG)&gdt};
 DESC_TAB_REG idtr = {2047, (LONG)&idt};
@@ -121,75 +111,82 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 	static const BYTE access_tss  = 0x89;
 	static const BYTE access_ldt  = 0x82;
 
-	L_SegmentCreate(
-		GDT_CSEG,
-		0,
-		0xFFFFFF,
-		access_cseg,
-		0xC0
-	);
-	L_SegmentCreate(
-		GDT_DSEG,
-		0,
-		0xFFFFFF,
-		access_dseg,
-		0xC0
-	);
-	L_SegmentCreate(
-		GDT_TSS,
-		(LONG)&TSS,
-		sizeof(TSS)-1,
-		access_tss,
-		0x40
-	);
-	L_SegmentCreate(
-		GDT_LDT,
-		(LONG)&ldt,
-		sizeof(ldt)-1,
-		access_ldt,
-		0
-	);
+	{
+		L_SegmentCreate(
+			GDT_CSEG,
+			0,
+			0xFFFFFF,
+			access_cseg,
+			0xC0
+		);
+		L_SegmentCreate(
+			GDT_DSEG,
+			0,
+			0xFFFFFF,
+			access_dseg,
+			0xC0
+		);
+		L_SegmentCreate(
+			GDT_TSS,
+			(LONG)&TSS,
+			104+8192,
+			access_tss,
+			0x00
+		);
+		L_SegmentCreate(
+			GDT_LDT,
+			(LONG)&ldt,
+			sizeof(ldt)-1,
+			access_ldt,
+			0
+		);
 
-	L_SegmentCreate(
-		GDT_WIN16,
-		0x400,
-		255,
-		access_ldt,
-		0
-	);
+		L_SegmentCreate(
+			GDT_WIN16,
+			0x400,
+			255,
+			access_ldt,
+			0
+		);
 
-	L_SegmentCreate(
-		GDT_RMCS_CODE,
-		0xFFFF0,
-		0xFFFF,
-		access_cseg,
-		0
-	);
+		L_SegmentCreate(
+			GDT_RMCS_CODE,
+			0xFFFF0,
+			0xFFFF,
+			access_cseg,
+			0
+		);
 
-	L_SegmentCreate(
-		GDT_RMCS_DATA,
-		0xFFFF0,
-		0xFFFF,
-		access_dseg,
-		0
-	);
-
-	// Technically only 20 are supported ATM.
-	for (LONG i = 0; i < 32; i++) {
-		SetIsr(&EXC_0 + i*16, i);
+		L_SegmentCreate(
+			GDT_RMCS_DATA,
+			0xFFFF0,
+			0xFFFF,
+			access_dseg,
+			0
+		);
 	}
 
-	// There are three entry points
-	// ISR_15, ISR_7, and ISR_REST
-	// IRQ#0 is handled with a different IDT entry.
+	{
+		// Technically only 20 are supported ATM.
+		for (LONG i = 0; i < 32; i++) {
+			SetIsr(&EXC_0 + i*16, i);
+		}
+	}
 
-	// Set IDT entries for 1-6
-	for (LONG i = 0; i < 15; i++)
-		SetIsr(&ISR_1+(i)*16, i+0xA1);
+	{
+		// There are three entry points
+		// ISR_15, ISR_7, and ISR_REST
+		// IRQ#0 is handled with a different IDT entry.
 
-	SetIsr(&IRQ0, 0xA0);
+		// Set IDT entries for 1-6
+		for (LONG i = 0; i < 15; i++)
+			SetIsr(&ISR_1+(i)*16, i+0xA1);
 
-	TSS.bitmap_base = __builtin_offsetof(struct tss, bitmap);
+		SetIsr(&IRQ0, 0xA0);
+
+	}
+
+	TSS.bitmap_base = 104;
 
 	// Note: LTR marks busy. This does not matter because we never enter
 	// task state segments anyway.
@@ -216,26 +213,25 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 
 static VOID ConfigurePIT(VOID)
 {
-    const BYTE count[2] = {0xB0, 0x4};
+	const BYTE count[2] = {0xB0, 0x4};
 
-    outb(0x43, 0x36);
-    outb(0x40, count[0]);
-    outb(0x40, count[1]);
+	outb(0x43, 0x36);
+	outb(0x40, count[0]);
+	outb(0x40, count[1]);
 }
 
 static void pc(char c)
 {
 	// outb(0xE9, c);
-	STDREGS r = {
-		.AH = 0xE,
-		.AL = c,
-		.EBX = 0,
-		.EIP = IVT[0x10].ip,
-		.CS  = IVT[0x10].cs,
-		.SS = 0x9000,
-		.ESP = 2048,
-		.EFLAGS = I86_IF
-	};
+	static STDREGS r = { };
+	r.AH = 0xE;
+	r.AL = c;
+	r.EBX = 0;
+	r.EIP = IVT[0x10].ip;
+	r.CS  = IVT[0x10].cs;
+	r.SS = 0x9000;
+	r.ESP = 2048;
+	r.EFLAGS = 0;
 	LONG v = V86xH(&r);
 }
 
@@ -270,26 +266,26 @@ VOID KernelMain(VOID)
 
 	InitV86();
 
-	__asm__ volatile ("sti");
+	__asm__ volatile(
+		"mov %%cr0,%%eax;"
+		"orl $(1<<16),%%eax;"
+		"mov %%eax,%%cr0"
+		:::"memory", "eax"
+	);
 
-	// Infinite recursion this time?
-	// That may be exhausting the stack.
+	PLONG ptr = 0x100000 + 0x1000;
+	ptr[256+0] &= ~(1<<1);
+	ptr[256+1] &= ~(1<<1);
+	ptr[256+2] &= ~(1<<1);
 
-	// STDREGS r = {
-	// 	.AH = 2,
-	// 	.v86_DS = 0x9000,
-	// 	.DL     = 'A',
-	// 	.SS = 0x9000,
-	// 	.ESP = 0x800
-	// };
-	// INTxH(0x21, &r);
+	__asm__ volatile("mov %%cr3,%%eax; mov %%eax,%%cr3":::"memory","eax");
 
 	FuncPrintf(pc, "Hello, world!\n\r");
 
 	__asm__ volatile("jmp .":::"memory");
 }
 
-__attribute__(( noreturn, naked, section(".init") ))
+__attribute__(( __noreturn__, __naked__, __section__(".init") ))
 VOID EntryPoint(VOID)
 {
 	__asm__ volatile ("movl $(0x100000+65520), %esp");

@@ -115,8 +115,6 @@ cont:
         ; Now we run the INT. But we do not want to use self-modifying code
         ; and cannot call an arbitrary int. The instruction will be simulated.
 
-        ;xchg bx,bx
-
         mov     al,'I'
         out     0E9h,al
 
@@ -156,5 +154,3 @@ RM_IDTR:
         DW      1024,0,0,0,0
 OLD_MASK_M: DB 0
 OLD_MASK_S: DB 0
-
-; Wrong order?
