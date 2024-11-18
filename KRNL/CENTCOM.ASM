@@ -653,7 +653,7 @@ V86xH:
         push    dword [handler_table+(0Dh)*4]
 
         mov     dword [handler_table+(0Dh)*4],V86_Monitor
-        ; pushfd
+        pushfd
 
         ; Set the SS0:ESP0 in the TSS. This is the stack pointer we want to have
         ; when an exception hits. SS0 is always 0x10, so no need to set it.
@@ -699,8 +699,8 @@ V86xH:
         ; Before IRET, it already set EAX appropriately.
 V86_CONT_POINT:
         ; Restore the handler
-        ; popfd
-        ; sxchg    bx,bx
+        popfd
+
         pop     dword [handler_table+0Dh*4]
 
         ; Restore the callee-saved registers
@@ -708,12 +708,6 @@ V86_CONT_POINT:
         mov     esi,[saved_esi]
         mov     edi,[saved_edi]
         mov     ebp,[saved_ebp]
-
-
-
-        ;;;;; The EIP on the stack is incorrect. That is the problem ;;;;;
-        ;
-        ; Then an exception without a handler executes.
 
 	ret
 

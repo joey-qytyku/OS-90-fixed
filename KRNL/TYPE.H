@@ -80,13 +80,11 @@ typedef char  *PSIGBYTE;
 // Create a register that has a 32-bit/16-bit/8-bit high or low version
 #define _DWB_R(n)\
 union {\
-	LONG E##n##X;\
-	union {\
-		SHORT n##X;\
-		struct { BYTE n##L; BYTE n##H; }\
-		__attribute__((__packed__));\
-	}__attribute__((__packed__));\
-};\
+	LONG    E##n##X; \
+		BYTE n##L;\
+	struct {BYTE __##n; BYTE n##H; }__attribute__((packed));\
+	SHORT   n##X; \
+}
 
 // Create a register that can be 16-bit or 32-bit.
 #define _DW_R(n)\
@@ -105,12 +103,6 @@ system entry, and task management.
 
 It is important to understand that this is simply to promote the reuse of
 code. Stdregs can be used in many situations that are not always related.
-
-Stdregs can have various meanings and does not always have to be allocated
-to its full extent. The V86 segment registers at the end are only generated
-in cases when switching from a V86 context. alloca can be used in such
-situations.
-
 *******************************************************************************/
 #define I86_C   0x0001
 #define I86_PF  0x0004

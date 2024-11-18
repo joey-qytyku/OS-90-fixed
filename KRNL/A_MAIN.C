@@ -225,7 +225,7 @@ static void pc(char c)
 	// outb(0xE9, c);
 	// __asm__ volatile ("xchg %%bx,%%bx":::"memory");
 	STDREGS r = {
-		r.AH = 0xE0,
+		r.EAX = 0x0E00 | c,
 		r.AL = c,
 		r.EBX = 0,
 		r.EIP = IVT[0x10].ip,
@@ -280,7 +280,9 @@ VOID KernelMain(VOID)
 	ptr[256+1] &= ~(1<<1);
 	ptr[256+2] &= ~(1<<1);
 
-	__asm__ volatile("mov %%cr3,%%eax; mov %%eax,%%cr3":::"memory","eax");
+	__asm__ volatile(
+		"mov %%cr3,%%eax; mov %%eax,%%cr3; sti"
+		:::"memory","eax");
 
 	FuncPrintf(pc, "Hello, world!\n\r");
 
