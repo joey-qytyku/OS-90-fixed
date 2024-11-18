@@ -3,7 +3,6 @@ CFLAGS="-Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreesta
 function cleanup() {
 	rm -rf *.o
 	rm -rf L_SWITCH.BIN
-	rm -rf KERNEL.BIN
 }
 
 function check_errors() {

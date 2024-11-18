@@ -223,15 +223,17 @@ static VOID ConfigurePIT(VOID)
 static void pc(char c)
 {
 	// outb(0xE9, c);
-	static STDREGS r = { };
-	r.AH = 0xE;
-	r.AL = c;
-	r.EBX = 0;
-	r.EIP = IVT[0x10].ip;
-	r.CS  = IVT[0x10].cs;
-	r.SS = 0x9000;
-	r.ESP = 2048;
-	r.EFLAGS = 0;
+	// __asm__ volatile ("xchg %%bx,%%bx":::"memory");
+	STDREGS r = {
+		r.AH = 0xE0,
+		r.AL = c,
+		r.EBX = 0,
+		r.EIP = IVT[0x10].ip,
+		r.CS  = IVT[0x10].cs,
+		r.SS = 0x9000,
+		r.ESP = 2048,
+		r.EFLAGS = 0
+	};
 	LONG v = V86xH(&r);
 }
 

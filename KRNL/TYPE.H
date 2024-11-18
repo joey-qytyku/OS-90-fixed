@@ -79,23 +79,20 @@ typedef char  *PSIGBYTE;
 
 // Create a register that has a 32-bit/16-bit/8-bit high or low version
 #define _DWB_R(n)\
-struct {\
+union {\
+	LONG E##n##X;\
 	union {\
-		LONG E##n##X;\
-		union {\
-			SHORT n##X;\
-			struct { BYTE n##L; BYTE n##H; };\
-		}__attribute__((packed));\
-	};\
-};
+		SHORT n##X;\
+		struct { BYTE n##L; BYTE n##H; }\
+		__attribute__((__packed__));\
+	}__attribute__((__packed__));\
+};\
 
 // Create a register that can be 16-bit or 32-bit.
 #define _DW_R(n)\
-struct {\
-	union {\
-		LONG E##n;\
-		SHORT n;\
-	};\
+union {\
+	LONG E##n;\
+	SHORT n;\
 };
 
 /*******************************************************************************

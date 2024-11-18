@@ -155,6 +155,14 @@ EXC_CONT:
 
         ; xchg bx,bx
 
+        ;;;;;;;;;;;;; Problem probably here.
+        ; V86 monitor barely changed. Entrace process is correct and has no
+        ; errors. I think that the return process is wrong and it has something
+        ; to do with the fact that we bypass the entire exception return
+        ; mechanism.
+
+        ; Especially not the argument being pushed along with the return addr.
+
         push    edx
         mov     ebx,[EXC_INX]
         call    [handler_table+ebx*4]
@@ -589,7 +597,7 @@ V86xH:
         mov     [saved_edi],edi
         mov     [saved_ebp],ebp
 
-        xchg bx,bx
+        ; xchg bx,bx
 
         mov     ebx,[esp+4]     ; stdregs ptr
 
@@ -692,7 +700,7 @@ V86xH:
 V86_CONT_POINT:
         ; Restore the handler
         ; popfd
-        xchg    bx,bx
+        ; sxchg    bx,bx
         pop     dword [handler_table+0Dh*4]
 
         ; Restore the callee-saved registers
@@ -900,24 +908,13 @@ V86_Monitor:
         mov     ecx,20
         rep     movsd
 
-        ;;;;;;;;;;;;;; This is the problem.
-        ;
-        ; This is intended to totally tear down the stack. Anything that
-        ; got pushed will get removed.
-        ;
-        ; Really it should not be responsible for that.
-        ; Going back is enough. cdecl clears the arguments anyway so this is
-        ; just dumb and wrong.
-        ;
-        ; Wait, actually we are in an exception context. We want to clean
-        ; the stack frame out and return. Relax man.
-        ;
-
-
         ; Now we will tear down the stack and go straight into the rzero context
         ; of V86xH to continue.
         ; No IRET is needed.
-        add     esp,(20*4)+4    ; Clear out return value and STDREGS
+
+        ; Clear out return value and argument
+        add     esp,(20*4)+8
+
         ; Indicate? What?
 
         ; No return in this case, that is it.
