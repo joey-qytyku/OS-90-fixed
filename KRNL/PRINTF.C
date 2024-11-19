@@ -129,7 +129,7 @@ void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 	va_end(args);
 }
 
-void pc(char c)
+void putchar(char c)
 {
 	outb(0xE9, c);
 }

@@ -6875,3 +6875,40 @@ I will use STDCALL for all API functions. It is way more code dense. Existing co
 STDCALL is objectively better. It works for variadics by fallback to caller cleanup.
 
 For the kernel, it matters a lot less.
+
+# November 18
+
+## Success Wth V86 and Interrupt Reflection
+
+The next thing to work on is INTxH.
+
+It will need the ability to automatically grant a stack if one is not already provided.
+
+The only issue is that Another instance of INTxH may try to use the SV86 stack.
+
+If we are actually entering SV86, preemtption needs to be off already.
+
+> Consider the reentrancy here. Also the stack only needs to be explicitly set when entering SV86 and not capturing.
+
+There is no real reason to have a reserved stack for each process for when servicing real mode requests. At the same time, I also do not want to take away the freedom.
+
+Having a stack in the HMA works.
+
+Don't think there is a problem actually.
+
+## Is the recursion correct?
+
+After I run a certain INT, I need to continue executing.
+
+V86xH will break out once it encounters and INT, but it needs to continue running until IRET is encountered.
+
+So the current recursive model is wrong.
+
+The correct way to do that is:
+V86xH should not actually emulate an INT instruction at all. That should be done by the high-level monitor.
+
+V86xH should be renamed to EnterV86.
+
+It will only enter V86. No stack emulation whatsoever.
+
+The monitor will remain mostly the same however.

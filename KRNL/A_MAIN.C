@@ -224,17 +224,32 @@ static void pc(char c)
 {
 	// outb(0xE9, c);
 	// __asm__ volatile ("xchg %%bx,%%bx":::"memory");
-	STDREGS r = {
-		r.EAX = 0x0E00 | c,
-		r.AL = c,
-		r.EBX = 0,
-		r.EIP = IVT[0x10].ip,
-		r.CS  = IVT[0x10].cs,
-		r.SS = 0x9000,
-		r.ESP = 2048,
-		r.EFLAGS = 0
-	};
+	STDREGS r = {0};
+	r.EAX = 0x0E00 | c;
+	r.AL = c;
+	r.EBX = 0;
+	r.EIP = IVT[0x10].ip;
+	r.CS  = IVT[0x10].cs;
+	r.SS = 0x9000;
+	r.ESP = 2048;
+	r.EFLAGS = 0;
 	LONG v = V86xH(&r);
+}
+
+const char mystr[] = "Hello from INT 21H!\n\r$";
+
+// Endless recursion
+static void TestINT21h()
+{
+	inline_memcpy(0x80000+4096, mystr, sizeof(mystr));
+	STDREGS r = {0};
+	r.EAX = 0x9000;
+	r.EDX = 4096;
+	r.v86_DS = 0x8000;
+	r.SS = 0x8000;
+	r.ESP = 4096;
+	r.EFLAGS = I86_IF;
+	INTxH(0x21, &r);
 }
 
 /*
@@ -284,7 +299,9 @@ VOID KernelMain(VOID)
 		"mov %%cr3,%%eax; mov %%eax,%%cr3; sti"
 		:::"memory","eax");
 
-	FuncPrintf(pc, "Hello, world!\n\r");
+	TestINT21h();
+
+	// FuncPrintf(pc, "Hello, world!\n\r");
 
 	__asm__ volatile("jmp .":::"memory");
 }

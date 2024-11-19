@@ -1,4 +1,5 @@
 #include "SV86.H"
+#include "PRINTF.H"
 
 /*
 
@@ -30,17 +31,24 @@ static BOOL Stub(PSTDREGS r)
 LONG INTxH(BYTE v, PSTDREGS r)
 {
 	if (v86_handlers[v](r) == 1) {
+		FuncPrintf(putchar, "No handler for INT %x\n", v);
 		r->CS  = IVT[v].cs;
 		r->EIP = IVT[v].ip;
-		// Give it a stack too?
+
 		LONG int_got = V86xH(r);
 
-		//
-		if (int_got != 0xFFFFFFFFu) {
+		// Use ternary once done with debug
+
+		if (int_got == 0xFFFFFFFFu) {
+			FuncPrintf(putchar, "Serviced %x\n", v);
+			return (SHORT)r->EAX;
+		}
+		else {
+			FuncPrintf(putchar, "Caught %x during %x\n", int_got, v);
 			return INTxH(int_got, r);
 		}
 	}
-	return (LONG)r->AX;
+	FuncPrintf(putchar, "Should not happen!\n");
 }
 
 VOID InitV86(VOID)
