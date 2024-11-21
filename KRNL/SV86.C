@@ -27,28 +27,90 @@ static BOOL Stub(PSTDREGS r)
 	return 1;
 }
 
+static inline VOID Pushw(PSTDREGS r, SHORT v)
+{
+	r->SP -= 2;
+	*(PSHORT)(r->SS * 16 + r->SP) = v;
+}
+
+static inline SHORT Popw(PSTDREGS r)
+{
+	SHORT v = *(PSHORT)(r->SS*16 + r->SP);
+	r->SP += 2;
+	return v;
+}
+
+/*
+The steps:
+
+Call the handler chain. If it returns 1, reflection is needed.
+
+To reflect:
+- Set current vector to enter var to requested
+- INT level counter set to 0
+
+Loop:
+- Push stuff into stack
+- Enter V86
+- If caught an INT
+	- Level counter increment
+	- Set vector to execute to the INT
+	- Repeat loop
+- If caught IRET
+	- Decrement counter
+	- If zero, we are done (clean the stack too)
+	- If not zero, copy from stack to registers
+
+*/
+
+// EnterV86 ran garbage lol. Set the vector properly.
+// Still doing it.
 
 LONG INTxH(BYTE v, PSTDREGS r)
 {
-	if (v86_handlers[v](r) == 1) {
-		FuncPrintf(putchar, "No handler for INT %x\n", v);
-		r->CS  = IVT[v].cs;
-		r->EIP = IVT[v].ip;
+	LONG int_caught;
+	LONG level = 0;
 
-		LONG int_got = V86xH(r);
+	if (v86_handlers[v](r) != 1)
+		return r->EAX & 0xFFFF;
 
-		// Use ternary once done with debug
+DoInt:
 
-		if (int_got == 0xFFFFFFFFu) {
-			FuncPrintf(putchar, "Serviced %x\n", v);
-			return (SHORT)r->EAX;
+	Pushw(r, r->FLAGS);
+	Pushw(r, r->CS);
+	Pushw(r, r->IP);
+	level++;
+
+	FuncPrintf(putchar, ">>> %x\n", v);
+
+	r->IP = IVT[v].ip;
+	r->CS  = IVT[v].cs;
+
+ContInLevel:
+	int_caught = EnterV86(&r);
+
+
+	if (int_caught < 256) {
+		goto DoInt;
+	}
+	else {
+		// Caught an IRET in this case
+		level--;
+		if (level == 0) {
+			return r->EAX & 0xFFFF;
 		}
 		else {
-			FuncPrintf(putchar, "Caught %x during %x\n", int_got, v);
-			return INTxH(int_got, r);
+			// Simulate IRET on the stack
+			r->IP           = Popw(r);
+			r->CS           = Popw(r);
+			r->FLAGS        = Popw(r);
+
+			// Continue without doing the whole
+			// Interrupt frame generation because there is
+			// no interrupt.
+			goto ContInLevel;
 		}
 	}
-	FuncPrintf(putchar, "Should not happen!\n");
 }
 
 VOID InitV86(VOID)

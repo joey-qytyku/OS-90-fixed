@@ -223,17 +223,6 @@ static VOID ConfigurePIT(VOID)
 static void pc(char c)
 {
 	// outb(0xE9, c);
-	// __asm__ volatile ("xchg %%bx,%%bx":::"memory");
-	STDREGS r = {0};
-	r.EAX = 0x0E00 | c;
-	r.AL = c;
-	r.EBX = 0;
-	r.EIP = IVT[0x10].ip;
-	r.CS  = IVT[0x10].cs;
-	r.SS = 0x9000;
-	r.ESP = 2048;
-	r.EFLAGS = 0;
-	LONG v = V86xH(&r);
 }
 
 const char mystr[] = "Hello from INT 21H!\n\r$";
@@ -243,7 +232,7 @@ static void TestINT21h()
 {
 	inline_memcpy(0x80000+4096, mystr, sizeof(mystr));
 	STDREGS r = {0};
-	r.EAX = 0x9000;
+	r.EAX = 0x900;
 	r.EDX = 4096;
 	r.v86_DS = 0x8000;
 	r.SS = 0x8000;

@@ -13,6 +13,6 @@ LONG INTxH(BYTE x, PSTDREGS r);
 
 // Returns the vector of next INT
 // Returns what if IRET?
-LONG V86xH(PSTDREGS r);
+LONG EnterV86(PSTDREGS r);
 
 #endif /* SV86_H */

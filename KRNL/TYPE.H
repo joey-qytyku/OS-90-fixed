@@ -124,14 +124,14 @@ code. Stdregs can be used in many situations that are not always related.
 // hard requirement. It most likely will be automatically.
 //
 typedef struct __attribute__((packed)) {
-	_DWB_R(A);
-	_DWB_R(B);
-	_DWB_R(C);
-	_DWB_R(D);
+	LONG    EAX;
+	LONG    EBX;
+	LONG    ECX;
+	LONG    EDX;
 
-	_DW_R(SI);
-	_DW_R(DI);
-	_DW_R(BP);
+	LONG    ESI;
+	LONG    EDI;
+	LONG    EBP;
 
 	LONG    pm_ES;
 	LONG    pm_DS;

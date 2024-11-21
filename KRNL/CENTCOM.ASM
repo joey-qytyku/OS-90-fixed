@@ -5,7 +5,7 @@ global EXC_0
 global ISR_1, IRQ0
 
 global EXC_0, ISR_REST, IRQ0, RemapPIC, SetIrqMask
-global V86_Monitor, INTxH, V86xH
+global V86_Monitor, INTxH, EnterV86
 
 	_EAX    EQU 0   * 4
 	_EBX    EQU 1   * 4
@@ -542,7 +542,7 @@ SWITCH_FROM_R0:
         mov     edi,[ebx+_EDI]
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
-        ; xchg bx,bx
+
         iret                    ; Bravo six, going dark
 
 PREP_SWITCH_FROM_R0_TO_R3:
@@ -590,7 +590,7 @@ S_Deactivate:
 
         ; Are my IRQ vectors set properly?
 
-V86xH:
+EnterV86:
         inc     dword [preempt_count]
         mov     [saved_ebx],ebx
         mov     [saved_esi],esi
@@ -600,46 +600,9 @@ V86xH:
         ; xchg bx,bx
 
         mov     ebx,[esp+4]     ; stdregs ptr
+        add     ebx,4           ; Why needed?
 
         mov     [saved_regbuffptr],ebx
-
-        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-        ; We have to decrement SP before pushing!
-        ; Currently, it points to the last thing on the stack.
-        ; We don't want to overwrite it.
-        ; x86 decrements first and then writes.
-        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-        ; Force ESP high to zero. Having it higher can actually cause a fault
-        ; because segment limits are forced to 64K on V86 mode.
-        ; This also removes the need to use zero extends which are 2 clocks
-        ; slower on the 80386.
-        mov     word [ebx+_ESP+2],0
-
-        ; EDI = the stack address being used for SV86
-        mov     edi,[ebx+_SS]
-        shl     edi,4
-        add     edi,[ebx+_ESP]
-        sub     edi,2           ; x86 decs before push
-
-        std     ; Copy bacward
-
-        ; Push FLAGS. It will be loaded.
-        mov     eax,[ebx+_EFLAGS]
-        stosw
-
-        ; CS
-        mov     eax,[ebx+_CS]
-        stosw
-
-        ; IP
-        mov     eax,[ebx+_EIP]
-        stosw
-
-        ; Update ESP value accurately
-        ; It has to be 6 because we pushed 3 onto the stack and did not
-        ; modify the ESP value originally.
-        sub     dword [ebx+_ESP],6
 
         ;
         ; The SV86 stack provided in the context block now contains
@@ -691,13 +654,14 @@ V86xH:
         mov     edi,[ebx+_EDI]
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
-
         ; Bravo six, going dark.
+        xchg bx,bx
         iret
 
         ; This is where the exception handler will resume.
         ; Before IRET, it already set EAX appropriately.
 V86_CONT_POINT:
+        xchg bx,bx
         ; Restore the handler
         popfd
 
@@ -743,6 +707,9 @@ V86_Monitor:
         add     edi,[edi+_ESP]
         sub     edi,2
 
+        mov     eax,[edi+_ESP]
+        xchg bx,bx
+        jmp $
         std
         movzx   eax,word[edi+_EFLAGS]
         stosw
@@ -754,7 +721,7 @@ V86_Monitor:
         add     eax,2
         stosw
 
-        sub     word[edi+_ESP],6
+        sub     word[edi+_ESP],4 ; Changed recently
 
         ; Now we must return to caller in kernel mode.
         ; This is complicated because there are things

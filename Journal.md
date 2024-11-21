@@ -6912,3 +6912,25 @@ V86xH should be renamed to EnterV86.
 It will only enter V86. No stack emulation whatsoever.
 
 The monitor will remain mostly the same however.
+
+## EnterV86
+
+An INT will be emulated at the stack level and so will an IRET, but a monitor exit is also executed.
+
+
+# November 20
+
+## ALERT: STDREGS IS BUSTED!
+
+It is not loading correectly. Seems slanted by one dword.
+
+Yup still not working. It should be. Most likely a problem with the ASM code if anything.
+
+
+# November 21
+
+## No
+
+It works now for some reason. I added 4 to the base address and it worked. No idea why this worked. Need to keep that on sight in the future.
+
+It looks like INT/IRET emulation is no longer being done using V86 assembly code. I will adjust for that. IRET should simply exit without emulating anything.
