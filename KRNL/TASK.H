@@ -18,16 +18,16 @@
 
 typedef VOID (*KTHREAD_PROC)(PVOID);
 
-typedef BOOL (*T0_TASK_PREHOOK)(STDREGS*);
-typedef VOID (*T0_TASK_POSTHOOK)(STDREGS*);
+typedef BOOL (*T0_TASK_PREHOOK)(PREGS);
+typedef VOID (*T0_TASK_POSTHOOK)(PREGS);
 
 // The task exit hook runs in T2, not T0.
-typedef VOID (*T2_TASK_EXITHOOK)(STDREGS*);
+typedef VOID (*T2_TASK_EXITHOOK)(PREGS);
 
 typedef VOID (*T2_TASK_HND_EXCEPTION)(LONG, LONG);
 
 typedef struct  Task_ {
-	STDREGS regs;
+	REGS    regs;
 	PVOID   _next;
 	PVOID   _prev;
 	SHORT   _time_slices;

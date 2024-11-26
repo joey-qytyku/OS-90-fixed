@@ -6934,3 +6934,39 @@ Yup still not working. It should be. Most likely a problem with the ASM code if 
 It works now for some reason. I added 4 to the base address and it worked. No idea why this worked. Need to keep that on sight in the future.
 
 It looks like INT/IRET emulation is no longer being done using V86 assembly code. I will adjust for that. IRET should simply exit without emulating anything.
+
+## IOPL
+
+Setting IOPL to 3 makes most BIOS code significantly faster since CLI/STI are very common. It also allows IRET to run in actual real mode too.
+
+If no handler exists for the INT requested, I could just change the IOPL.
+
+There are some difficulties with this though. I could use task gates and a separate IDT for SV86.
+
+How would that work? If IRET is executed directly I would have to find another way to handle exiting.
+
+Also, This would destroy the registers most likely.
+
+Also using a TSS makes no sense because it takes 104 bytes.
+
+## Dumb Ideas
+
+Not doing that.
+
+Also the handlers should be checked for each subsequent INT.
+
+## Userspace
+
+I will not use DJGPP or anything like that for the userspace. In fact, I plan to write a real userspace API. I will probably port newlib and use that as the standard library.
+
+DJGPP is far too bloated and cannot be integrated well with the rest of the system. It does have dynamic libraries.
+
+# November 22
+
+## V86 Algorithm
+
+# November 25
+
+V86 does not actually fair right now.
+
+I will rename STDREGS to REGS.

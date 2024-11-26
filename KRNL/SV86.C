@@ -13,6 +13,8 @@ and either calling the previous one or returning to "eat" the request.
 The return value of each handler can be 1 to indicate (HANDLED) or 0 to
 indicate (REFLECT).
 
+>>> THIS IS WRONG ACTUALLY
+
 There is a stub handler that automatically routes the interrupt to real mode
 in that special case.
 
@@ -21,19 +23,19 @@ in that special case.
 // Stub handler? Yes.
 static HV86 v86_handlers[256];
 
-static BOOL Stub(PSTDREGS r)
+static BOOL Stub(PREGS r)
 {
 	(VOID)r;
 	return 1;
 }
 
-static inline VOID Pushw(PSTDREGS r, SHORT v)
+static inline VOID Pushw(PREGS r, SHORT v)
 {
 	r->SP -= 2;
 	*(PSHORT)(r->SS * 16 + r->SP) = v;
 }
 
-static inline SHORT Popw(PSTDREGS r)
+static inline SHORT Popw(PREGS r)
 {
 	SHORT v = *(PSHORT)(r->SS*16 + r->SP);
 	r->SP += 2;
@@ -63,54 +65,61 @@ Loop:
 
 */
 
-// EnterV86 ran garbage lol. Set the vector properly.
-// Still doing it.
-
-LONG INTxH(BYTE v, PSTDREGS r)
+LONG V86xH(BYTE v, PREGS r)
 {
 	LONG int_caught;
+	LONG rval;
 	LONG level = 0;
 
-	if (v86_handlers[v](r) != 1)
+	// If the vector has a handler, we do not have to do anything.
+	// If the handler wants to call this function again that is fine
+	// because of reentrancy.
+	if (v86_handlers[v](r) == 0)
 		return r->EAX & 0xFFFF;
 
+	// Otherwise we will go straight into SV86.
+
+	// DO NOT RUN THE THING TWICE
 DoInt:
 
 	Pushw(r, r->FLAGS);
 	Pushw(r, r->CS);
 	Pushw(r, r->IP);
-	level++;
-
-	FuncPrintf(putchar, ">>> %x\n", v);
-
 	r->IP = IVT[v].ip;
 	r->CS  = IVT[v].cs;
 
+	// We are now in one level.
+
+	level++;
+
 ContInLevel:
 	int_caught = EnterV86(&r);
+	FuncPrintf(putchar, "\tCaught: %x\n", int_caught);
 
 
-	if (int_caught < 256) {
+	// Is the INT caught an INT x call and not an IRET?
+	// If so, repeat the loop and perform emulation
+	// This is also given that there was no handler capable of the request.
+	if (int_caught < 256 && v86_handlers[v](r) == 1)
 		goto DoInt;
-	}
-	else {
-		// Caught an IRET in this case
-		level--;
-		if (level == 0) {
-			return r->EAX & 0xFFFF;
-		}
-		else {
-			// Simulate IRET on the stack
-			r->IP           = Popw(r);
-			r->CS           = Popw(r);
-			r->FLAGS        = Popw(r);
 
-			// Continue without doing the whole
-			// Interrupt frame generation because there is
-			// no interrupt.
-			goto ContInLevel;
-		}
-	}
+	// Otherwise, we caught an IRET or just doing the obligatory
+	// stack emulation since a captured INT already did "return."
+
+	// Caught an IRET in this case
+	level--;
+	if (level == 0)
+		return r->EAX & 0xFFFF;
+
+	// Simulate IRET on the stack
+	r->IP           = Popw(r);
+	r->CS           = Popw(r);
+	r->FLAGS        = Popw(r);
+
+	// Continue without doing the whole
+	// Interrupt frame generation because there is
+	// no interrupt.
+	goto ContInLevel;
 }
 
 VOID InitV86(VOID)

@@ -230,15 +230,22 @@ const char mystr[] = "Hello from INT 21H!\n\r$";
 // Endless recursion
 static void TestINT21h()
 {
-	inline_memcpy(0x80000+4096, mystr, sizeof(mystr));
-	STDREGS r = {0};
-	r.EAX = 0x900;
-	r.EDX = 4096;
-	r.v86_DS = 0x8000;
+	REGS r;
 	r.SS = 0x8000;
 	r.ESP = 4096;
-	r.EFLAGS = I86_IF;
-	INTxH(0x21, &r);
+	r.EAX = 2;
+	r.EDX = 'A';
+	V86xH(0x21, &r);
+
+	// inline_memcpy(0x80000+4096, mystr, sizeof(mystr));
+	// STDREGS r = {0};
+	// r.EAX = 0x900;
+	// r.EDX = 4096;
+	// r.v86_DS = 0x8000;
+	// r.SS = 0x8000;
+	// r.ESP = 4096;
+	// r.EFLAGS = I86_IF;
+	// V86xH(0x21, &r);
 }
 
 /*

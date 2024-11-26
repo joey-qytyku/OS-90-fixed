@@ -698,31 +698,6 @@ V86_Monitor:
         cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
 
-        ; Push CS:IP and eflags of current context on the stack so that
-        ; iret
-        ; can return if needed. We will not actually continue running.
-
-        mov     edi,[edx+_SS]
-        shl     edi,4
-        add     edi,[edi+_ESP]
-        sub     edi,2
-
-        mov     eax,[edi+_ESP]
-        xchg bx,bx
-        jmp $
-        std
-        movzx   eax,word[edi+_EFLAGS]
-        stosw
-
-        movzx   eax,word[edi+_CS]
-        stosw
-
-        movzx   eax,word[edi+_EIP]
-        add     eax,2
-        stosw
-
-        sub     word[edi+_ESP],4 ; Changed recently
-
         ; Now we must return to caller in kernel mode.
         ; This is complicated because there are things
         ; still on the stack.

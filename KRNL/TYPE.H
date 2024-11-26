@@ -153,7 +153,7 @@ typedef struct __attribute__((packed)) {
 	LONG v86_GS;
 	#undef _DW_R
 	#undef _DWB_R
-}STDREGS, *PSTDREGS;
+}REGS, *PREGS;
 
 // This is to stop code that may do something that is not implemented yet
 // for testing purposes, to see if an interface is required.
