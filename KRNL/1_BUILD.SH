@@ -1,8 +1,8 @@
-CFLAGS="-Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -mpreferred-stack-boundary=2"
+CFLAGS="-x c -Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -mpreferred-stack-boundary=2"
 
 function cleanup() {
 	rm -rf *.o
-	rm -rf L_SWITCH.BIN
+	rm -rf l_switch.bin
 }
 
 function check_errors() {
@@ -16,24 +16,24 @@ function check_errors() {
 
 set -e
 
-rm -f *.o L_SWITCH.BIN L_SWITCH.H
+rm -f *.o l_switch.bin l_switch.h
 
-nasm -fbin L_SWITCH.MSA -o L_SWITCH.BIN
+nasm -fbin L_SWITCH.MSA -o l_switch.bin
 check_errors $?
 
-xxd -i L_SWITCH.BIN > L_SWITCH.H
+xxd -i l_switch.bin > l_switch.h
 check_errors $?
 
-i686-elf-gcc -x c -include TYPE.H $CFLAGS -c *.C
+i686-elf-gcc -include TYPE.H $CFLAGS -c *.c
 check_errors $?
 
-for x in *.ASM
+for x in *.asm
 do
 	nasm $x -felf
 	check_errors $?
 done
 
-i686-elf-ld -T 1_LINK.LD *.o --oformat binary -o KERNEL.BIN
+i686-elf-ld -T 1_link.ld *.o --oformat binary -o KERNEL.BIN
 check_errors $?
 
 cleanup

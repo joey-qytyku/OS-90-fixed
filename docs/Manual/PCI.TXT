@@ -1,6 +1,8 @@
 ================================================================================        OS/90 PCI Support
 ================================================================================
 
+> I may want to put this in the kernel.
+
 OS/90 has a driver called `PCI.RSX` that communicates with all device drivers that implement a PCI device.
 
 64-bit PCI devices are not supported.

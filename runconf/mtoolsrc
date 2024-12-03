@@ -1,0 +1,2 @@
+MTOOLS_NO_VFAT=1
+drive c: file="$PROJECT/../FreeDOS.img" offset=32256

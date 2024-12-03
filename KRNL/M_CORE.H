@@ -18,12 +18,7 @@
 #define MB(x) ((x) * 1048576)
 #define KB(x) ((x) * 1024)
 
-static const PLONG pdir_ptr = ((PLONG)0x100000);
-
 #define ALIGN_VAL(V, A) ((V+(A-1)) & (-(A))
-
-// This is a macro. We want this to be inlined as much as possible.
-#define ROUNDUP_BYTES2UNITS(V, A) ( (V+(A)) & (-(A)) )
 
 #define PDE_SHIFT 22
 #define PTE_SHIFT 12
@@ -31,6 +26,10 @@ static const PLONG pdir_ptr = ((PLONG)0x100000);
 #define PAGE_MAP_MASK 0xFFFFF000
 
 #define PAGE_SIZE (4096)
+
+/*
+	These are page bit masks.
+*/
 
 #define PG_PAT   (1<<12) /* Use PAT */
 #define PG_G     (1<<8) /* Page is global, CPU avoids TLB flush */
@@ -59,21 +58,5 @@ static const PLONG pdir_ptr = ((PLONG)0x100000);
 #define PO_RO()
 
 #define PO_RW
-
-////////////////////////////////////////////////////////////////////////////////
-// Page part of uncommitted block (Awaiting commit)
-// Physical page frame does not exist and cannot be applied to allocated page.
-// Doing so may cause an error.
-//
-// The address field of the PTE is a chain ID.
-//
-#define PTE_NC  (2<<9)
-
-#define PTE_MOD_MASK    (0b111<<9)
-
-#define HIGHEST_CHAIN_ID ((1<<20)-1)
-
-// The structure is interesting, but I probably can leave some of these static.
-// Maybe the alignment issues after linking are better.
 
 #endif /* MM_H */

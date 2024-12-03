@@ -6967,6 +6967,108 @@ DJGPP is far too bloated and cannot be integrated well with the rest of the syst
 
 # November 25
 
-V86 does not actually fair right now.
+V86 does not actually fail right now.
 
 I will rename STDREGS to REGS.
+
+# November 26
+
+## Joined the Mac Cult
+
+I need a cross compiler now.
+
+So it seems that GCC requires something called libgcc to operate correctly. This is OS-independent and generates calls to code that would be inefficient to repeatedly duplicate inline.
+
+For example, 64-bit multiplication and division on 32-bit systems.
+
+I can compile a kernel without any of its features, and this has worked so far, but this should be done for long-term reliability.
+
+To do it I just need to link the kernel using gcc instead of ld directly and pass -lgcc to get the library.
+
+I am going to use a proper compiler, not the built in gcc which is actually just a symlink to clang.
+
+I will just download it.
+
+There was a brew package for it, so that is good. GCC 14 btw.
+
+Now I need bochs for apple silicon.
+
+Looks like there is bochs for Mac on brew too. Newest version too and works on Apple Silicon. That is convenient.
+
+I also need mtools. There is also a configuration file on my other PC.
+
+Got that one too. Just need to copy the configuration file also.
+
+# November 28
+
+/*
+	XMS is supposed to allocate all available memory for the kernel and
+	everything else. This linear block is safe to use by OS/90.
+	XMS is never supposed to allocate over the ISA memory hole because then
+	we lose a bunch of memory in between the HMA and the hole due to
+	allocating a massive chunk that cannot fit in there.
+
+	As a result, memory must be "correctly" detected using the BIOS
+	interface.
+
+	The following interfaces exist:
+	- INT 15h,AH=88
+		This returns the number of 1K blocks after the real mode memory.
+		The only problem with this is that the size reported may not
+		actually reflect the true amount. Some BIOSes do not correctly
+		report the actual size and are capped to 15M.
+
+		Also recieves data from the CMOS ram, which means it can all be
+		done without calling anything.
+	- INT 15h,AH=0C7h
+		This returns a structure which describes a bunch of memory
+		information.
+		Windows 95 does not support this function even if available.
+	- INT 15h,AX=0E801h
+	https://fd.lod.bz/rbil/interrup/bios_vendor/15e801.html#sect-1776
+		- Tells the amount of 64K blocks above the hole
+		- Used by most OSes if E820 is not supported.
+	- INT 15h,AX=0E820h
+		- Every ACPI BIOS has this. Phoenix BIOS v4 did it first and is
+		used on some 486 boards.
+		- One way to do this is to pick out the top-2 largest memory
+		regions and go with those: the pre-memory hold region and the
+		above-hole region.
+*/
+
+E801 is able to get everything that I need and can handle any amount of memory. I see no real reason to use E820 except for "doing it the right way" that OSDev insists on so much.
+
+There is the PCI memory hole. It is normally located at 0xC0000000 but there is no specific requirement. Only the BIOS knows for sure. This leaves 3GB of addressing space on average.
+
+I will just trust the amount of memory reported by the BIOS that is linear and simple enough to keep track of.
+
+I am not concerned about losing any memory from this since OS/90 is exclusively 32-bit and really does not need that much memory anyway.
+
+I need to continue getting the OS to emulate on the Mac now.
+
+## It Does Not Work
+
+Bochs does not seem to compile properly. I don't think the MacOS UI code has been ported to Cocoa and that may be the cause of the problem.
+
+I may need to switch to qemu, which is a better emulator in general.
+
+qemu can be built from source to support the GDB stub. This will have me way behind schedule but should be worth it. qemu also has the port E9 hack. Most OSDevs use qemu because it is mostly better.
+
+Other options exist, such as DOSBox-x. It has accurate hardware emulation and a built-in debugger, although not a very good one.
+
+## I Still Want Bochs
+
+I got it to work now. This is good news. All I had to do was select a display library and SDL works.
+
+## CHS Problems
+
+There is a discrepancy between:
+- MBR CHS information
+- BIOS INT 13H CHS translation
+- CHS properties reported by bximage
+
+One solution could be to just use SeaBIOS since that works.
+
+# November 29
+
+I am not going through this CHS nonsense again. I will go back to the FreeDOS image.

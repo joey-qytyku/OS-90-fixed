@@ -12,17 +12,15 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include "L_SWITCH.H"
+#include "l_switch.h"
+#include "l_segmnt.h"
+#include "centcom.h"
 
-#include "M_MEMOPS.H"
-#include "L_SEGMNT.H"
-#include "Z_IO.H"
-#include "TASK.H"
+#include "task.h"
+#include "sv86.h"
+#include "z_io.h"
 
-#include "SV86.H"
-
-extern BYTE _binary_L_SWITCH_BIN_start;
-extern BYTE _binary_L_SWITCH_BIN_size;
+#include "printf.h"
 
 struct tss
 {
@@ -68,6 +66,9 @@ extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
+extern BYTE _binary_L_SWITCH_BIN_start;
+extern BYTE _binary_L_SWITCH_BIN_size;
+
 enum {
 	GDT_NULL        = 0x00,
 	GDT_CSEG        = 0x08,
@@ -95,7 +96,7 @@ DESC_TAB_REG idtr = {2047, (LONG)&idt};
 
 // BYTE rmca[];
 
-static VOID SetIsr(PBYTE addr, BYTE i)
+static VOID SetIsr(PVOID addr, BYTE i)
 {
 	idt[i].off1 = (LONG)((LONG)addr) & 0xFFFF;
 	idt[i].off2 = (LONG)((LONG)addr) >> 16;
@@ -207,7 +208,7 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 		"mov %%ax,%%gs\n"
 		"jmpl $0x8,$cont__;"
 		"cont__:"
-		:::"memory","ax"
+		:::"memory","eax"
 	);
 }
 
@@ -218,6 +219,11 @@ static VOID ConfigurePIT(VOID)
 	outb(0x43, 0x36);
 	outb(0x40, count[0]);
 	outb(0x40, count[1]);
+}
+
+static VOID ConfigutePIC(VOID)
+{
+
 }
 
 static void pc(char c)
@@ -248,34 +254,23 @@ static void TestINT21h()
 	// V86xH(0x21, &r);
 }
 
-/*
-https://pdos.csail.mit.edu/6.828/2005/readings/i386/s09_06.htm
-
-If there is no privilige escalation, the stack is not saved.
-This is important. I am not supposed to copy in the stack location.
-
-That means if I am in ring-0, I should NOT...
-*/
-
-/* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
 VOID KernelMain(VOID)
 {
 	// Zero BSS first, important
 
-	inline_memset(&END_DATA, 0, &BSS_SIZE);
+	inline_memset((PVOID)&END_DATA, 0, (LONG)&BSS_SIZE);
 
 	Gdt_Ldt_Idt_Tss_Tr();
 
-	// // Copy RMCS data
-	inline_memcpy(  0x103000,
-			L_SWITCH_BIN,
-			L_SWITCH_BIN_len
+	// Copy RMCS data
+	inline_memcpy(  (PVOID)0x103000,
+			l_switch_bin,
+			l_switch_bin_len
 	);
 
 	ConfigurePIT();
 
-	RemapPIC();
+	RemapPIC(); // Rewite in C
 
 	InitV86();
 
@@ -286,7 +281,7 @@ VOID KernelMain(VOID)
 		:::"memory", "eax"
 	);
 
-	PLONG ptr = 0x100000 + 0x1000;
+	PLONG ptr = (PLONG)0x100000 + 0x1000;
 	ptr[256+0] &= ~(1<<1);
 	ptr[256+1] &= ~(1<<1);
 	ptr[256+2] &= ~(1<<1);

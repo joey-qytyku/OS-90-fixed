@@ -1,5 +1,19 @@
-#include "SV86.H"
-#include "PRINTF.H"
+/////////////////////////////////////////////////////////////////////////////
+//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                                                                         //
+// This file is part of OS/90.                                             //
+//                                                                         //
+// OS/90 is free software. You may distribute and/or modify it under       //
+// the terms of the GNU General Public License as published by the         //
+// Free Software Foundation, either version two of the license or a later  //
+// version if you chose.                                                   //
+//                                                                         //
+// A copy of this license should be included with OS/90.                   //
+// If not, it can be found at <https://www.gnu.org/licenses/>              //
+/////////////////////////////////////////////////////////////////////////////
+
+#include "sv86.h"
+#include "printf.h"
 
 /*
 
@@ -42,84 +56,38 @@ static inline SHORT Popw(PREGS r)
 	return v;
 }
 
-/*
-The steps:
-
-Call the handler chain. If it returns 1, reflection is needed.
-
-To reflect:
-- Set current vector to enter var to requested
-- INT level counter set to 0
-
-Loop:
-- Push stuff into stack
-- Enter V86
-- If caught an INT
-	- Level counter increment
-	- Set vector to execute to the INT
-	- Repeat loop
-- If caught IRET
-	- Decrement counter
-	- If zero, we are done (clean the stack too)
-	- If not zero, copy from stack to registers
-
-*/
-
-LONG V86xH(BYTE v, PREGS r)
+static inline VOID Intw(PREGS r, SHORT new_cs, SHORT new_ip)
 {
-	LONG int_caught;
-	LONG rval;
-	LONG level = 0;
-
-	// If the vector has a handler, we do not have to do anything.
-	// If the handler wants to call this function again that is fine
-	// because of reentrancy.
-	if (v86_handlers[v](r) == 0)
-		return r->EAX & 0xFFFF;
-
-	// Otherwise we will go straight into SV86.
-
-	// DO NOT RUN THE THING TWICE
-DoInt:
-
 	Pushw(r, r->FLAGS);
 	Pushw(r, r->CS);
 	Pushw(r, r->IP);
-	r->IP = IVT[v].ip;
-	r->CS  = IVT[v].cs;
+	r->IP   = new_ip;
+	r->CS   = new_cs;
+}
 
-	// We are now in one level.
-
-	level++;
-
-ContInLevel:
-	int_caught = EnterV86(&r);
-	FuncPrintf(putchar, "\tCaught: %x\n", int_caught);
-
-
-	// Is the INT caught an INT x call and not an IRET?
-	// If so, repeat the loop and perform emulation
-	// This is also given that there was no handler capable of the request.
-	if (int_caught < 256 && v86_handlers[v](r) == 1)
-		goto DoInt;
-
-	// Otherwise, we caught an IRET or just doing the obligatory
-	// stack emulation since a captured INT already did "return."
-
-	// Caught an IRET in this case
-	level--;
-	if (level == 0)
-		return r->EAX & 0xFFFF;
-
-	// Simulate IRET on the stack
+static inline VOID Iretw(PREGS r)
+{
 	r->IP           = Popw(r);
 	r->CS           = Popw(r);
 	r->FLAGS        = Popw(r);
+}
 
-	// Continue without doing the whole
-	// Interrupt frame generation because there is
-	// no interrupt.
-	goto ContInLevel;
+LONG V86xH(BYTE v, PREGS r)
+{
+	LONG int_caught = v;
+	LONG rval;
+	LONG level = 0;
+
+	while (1) {
+		Intw(r, IVT[int_caught].cs, IVT[int_caught].ip);
+		int_caught = EnterV86(r);
+		if (int_caught == 0xFFFFFFFF) {
+			level--;
+			if (level == 0) {
+				return r->EAX & 0xFFFF;
+			}
+		}
+	}
 }
 
 VOID InitV86(VOID)

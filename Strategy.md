@@ -79,3 +79,9 @@ Drivers to develop:
 - VGA arbitration
 - Keyboard and PS/2 mouse
 - Serial mouse
+
+Phase 7:
+- Userspace specification
+- Executable format design
+- Develop toolchain
+- ???

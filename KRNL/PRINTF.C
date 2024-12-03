@@ -1,14 +1,28 @@
-#include <stdarg.h>
-#include "Z_IO.H"
+/////////////////////////////////////////////////////////////////////////////
+//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                                                                         //
+// This file is part of OS/90.                                             //
+//                                                                         //
+// OS/90 is free software. You may distribute and/or modify it under       //
+// the terms of the GNU General Public License as published by the         //
+// Free Software Foundation, either version two of the license or a later  //
+// version if you chose.                                                   //
+//                                                                         //
+// A copy of this license should be included with OS/90.                   //
+// If not, it can be found at <https://www.gnu.org/licenses/>              //
+/////////////////////////////////////////////////////////////////////////////
 
-//
+#include <stdarg.h>
+#include "z_io.h"
+#include "printf.h"
+
 // This be look hard to understand, but I got it from transforming existing
 // code and checking the assembler output.
 //
 // This prints out commas and does so fast as well.
-//
 
-VOID UInt32ToString2(LONG value, VOID (*func)(char))
+VOID UInt32ToString2(   LONG            value,
+			PUTCHAR_LIKE    func)
 {
 	static const int lookup[] = {
 		1000000000,
@@ -23,9 +37,7 @@ VOID UInt32ToString2(LONG value, VOID (*func)(char))
 		1
 	};
 
-	static const BYTE lookup_need_comma[8] = {
-		1,0,0,1,0,0,1
-	};
+	static const BYTE lookup_need_comma[8] = {1,0,0,1,0,0,1};
 
 	if (value == 0) {
 		func('0');
@@ -57,20 +69,22 @@ VOID UInt32ToString2(LONG value, VOID (*func)(char))
 	}
 }
 
-VOID Hex32ToString(LONG value, VOID (*func)(char))
+VOID Hex32ToString(     LONG            value,
+			PUTCHAR_LIKE    func)
 {
 	static BYTE lookup[16] = {
 		'0','1','2','3','4','5','6','7','8','9',
 		'A','B','C','D','E','F'
 	};
 
-	for (int i = 7; i >= 0; i--) {
-		func(lookup[value >> (i*4) & 0xF]);
-	}
+	for (int i = 7; i >= 0; i--)
+		func(lookup[(value >> (i*4)) & 0xF]);
 }
 
 // Should work to make this truly compatible (except for float ofc)
-void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
+void FuncPrintf(        PUTCHAR_LIKE    func,
+			const PBYTE     fmt,
+			...)
 {
 	va_list args;
 
@@ -119,6 +133,9 @@ void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 
 				case 's': // TODO
 				{
+					char *s = va_arg(args, char*);
+					for (int i = 0; !s[i]; i++)
+						func(s[i]);
 				}
 				continue;
 			}
@@ -129,12 +146,4 @@ void FuncPrintf(VOID (*func)(char c), const char *fmt, ...)
 	va_end(args);
 }
 
-void putchar(char c)
-{
-	outb(0xE9, c);
-}
-
-int main()
-{
-	return 0;
-}
+VOID putE9(BYTE c) { outb(0xE9, c); }

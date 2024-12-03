@@ -17,9 +17,6 @@
         },
         {
             "name": "OS/90 Kernel",
-            "includePath": [
-                "${workspaceFolder}/KRNL/"
-            ],
             "defines": [],
             "cStandard": "gnu99",
             "cppStandard": "c++98",
@@ -39,11 +36,12 @@
                 "-nostdlib",
                 "-std=c99",
                 "-Wextra",
-                "-m32"
+                "-m32",
+                "-include",
+                "${workspaceFolder}/type.h"
             ],
-            "compilerPath": "/usr/bin/gcc",
             "forcedInclude": [
-                "${workspaceFolder}/kernel/src/include/Type.h"
+                "${workspaceFolder}/KRNL/type.h"
             ],
             "mergeConfigurations": false,
             "browse": {
@@ -51,7 +49,8 @@
                     "${workspaceFolder}/kernel/src/include/"
                 ],
                 "limitSymbolsToIncludedHeaders": true
-            }
+            },
+            "compilerPath": "/opt/homebrew/bin/i686-elf-gcc"
         }
     ],
     "version": 4
