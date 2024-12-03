@@ -15,26 +15,6 @@
 #include "sv86.h"
 #include "printf.h"
 
-/*
-
-Here is how it all works.
-
-There is an array of handlers for each V86 INT vector. This is not necessary
-but is faster.
-
-There is a chain of hooks. They return-chain by calling the previous one
-and either calling the previous one or returning to "eat" the request.
-The return value of each handler can be 1 to indicate (HANDLED) or 0 to
-indicate (REFLECT).
-
->>> THIS IS WRONG ACTUALLY
-
-There is a stub handler that automatically routes the interrupt to real mode
-in that special case.
-
-*/
-
-// Stub handler? Yes.
 static HV86 v86_handlers[256];
 
 static BOOL Stub(PREGS r)
@@ -47,22 +27,27 @@ static inline VOID Pushw(PREGS r, SHORT v)
 {
 	r->SP -= 2;
 	*(PSHORT)(r->SS * 16 + r->SP) = v;
+	// FuncPrintf(putE9, "Pushed %x\n", v);
 }
 
 static inline SHORT Popw(PREGS r)
 {
 	SHORT v = *(PSHORT)(r->SS*16 + r->SP);
 	r->SP += 2;
+	// FuncPrintf(putE9, "Popped %x\n", v);
 	return v;
 }
 
-static inline VOID Intw(PREGS r, SHORT new_cs, SHORT new_ip)
+static inline VOID Intw(PREGS   r,
+			SHORT   new_cs,
+			SHORT   new_ip)
 {
 	Pushw(r, r->FLAGS);
 	Pushw(r, r->CS);
-	Pushw(r, r->IP);
-	r->IP   = new_ip;
+	Pushw(r, r->IP + 2);
+	r->EIP   = new_ip;
 	r->CS   = new_cs;
+	// FuncPrintf(putE9, "\n");
 }
 
 static inline VOID Iretw(PREGS r)
@@ -70,24 +55,39 @@ static inline VOID Iretw(PREGS r)
 	r->IP           = Popw(r);
 	r->CS           = Popw(r);
 	r->FLAGS        = Popw(r);
+	// FuncPrintf(putE9, "\n");
 }
 
-LONG V86xH(BYTE v, PREGS r)
+// It is important o accurately simulate the stack because some real mode
+// software modifies it intentionally.
+
+LONG INTxH(BYTE v, PREGS r)
 {
 	LONG int_caught = v;
 	LONG rval;
 	LONG level = 0;
 
-	while (1) {
-		Intw(r, IVT[int_caught].cs, IVT[int_caught].ip);
-		int_caught = EnterV86(r);
-		if (int_caught == 0xFFFFFFFF) {
-			level--;
-			if (level == 0) {
-				return r->EAX & 0xFFFF;
-			}
+
+	DoInt:	Intw(r, IVT[int_caught].cs, IVT[int_caught].ip);
+		level++;
+
+	Resume:	int_caught = EnterV86(r);
+
+	if (int_caught == 0xFFFFFFFF) {
+		level--;
+		Iretw(r);
+		if (level == 0) {
+			goto End;
+		}
+		else {
+			// Resume execution without pushing to the stack.
+			goto Resume;
 		}
 	}
+	else {
+		goto DoInt;
+	}
+	End:	return r->EAX & 0xFFFF;
 }
 
 VOID InitV86(VOID)

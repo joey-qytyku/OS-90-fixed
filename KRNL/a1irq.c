@@ -34,7 +34,7 @@ SHORT API GetIrqMask(VOID)
 
 VOID RemapPIC(VOID)
 {
-	SHORT m = GetIrqMask();
+	const SHORT m = GetIrqMask();
 
 	// ICW1 to both PIC's
 

@@ -115,14 +115,14 @@ cont:
         ; Now we run the INT. But we do not want to use self-modifying code
         ; and cannot call an arbitrary int. The instruction will be simulated.
 
-        mov     al,'I'
-        out     0E9h,al
+        ;mov     al,'I'
+        ;out     0E9h,al
 
         pushf
         call    far [es:edx*4]
 
-        mov     al,'O'
-        out     0E9h,al
+        ;mov     al,'O'
+        ;out     0E9h,al
 
         mov     al,[OLD_MASK_M]
         out     21h,al

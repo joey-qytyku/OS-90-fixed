@@ -83,7 +83,7 @@ VOID Hex32ToString(     LONG            value,
 
 // Should work to make this truly compatible (except for float ofc)
 void FuncPrintf(        PUTCHAR_LIKE    func,
-			const PBYTE     fmt,
+			const char*     fmt,
 			...)
 {
 	va_list args;
@@ -146,4 +146,4 @@ void FuncPrintf(        PUTCHAR_LIKE    func,
 	va_end(args);
 }
 
-VOID putE9(BYTE c) { outb(0xE9, c); }
+VOID putE9(char c) { outb(0xE9, c); }

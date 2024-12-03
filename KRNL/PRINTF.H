@@ -15,11 +15,11 @@
 #ifndef PRINTF_H
 #define PRINTF_H
 
-typedef VOID (*PUTCHAR_LIKE)(BYTE c);
+typedef VOID (*PUTCHAR_LIKE)(char c);
 
 VOID FuncPrintf(        PUTCHAR_LIKE,
-			const PBYTE,
+			const char*,
 			...);
-VOID putE9(BYTE c);
+VOID putE9(char c);
 
 #endif /* PRINTF_H */

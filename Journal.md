@@ -7072,3 +7072,30 @@ One solution could be to just use SeaBIOS since that works.
 # November 29
 
 I am not going through this CHS nonsense again. I will go back to the FreeDOS image.
+
+# December 1
+
+## Problems With V86
+
+The monitor has the following issues:
+- IRET discards the results of execution and just exits out, which is wrong behavior.
+- INT/IRET emulation code still exisits in the monitor.
+
+# December 2
+
+## V86 Report
+
+I made a number of changes and also removed the old stuff not needed anymore. I also rewrote the algorithm with gotos.
+
+- There is no infinite loop.
+- The code runs a segment override prefix for SS and faults on it. The instruction is movaps or something like that. It makes no sense at all and the code that ran was inside the BIOS rom.
+
+This means that somehow the code that is being executed is wrong.
+
+> Something to do with copying the iret frame information back?
+
+# December 3
+
+## It Works!
+
+Fully working it seems. I was able to print a hello world string. Will save at this point to github.

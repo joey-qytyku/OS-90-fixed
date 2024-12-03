@@ -23,7 +23,7 @@ static struct __ivt * const IVT = (struct __ivt * const)0;
 
 typedef BOOL (*HV86)(PREGS);
 
-LONG V86xH(BYTE v, PREGS r);
+LONG INTxH(BYTE v, PREGS r);
 
 // Returns the vector of next INT
 // Returns what if IRET?

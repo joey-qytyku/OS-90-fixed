@@ -11,7 +11,7 @@ EnterV86:
         ; xchg bx,bx
 
         mov     ebx,[esp+4]     ; stdregs ptr
-        add     ebx,4           ; Why needed?
+        ; add     ebx,4           ; Why needed?
 
         mov     [saved_regbuffptr],ebx
 
@@ -66,13 +66,12 @@ EnterV86:
         mov     ebp,[ebx+_EBP]
         mov     ebx,[ebx+_EBX]
         ; Bravo six, going dark.
-        xchg bx,bx
         iret
 
         ; This is where the exception handler will resume.
         ; Before IRET, it already set EAX appropriately.
 V86_CONT_POINT:
-        xchg bx,bx
+        ; xchg bx,bx
         ; Restore the handler
         popfd
 
@@ -109,22 +108,6 @@ V86_Monitor:
         cmp     al,0CDh         ; Is it INT
         jnz     .not_intxh
 
-        ; Now we must return to caller in kernel mode.
-        ; This is complicated because there are things
-        ; still on the stack.
-
-        ; We don't go back by letting IRET take place.
-        ; The context saved on the stack does NOT get
-        ; restored, but it does have to be copied to the
-        ; location specified by the V86xH call.
-        ; We know it is a full context.
-
-        cld
-        mov     esi,edx
-        mov     edi,[saved_regbuffptr]
-        mov     ecx,20
-        rep     movsd
-
         ; Return the encountered vector in EAX.
         movzx   eax,byte[ebx+1]
 
@@ -134,29 +117,6 @@ V86_Monitor:
 .not_intxh:
         cmp     al,0CFh ; Is it iret?
         jnz     .not_iret
-
-        ; IRET is:
-        ; Pop IP, CS, and EFLAGS
-
-        mov     esi,[edx+_ESP]
-        mov     ebx,[edx+_SS]
-        shl     ebx,4
-        add     esi,ebx
-
-        ; The first location we want to pop is already pointed to by SS:SP.
-        ; No need to offset by 2.
-
-        xor     eax,eax
-
-        std
-        lodsw
-        mov     word [edx+_EIP],ax
-        lodsw
-        mov     word [edx+_CS],ax
-        lodsw
-        mov     word [edx+_EFLAGS],ax
-
-        add     word [edx+_ESP],6
 
         ; EAX=FFFFFFFF to indicate that we are out of this INT level.
         mov     eax,~0
@@ -188,7 +148,7 @@ V86_Monitor:
         jmp     .cont
 
 .not_pushf:
-        cmp     al,9Dh
+        cmp     al,9Dh          ; Is it PUSHF
         jnz     .not_popf
 
         ; Emulate popf. The IF flag are copied as expected.
@@ -267,7 +227,6 @@ V86_Monitor:
         ; No return in this case, that is it.
         ; BTW the segment regsters were set already to kernel values.
         jmp     V86_CONT_POINT
-
 
 .cont:
         ; Go on after emulating a non-break opcode
