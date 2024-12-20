@@ -76,7 +76,7 @@ which nasm ${KRNL_CC} ${KRNL_LS}
 ###############################################################################
 
 # Works btw
-function rm_ifexist() {
+export function rm_ifexist() {
 	for x in $@;
 	do
 		if [[ -f $x ]]; then
@@ -85,3 +85,5 @@ function rm_ifexist() {
 	done
 	return 0
 }
+
+export -f rm_ifexist

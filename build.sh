@@ -26,8 +26,6 @@ do
 	fi
 done
 
-# We need to build KRNL first
-
 echo Packages: $packages[*]
 
 # Or just merge the source trees?
@@ -35,9 +33,9 @@ echo Packages: $packages[*]
 for x in $packages
 do
 	cd $x
-	./1_build.sh
-	./1_instl.sh
+	./1_pkg Make
+	if [ $? -ne 0 ]; then
+		./1_pkg Clean
+	fi
 	cd $PROJECT
 done
-
-

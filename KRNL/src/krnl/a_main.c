@@ -12,7 +12,6 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include "l_switch.h"
 #include "l_segmnt.h"
 #include "centcom.h"
 
@@ -22,30 +21,22 @@
 
 #include "printf.h"
 
+enum {
+	GDT_NULL        = 0x00,
+	GDT_CSEG        = 0x08,
+	GDT_DSEG        = 0x10,
+	GDT_TSS         = 0x18,
+	GDT_LDT         = 0x20,
+	GDT_RM_CS       = 0x28,
+	GDT_RM_DS       = 0x30,
+	GDT_WIN16       = 0x38
+};
+
 struct tss
 {
-	LONG back_link;
-	LONG esp0;
-	LONG ss0;
-	LONG esp1;
-	LONG ss1;
-	LONG esp2;
-	LONG ss2;
-	LONG cr3;
-	LONG eip;
-	LONG eflags;
-	LONG eax, ecx, edx, ebx;
-	LONG esp, ebp, esi, edi;
-	LONG es;
-	LONG cs;
-	LONG ss;
-	LONG ds;
-	LONG fs;
-	LONG gs;
-	LONG ldt;
-	SHORT :16;
-	SHORT bitmap_base;
-	BYTE bitmap[8192];
+	SHORT   _[25*2+1]
+	SHORT   bitmap_base;
+	BYTE    bitmap[8192];
 }__attribute__((packed));
 
 typedef struct __attribute__((packed)) {
@@ -65,20 +56,6 @@ extern char EXC_0;
 extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
-
-extern BYTE _binary_L_SWITCH_BIN_start;
-extern BYTE _binary_L_SWITCH_BIN_size;
-
-enum {
-	GDT_NULL        = 0x00,
-	GDT_CSEG        = 0x08,
-	GDT_DSEG        = 0x10,
-	GDT_TSS         = 0x18,
-	GDT_LDT         = 0x20,
-	GDT_RMCS_CODE   = 0x28,
-	GDT_RMCS_DATA   = 0x30,
-	GDT_WIN16       = 0x38
-};
 
 SEGMENT_DESCRIPTOR gdt[8];
 SEGMENT_DESCRIPTOR ldt[128];
@@ -112,80 +89,32 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 	static const BYTE access_tss  = 0x89;
 	static const BYTE access_ldt  = 0x82;
 
-	{
-		L_SegmentCreate(
-			GDT_CSEG,
-			0,
-			0xFFFFFF,
-			access_cseg,
-			0xC0
-		);
-		L_SegmentCreate(
-			GDT_DSEG,
-			0,
-			0xFFFFFF,
-			access_dseg,
-			0xC0
-		);
-		L_SegmentCreate(
-			GDT_TSS,
-			(LONG)&TSS,
-			104+8192,
-			access_tss,
-			0x00
-		);
-		L_SegmentCreate(
-			GDT_LDT,
-			(LONG)&ldt,
-			sizeof(ldt)-1,
-			access_ldt,
-			0
-		);
+	static const LONG limit_tss = sizeof(ldt)-1;
+	static const LONG base_tss  = (LONG)&TSS;
 
-		L_SegmentCreate(
-			GDT_WIN16,
-			0x400,
-			255,
-			access_ldt,
-			0
-		);
+	static const LONG base_ldt  = (LONG)ldt;
+	static const LONG limit_ldt = sizeof(ldt)-1;
 
-		L_SegmentCreate(
-			GDT_RMCS_CODE,
-			0xFFFF0,
-			0xFFFF,
-			access_cseg,
-			0
-		);
+	#define SC L_SegmentCreate
+	/* Selector     Base address    Limit           Access rights   ExtA
+	---------------------------------------------------------------------*/
+	SC(GDT_CSEG,    0,              0xFFFFFF,       access_cseg,    0xC0);
+	SC(GDT_DSEG,    0,              0xFFFFFF,       access_dseg,    0xC0);
+	SC(GDT_TSS,     base_tss,       104+8192,       access_tss,     0x00);
+	SC(GDT_LDT,     limit_ldt,      limit_tss,      access_ldt,     0);
+	SC(GDT_WIN16,   0x400,          255,            access_ldt,     0);
+	SC(GDT_RM_CS,   0xFFFF0,        0xFFFF,         access_cseg,    0);
+	SC(GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0);
+	#undef SC
 
-		L_SegmentCreate(
-			GDT_RMCS_DATA,
-			0xFFFF0,
-			0xFFFF,
-			access_dseg,
-			0
-		);
-	}
+	// Technically only 20 are supported ATM.
+	for (LONG i = 0; i < 32; i++)
+		SetIsr(&EXC_0 + i*16, i);
 
-	{
-		// Technically only 20 are supported ATM.
-		for (LONG i = 0; i < 32; i++) {
-			SetIsr(&EXC_0 + i*16, i);
-		}
-	}
+	for (LONG i = 0; i < 15; i++)
+		SetIsr(&ISR_1+(i)*16, i+0xA1);
 
-	{
-		// There are three entry points
-		// ISR_15, ISR_7, and ISR_REST
-		// IRQ#0 is handled with a different IDT entry.
-
-		// Set IDT entries for 1-6
-		for (LONG i = 0; i < 15; i++)
-			SetIsr(&ISR_1+(i)*16, i+0xA1);
-
-		SetIsr(&IRQ0, 0xA0);
-
-	}
+	SetIsr(&IRQ0, 0xA0);
 
 	TSS.bitmap_base = 104;
 
@@ -251,12 +180,6 @@ VOID KernelMain(VOID)
 
 	Gdt_Ldt_Idt_Tss_Tr();
 
-	// Copy RMCS data
-	inline_memcpy(  (PVOID)0x103000,
-			l_switch_bin,
-			l_switch_bin_len
-	);
-
 	ConfigurePIT();
 
 	RemapPIC();
@@ -270,17 +193,9 @@ VOID KernelMain(VOID)
 		:::"memory", "eax"
 	);
 
-	PLONG ptr = (PLONG)0x100000 + 0x1000;
-	ptr[256+0] &= ~(1<<1);
-	ptr[256+1] &= ~(1<<1);
-	ptr[256+2] &= ~(1<<1);
-
 	__asm__ volatile(
 		"mov %%cr3,%%eax; mov %%eax,%%cr3; sti"
 		:::"memory","eax");
-
-
-	RunTaskTests();
 
 	__asm__ volatile("mov $0xDEAD,%%eax; jmp .":::"memory");
 }

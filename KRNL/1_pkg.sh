@@ -2,24 +2,26 @@
 
 THISPKG=$(realpath .)
 
-function uninstall() {
+BLD=$THISPKG
+
+function Uninstall() {
 	mdel c:/OS90/OS90.EXE
 	return 0
 }
 
-function install() {
+function Install() {
 	mcopy ../os90.exe c:/OS90/OS90.EXE
 	return 0
 }
 
-function clean() {
-	local removing=( $(find ${THISPKG} | grep -i "(\\.o$)|(os90\.err)" ) )
+function Clean() {
+	local removing=(find -L $THISPKG \( -name "*.o" -o -name "*.exe" -o -name "*.err" -o -name "*.bin" \) ) )
 	echo Removing: $removing
 	rm_ifexist removing
 	return 0
 }
 
-function make() {
+function Make() {
 	function mk_chkfail() {
 		if [ $1 -ne 0  ]; then
 			clean
@@ -31,7 +33,7 @@ function make() {
 	${KRNL_CC} ${KRNL_CFLAGS} -c *.c
 	mk_chkfail $?
 
-	${KRNL_LD} -T ${THISPKG}1_link.ld --oformat=binary -o ${THISPKG}/krnl.bin
+	${KRNL_LD} -T ${THISPKG}/1_link.ld --oformat=binary -o $BLD/krnl.bin
 	mk_chkfail $?
 
 	cd ../boot
@@ -43,7 +45,7 @@ function make() {
 
 	cd $THISPKG
 
-	clean
+	Clean
 }
 
 if [ $(pwd) -ne "KRNL" ]; then
