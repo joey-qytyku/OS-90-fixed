@@ -21,7 +21,7 @@ packages=()
 
 for x in */
 do
-	if [ test -f ${x}/1_instl.sh ]; then
+	if [[ -f ${x}/1_instl.sh ]]; then
 		packages+=($x)
 	fi
 done

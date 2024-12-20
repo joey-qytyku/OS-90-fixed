@@ -69,8 +69,19 @@ export PACK16=$WATCOM/apack.exe
 
 echo "vars: checking for dependencies"
 set -e
-which nasm
-test -f $(which ${KRNL_CC})
-test -f $(which ${KRNL_LS})
+which nasm ${KRNL_CC} ${KRNL_LS}
 
+###############################################################################
+# A few build system functions to make other scripts simpler.
+###############################################################################
 
+# Works btw
+function rm_ifexist() {
+	for x in $@;
+	do
+		if [[ -f $x ]]; then
+			rm $x
+		fi
+	done
+	return 0
+}
