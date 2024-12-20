@@ -7099,3 +7099,391 @@ This means that somehow the code that is being executed is wrong.
 ## It Works!
 
 Fully working it seems. I was able to print a hello world string. Will save at this point to github.
+
+## Where to go from here
+
+The INT interface is low-level and does not handle the stack and interrupt flag automatically, but it does work.
+
+Another detail is the program segment prefix, which has to be set correctly when calling to DOS. We will hook the whole interface.
+
+Is there an invar for this? I cannot seem to find a current PSP variable.
+
+It is not that important actually. The SFT is global on OS/90. Nothing should be called from the kernel that is specific to a process, but in that case I need a special API for that.
+
+## Things to Write
+
+I need an MZ executable loader. It will also initialize a context.
+
+I can actually use the real interface to load programs. It looks unintuitive though and I would prefer to avoid that.
+
+# December 4
+
+## Stacks for V86
+
+There will be a uniform call mechanism to access V86 services.
+
+First off, I want the stack to be automatically selected for the most part.
+
+But how?
+
+The V86 call mechanism seems to access the stack automatically and does not account for hooks just yet.
+
+I will figure things out. I should not use a stack unless SV86 entry is needed.
+
+But if I am within an SV86 capture, can I call SV86 again? It is supposed to be reentrant and I do not want to impose an unnecessary restriction.
+
+If only one stack is used, it would not be reentrant because it is dependent on a global resource in a context that cannot be restarted to continue. This is fine if I do not want a V86 handler to be able to call itself, but this definitively makes V86 calls 100% non-reentrant. I cannot call from different threads unless I use a lock.
+
+A lock is not so bad. While the stack is in use nothing else will actually run because preemption will be off, although I wonder if I need a lock at all at that point.
+
+EnterV86 already disables preemption. I can do it before entering it.
+
+I can give each process a separate stack for this purpose, but it does seem wasteful.
+
+I am not sure how often I would want to run INTxH in a V86 capture handler.
+
+Right now, the INTxH obligatorily accesses the stack. It is possible that some INT calls also require a stack to be used. EnterV86 could be called at any time so we really do need a stack.
+
+I can have a limited number of stacks subdivided from the total size in the HMA, or I can allocate more (boot option?).
+
+Also the stacks do not need to be big because DOS switches stacks anyway and also because captured INTs don't even need much at all.
+
+## Reentrancy Is Needed Actually
+
+A filesystem-related INT 21H handler needs to be able to call INT 13H whether it is captured or not.
+
+If I allocate the stacks automatically, it can be reentrant as long as the allocation part is thread safe.
+
+I can use a bit scan instruction to allocate them by having a limited number of stacks which possibly makes it atomic.
+
+Also, for proper system throughput, I will need a much higher number of stacks unless I try to go for lazy stack allocation and only get one for EnterV86 calls, but I'm not sure.
+
+## Reentrancy of INTxH
+
+INTxH is actually the implementation of RUNxH or something like that, which does not worry about hooks at all and just runs using the IVT.
+
+Adapting it is a challenge.
+
+- Almost all APIs that use INT use registers for parameters and not the stack, meaning that a stack only needs to be there as a necessity of entry/exit for EnterV86.
+
+- INTxH needs to be callable from a hook handler. There is no logical alternative.
+
+- INTxH therefore needs to be reentrant, that is, it should never need to wait for a resource to be free, hold any locks, or things like that.
+
+- We need to preallocate all stacks because INTxH may never fail under any circumstance.
+
+I can have each thread recieve a real mode stack. It does not need to be big because of reasons I already know.
+
+The stack can be thread local or DOS process local.
+
+Process-local makes a bit more sense. I can force a DPMI program to allocate memory of a particular size to handle all these calls.
+
+The size of the stack is debatable because stack size varies. An AHCI/SATA INT 13h would probably use a lot of stack space. I think 4K is a good amount, but giving it to every thread is a bad idea.
+
+Only userspace threads should get real mode stacks except when a kernel thread also uses one.
+
+I can also have some method of deallocating them.
+
+## Bored?
+
+I can do a few other things.
+
+# December 5
+
+## SV86 Stacks
+
+Stacks can be of adjustible sizes. They all have to be allocated using the DOS API. They should be allocated individually.
+
+DOS will be configured to use a best fit algorithm for all allocations.
+
+By default stacks should be about 512 bytes but it should be adjustible. They should only be allocated if needed.
+
+I really want to use the bit scan to allocate though.
+
+## Hijack the DOS Allocator?
+
+The DOS memory allocator can be enhanced.
+
+## Other Projects
+
+ATM/90 is still on my other machine and not synced yet. I will have to do that later.
+
+## Bootloader Rewrite?
+
+I objectively do not need to rewrite the bootloader since much of that stuff already is good enough the way it is and a lot is assembly-based anyway so it would just add a lot of extra stuff to it.
+
+However, C code would be more readable and easier to modify.
+
+Hmmm. I consider my current bootloader to a masterpiece. It literally just works.
+
+The only reason to redo everything is if I include the bootloader and kernel image into one single executable.
+
+This is a good idea and also a fun thing to occupy myself with I guess.
+
+The loader/kernel program can then be compressed with lzexe or something else with a good compression ratio.
+
+All I have to do is copy the kernel image into the file. Unless the kernel is less than 64K (it probably will not remain that way) I will have to use a memory model with large data segment support or use a special override for the image and have the rest be tiny/small. The linker may complain if the executable is too large.
+
+This is easier to do in C and it may be worth it.
+
+## Can Get It To Work
+
+ia16-gcc and ia16-binutils dont seem to compile at all. There are no MacOS packages.
+
+Might as well use Turbo C under DOS. Digital mars also exists, though it may not run well or at all under mac.
+
+DMC can run using HDMI. Turbo C++ is probably a better option.
+
+I will use Turbo C++ then.
+
+I can include a binary file using an assembler statement. I can also put it in the executable as an extension.
+
+# December 6
+
+## Loader Issues
+
+XMS is supposed to be limited to before the ISA hole so that the kernel does not ignore all the memory before it.
+
+OS/90 will do advanced detection to find how much there actually is.
+
+I can only use memory that is within the allocated region. This requires knowing which XMS handle was used.
+
+## Bad Idea?
+
+It violates cross-module isolation which I should have and also does not have any major advantages either.
+
+I really just want to code something at this point and not the kernel.
+
+## Yes, Bad Idea
+
+I can adapt the existing loader and use a simple incbin. The part that does the copying can be easily modified.
+
+The only issue is that a COM file is used which may not load if it is too large. This means I have to somehow convert to MZ, which I do not know if it can be done.
+
+A com executable could technically be larger, but I do not know if DOS will react normally to that.
+
+## 100% Bad Idea
+
+WIN.COM loaded the VMM. While compression was used for it, I will surely not need that and there will be two files anyway.
+
+## Next Steps
+
+I will get the scheduler to work. There is no need for 32-bit software support. V86 can be the primary userspace supported by the scheduler, as long as the system is extensible.
+
+Because switching modes requires calls to DPMI, I can keep track of the mode of each thread and dispatch to a proper switch routine.
+
+I will need INTxH to work for things to be done with this.
+
+The DOS emulation layer will be barebones and will lack the DPMI functionality for now.
+
+## Scheduler and Testing
+
+I am able to allocate memory and using that I can try to load programs. I may keep a table of task blocks.
+
+A jump location will be specified in the TCB. It will handle the full switch given the scenario with minimal memory accesses.
+
+For example, to switch from r0 to v86, we have to save only the important segment registers load all the registers and also contruct an IRET frame with the new segments.
+
+These are the scenarios:
+r0 to r0
+r0 to r3
+r0 to vm
+
+r3 to r0
+r3 to vm
+r3 to r3
+
+vm to r0
+vm to r3
+vm to vm
+
+This is 9 scenarios total, which is a heavy amount of boilerplate but should theoretically be faster.
+
+r0 to r3 could be merged together and use the same procedure to switch between them, though pointless loads and stores of the FS/GS registers would occur, which arre underfined under the kernel.
+
+
+# December 11
+
+## Notes On ia16-gcc
+
+I do not need it to run natively. The whole toolchain can run under DJGPP using a DOS emulator like DOSBox or a qemu OS emulator.
+
+# December 12
+
+I don't need to do anything with the bootloader.
+
+# December 13
+
+The OS has obviously stangnated because of stuff I have to do for college. I am not sure where I will take it from here.
+
+With V86 being partially complete and working, I think I can continue with the scheduler.
+
+Userspace cannot work without the V86 interface fully operational.
+
+## Link-time optimization?
+
+LTO can reduce the size of the binary. It is used by SeaBIOS for that purpose. Also it can make the code faster.
+
+No.
+
+## Testing Scheduler
+
+I do not need extended memory allocation for the process control blocks. I can just statically allocate them in the kernel for the time being.
+
+Without a full V86 interface I am unable to run ring-3 V86 programs since I do not have the infrastructure for that yet and there is no V86 call with hooks at the moment.
+
+I will test ring-0 threads first.
+
+```
+VOID CreateTestThread(PTASK t, VOID (*proc)(PVOID));
+```
+
+The threads are not supposed to return because they have nothing to return to.
+
+I will run procedures that are complex enough to check if the switches are being done properly.
+
+As for DOS stuff, I cannot multitask more than one DOS program and it would be quite difficult too unless I use a .COM file and load that. Directly calling V86 may work, but as stated, I cannot run more than one without serious problems.
+
+Also, a callback can be used for the MZ loader or even a generic COM loader so that a filesystem driver can hook it and optimize program execution separately.
+
+For now, only ring 0 threads need to be tested. Also, there will be an initialization thread.
+
+The test will be to print out characters and eventually strings to indicate which is running.
+
+# December 15
+
+## Task Switch
+
+The current approach has lower cache locality annd requires additional operations to get the correct handler.
+
+The advantage is that I do not have to first push the registers, then copy them, and then pop another set.
+
+That is two read/write sets versus three. Also, V86b requires the use of a branch, which is 100% unpredictable and will be very slow on Pentium processors.
+
+I will have to be able to set the TSS correctly though. I can adapt it to the current design.
+
+## More on That
+
+Is this really worth it?
+
+At this point I could just use hardware multitasking as it does everything automatically. The only problem is not being able to use REGS anymore, which is a problem although a rather minor one.
+
+I do not know if hardware task switching is known to be very fast.
+
+The only potential problem is the need for a task gate or I have to put the gates in the GDT.
+
+The full switch is somewhere between 210-301 clocks. There is support for task linking althout it is obviously garbage.
+
+Although a mostly atomic switch operation to change tasks seems like something useful.
+
+Task gates are slower that jumping to a TSS descriptor.
+
+# December 16
+
+## Task Switching
+
+An interrupt will
+
+# December 18
+
+## C Library
+
+I will eventually write a fully featured C library. It will be called jlibcq.
+
+## Naming Conventions Changes
+
+I no longer like the Quake convention. Can I do this instead?
+
+```
+mXAlloc
+mXFree
+sYield
+```
+
+## Current State
+
+The project is in shambles. I sense myself losing interest in the OS.
+
+## Bootloader
+
+I REALLY should not even try anymore to change the bootloader. But changes do have to take place.
+
+## Task Switching
+
+There are many problems with hardware task switching. Interrupts will NOT save the registers, and there is no indication anywhere that they do either.
+
+I hear that Win386 may have made use of the TSS. Perhaps it copied in the context and then did the switch.
+
+The other problem is that the kernel binary becomes bigger because a large GDT is required.
+
+I will stick to the current solution.
+
+## Scheduler
+
+The kernel will not contain an actual scheduler. That has to be done by manually changing the task time slice property.
+
+## Bootup
+
+I think I should have a configuration file that deals with the memory configuration.
+
+There are problems though. Programs that already use XMS will disrupt the process.
+
+The bootloader in its current state actually needs to be changed to work for systems with more memory. A rewrite in C is possible now that I have watcom installed.
+
+## Open Watcom
+
+The compiler is now fully configured. It can compile DOS programs and uses a special run command to set the environment.
+
+The inline assembler seems to support basically all the features I would need, even for kernel-level code (which is default for 16-bit).
+
+## Plan
+
+There will be two regions usable by OS/90, the extended memory before the ISA memory hole and the region after it.
+
+The location of the region after the hole does not matter, we will limit the size to about 2.5G and that is all.
+
+The region before the hole must be allocated via XMS and its size and location must be reported.
+
+The bootloader must:
+- Allocate the largest possible block. This is the second one if the next succeeds
+- Allocate another if there is more
+- If the last allocation failed, we have under 15M, that is what we report for the before region and the after does not exist
+- If it succeeded, we got both of them, report both.
+
+I will use an INT call or maybe an interrupt vector (not to be called) to report both blocks, kind of like ^C or critical error handlers.
+
+B0 - Base of primary memory block
+B1 - Size of primary block in full 4K pages
+
+B2 - Base of secondary block
+B3 - Size
+
+The size is zero to indicate it does not exist, regardless of base
+
+The kernel binary will be included so that it can be compressed with the rest of the code.
+
+# December 19
+
+## Bootloader Rewite
+
+It is sad that I have to let my old bootloader go, but there are some significant changes that must be made.
+
+Maybe C is not totally necessary. I could just use the incbin approach.
+
+Anyway, I discovered a good compression tool called apack.exe that runs under DOS. It is able to shrink the file by about 50% so far, which is a good result and proves that the embedded binary idea is viable.
+
+When I add DPMI, there will be a lot of redundant code.
+
+## Bit Array Allocation Revisited
+
+There is a hardware accelerated method of allocating bit arrays using bsf, which can work on a 32-bit value too.
+
+The most slow part is the array item per-bit iteration. BSF will find the first
+
+It may be faster, not really sure.
+
+The only problem is if we have a situation where the allocation failed.
+
+gcc generates good enough code anyway.
+
+I also cannot find an actually good use for this anymore. There is port allocation for plug and play though.

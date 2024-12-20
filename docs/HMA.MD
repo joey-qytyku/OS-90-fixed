@@ -5,13 +5,14 @@ The high memory area is reserved for the kernel. This document is here for futur
 ```
 == Map of the HMA ==
 
-100000-100FFF   Startup page directory
-101000-101FFF   PT#1
-102000-102FFF   PT#2
-103000-107FFF   Real mode switcher (512 bytes)
+100000-100FFF   Startup page directory  (4K )
+101000-101FFF   PT#1                    (4K )
+102000-102FFF   PT#2                    (4K )
+103000-104FFF   Real mode switcher      (8K )
+105000-108FFF   V86 stack array         (16K)
+109000-109FFF   Far call structure
 
-
-10FFF0        Kernel startup stack start (512 bytes down)
+10FFF0          Kernel startup stack start (512 bytes down)
 ```
 
 - Stack-based regions will use a stack pointer that is over the limit because ESP is decremented before pushing on 80x86.

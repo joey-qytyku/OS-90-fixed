@@ -24,19 +24,6 @@ DR-DOS is also an option and may be more stable in some ways. So is PC-DOS.
 
 # Developer FAQ
 
-## How do i get started?
+## How do I build OS/90?
 
-For userspace software, I suggest using either DJGPP or Open Watcom to compile programs. OS/90 is DOS-compatible.
-
-Documentation is in the docs folder, but I only suggest reading the manual folder's contents.
-
-Drivers are complicated, but in general, there are certain types of drivers with formulas to make them by:
-
-- Driver to extend the operating system to support another OS if DPMI is not able (ELKS, Linux)
-
-- Driver to enable access to a device by arbitrating all requests to it.
-
-- Driver that implements an API for controlling a bus like PCI or USB, or a driver that provides an abstract interface for some class of device drivers.
-
-If you want to make a PCI device driver or one that supports it, the option exists.
-
+Read the comments on build.sh and edit the vars file in the project root. Install the dependencies before running because there is no checking.

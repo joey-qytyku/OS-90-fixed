@@ -82,7 +82,9 @@
         "PRINTF.C": "cpp",
         "A_MAIN.C": "cpp",
         "TYPE.H": "cpp",
-        "DRIVERS.H": "cpp"
+        "DRIVERS.H": "cpp",
+        "X_MZLOAD.C": "cpp",
+        "X_DEFS.H": "cpp"
     },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",

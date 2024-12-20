@@ -58,6 +58,7 @@ MoveError       DB      "[!] Error copying from conventional to extended memory"
 %endmacro
 
 ;Greedy macro parameters
+;Is this slow?
 %macro MESSAGE 1+
         pusha
         jmp     %%c

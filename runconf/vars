@@ -1,0 +1,76 @@
+# This should not be executed directly. Adjust as needed.
+
+export NASM=nasm
+
+###############################################################################
+# Bochs configuration.
+###############################################################################
+
+export BXSHARE=/opt/homebrew/share/bochs
+
+###############################################################################
+# Project directory. Requires the including build script to run at the root.
+###############################################################################
+
+export PROJECT=$(realpath .)
+
+#
+# mtools requires a configuration file to mount its virtual C drive.
+# The config file is able to use environment variables.
+#
+export MTOOLSRC=$PROJECT/runconf/mtoolsrc
+
+
+###############################################################################
+# Open watcom environment variables. 2.0 is required.
+###############################################################################
+
+
+export WATCOM=$HOME/Desktop/open-watcom-v2/rel
+export LIBDOS=$WATCOM/lib286
+export LIB=$LIBDOS:$WATCOM/lib386
+export INCLUDE=$(realpath $LIBDOS/../h)
+
+# Disable long file names in libraries. This reduces the code size for when
+# it is not needed. May be overriden in other scripts.
+export LFN=N
+
+# Update according to file extension and platform
+export WCL=$WATCOM/armo64/wcl
+
+###############################################################################
+# Watcom
+###############################################################################
+export "PATH=$PATH:$HOME/Desktop/open-watcom-v2/rel/armo64"
+
+###############################################################################
+# Cross compiler variables
+###############################################################################
+
+KRNL_CC=i686-elf-gcc
+KRNL_CFLAGS="-x c -Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -mpreferred-stack-boundary=2"
+
+# May want to use gcc as the linker at some point.
+KRNL_LD=i686-elf-ld
+
+#
+# DOS executable packer binary. This affects the size of the kernel loader.
+# Only set if using it, otherwise comment out. Will invoke DOSBox.
+# I recommend aPACK, but that is shareware and I cannot distribute it here.
+# I put it in the watcom path.
+#
+export DOSBOX=dosbox-x
+export PACK16=$WATCOM/apack.exe
+
+###############################################################################
+# Checks to ensure the presence of dependencies.
+# It is safe to abruptly exit here.
+###############################################################################
+
+echo "vars: checking for dependencies"
+set -e
+which nasm
+test -f $(which ${KRNL_CC})
+test -f $(which ${KRNL_LS})
+
+

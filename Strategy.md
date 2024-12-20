@@ -1,3 +1,20 @@
+# TODO
+
+Remember that it may be better to use resizable arrays rather than linked lists. A resizable array will have faster lookup times in all cases.
+
+Linked lists can be made faster by knowing the size and the middle of the list, cutting the worst case in half.
+
+## Long Term Strategy
+
+- Set up source code
+- Get SV86 working and TEST IT
+
+> Major and minor function code for things? For example major is "read" and minor says something about buffering?
+
+- How do I do this? <https://en.wikipedia.org/wiki/SUBST>
+
+# Plan
+
 Phase 1:
 - [DONE] Set up printf debugging
 - [DONE] Update PIT frequency to 1000Hz
@@ -5,13 +22,13 @@ Phase 1:
 - Implement basic scheduler calls and test
 - Write concurrency routines or update existing ones
 - Test all concurrency routines with multiple threads.
-- Add IRQ reflection to real mode and fully confirm as working (with keyboard)
-    - Debug with single step
+- [DONE] Add IRQ reflection to real mode and fully confirm as working (with keyboard)
+    - [DONE] Debug with single step
 - Add ring-3 into the scheduler (not hard).
 - Test ring-3 threads using V86 primarily.
 
 Phase 2:
-- Design and implement SV86
+- [WIP-] Design and implement SV86
     - Includes IO port emulation and INT/IRET
     - Remeber the new design choices made to ensure nested T2 execution of hooks.
 - Test SV86 rigorously, including with hooks

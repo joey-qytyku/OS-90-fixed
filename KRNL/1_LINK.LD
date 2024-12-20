@@ -6,9 +6,6 @@
  source code and can be found at <https://www.gnu.org/licenses/>.
 */
 
-
-/* Text section is smaller now. Something is terribly wrong */
-
 phys = 0xC0000000;
 
 SECTIONS

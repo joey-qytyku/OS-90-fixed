@@ -13,6 +13,38 @@ If there is no more memory, demand-paged space is allocated. A demand paging win
 
 > Swap is an incorrect term. OS/90 does not swap.
 
+
+--------------------------------------------------------------------------------
+	General Description
+--------------------------------------------------------------------------------
+
+Memory blocks are alloated as non-resizable chuncks with fixed and non-resizable virtual address ranges. Inside the page tables, there is a header table entry and a buffer break entry.
+
+> Keep track of free and used page table entries in variable.
+
+Uncommitted memory is memory that is to be allocated when a virtual page is accessed so that it does not all have to be reserved at once. The uncommitted status in indicated using free bits in the page tables. Using iteration, the allocation in need of extension is found, and unaligned addresses are also accounted for to improve performance.
+
+There is a single page table for the first 1M of memory with the rest being reserved, another for the kernel, and any number for extended memory that is allocatable.
+
+The XMS driver used to boot OS/90 must always have above 15M allocations disabled.
+
+--------------------------------------------------------------------------------
+	Thread Safety
+--------------------------------------------------------------------------------
+
+Each allocation is protected by a mutex lock inside the header. All operations must run in T2 unless otherwise specified.
+
+--------------------------------------------------------------------------------
+	Error Codes
+--------------------------------------------------------------------------------
+
+This can easily be stringified by calling M_ErrToStr.
+
+--------------------------------------------------------------------------------
+	API
+--------------------------------------------------------------------------------
+
+
 ................................................................................
 	LONG M_GetInfo(BYTE type)
 ................................................................................
@@ -34,10 +66,11 @@ If there is no more memory, demand-paged space is allocated. A demand paging win
 10- Previous page faults per second value
 
 
-For maximum accuracy, disable preemption, especially when performing a multi-step calculation with results.
+For maximum accuracy, disable preemption, especially when performing a multi-step calculation with results. This is safe.
 
-Example
-```
+	Example
+	~~~~~~~
+................................................................................
 LONG MemoryInUsePercent()
 {
 	// Disable
@@ -46,7 +79,7 @@ LONG MemoryInUsePercent()
 	// Enable
 	S_PreemptDec();
 }
-```
+................................................................................
 
 > Conventional memory must always be 640K
 
@@ -62,7 +95,7 @@ Returns an opmask componenet that enables/disables the page bit. These are macro
 > Maybe use a struct with bit fields.
 
 ................................................................................
-	PVOID M_XMAlloc(PVOID   force_addr,
+	PVOID M_XAlloc( PVOID   force_addr,
 			LONG    commit,
 			LONG    uncommit,
 			LONG    bits);
@@ -79,7 +112,7 @@ A buffer overflow detector page is allocated after it.
 
 This is NOT a general purpose malloc function. Is is quite slow and will take maybe 500 to thousands of clock cycles to run, and although probably faster than the average malloc, it is not memory efficient at all.
 
-Uncommitted pages are also not fast and require physical memory to be allocated, but may end up being disk-backed if there is none.
+Uncommitted pages are also not fast and require physical memory to be allocated, but may end up being disk-backed if there is none. Furthermore, uncommitted memory also requires iteration to find the allocation in need of extension.
 
 - T2 only
 - Quite slow, mainly for supporting DPMI
@@ -99,10 +132,7 @@ Conforming to:
 			LONG opmask);
 ................................................................................
 
-Change the page bits of a list of page table entries.
-
-> Can this uncommit pages?
-Changes the page bits of a set of pages.
+Change the page bits of page table entries.
 
 No runtime checks are done to confirm if the CPU handles the PAT.
 
@@ -115,17 +145,26 @@ Return:
 Example:
 
 ................................................................................
-	VOID M_XMFree(PVOID base);
+	MSTAT M_XFree(PVOID base);
 ................................................................................
 
+Returns
+
 ................................................................................
-	VOID M_LockPageTables(VOID);
+	STAT M_Copy(PVOID alloc_to, PVOID alloc_from);
+................................................................................
+
+Performs a non-temporal copy of all data from one allocation to another. If the sizes are problematic, no copy will occur and data remains the same. The page bits of the source must permit at least reading and the destination must permit writing or an error will occur and no copy will take place.
+
+No memory overhead occurs.
+
+................................................................................
+	PLONG M_LockPageTables(VOID);
 ................................................................................
 
 Asserts the lock responsible for the page tables (it may be the same as MM).
 
-The page tables are laid out flat in memory.
-
+The page tables are laid out flat in memory. It is returned by this pointer.
 
 --------------------------------------------------------------------------------
 	Page Attribute Table

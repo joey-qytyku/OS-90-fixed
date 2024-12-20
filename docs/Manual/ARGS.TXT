@@ -1,0 +1,34 @@
+================================================================================
+	Argument Parsing Library (WIP)
+================================================================================
+
+> Simplify this.
+
+The OS/90 kernel has a library built in for parsing null-terminated argument strings of driver. It is not the fastest, but it is easy to integrate and does not require static linkage.
+
+................................................................................
+
+int myvar = 0;
+
+ARGLIST_T argspec[] = {
+	SPACE_DELIM_STR,
+	SWITCH("--", switches)
+
+};
+
+SWITCHTAB swtab[] = {
+	{ANYCASE | SW_NOARG,    "help", SWT_STOP_INTERP},
+	{ANYCASE | SW_STR,      "setv", SWT_PARSE_INT(myvar)}
+};
+
+................................................................................
+
+Switches are methods of changing the flow of interpretation or ending it (such as a help option).
+
+Switch table contain the same type of argument descriptor records as the main argument list.
+
+--------------------------------------------------------------------------------
+	Argument Conventions
+--------------------------------------------------------------------------------
+
+
