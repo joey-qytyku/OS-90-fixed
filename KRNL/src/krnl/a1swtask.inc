@@ -2,6 +2,9 @@
 ; A two-dimensional array is used to index the approprate task switch handler.
 ; I can use E9 to debug this.
 
+; I am not sure if branch avoidance is the perfect strategy. I still have to
+; deal with time slices.
+
 align 64
 switch_table:
 ;       To R0   To R3   To VM

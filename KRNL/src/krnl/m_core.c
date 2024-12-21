@@ -47,7 +47,10 @@ static struct mmctrl mm;
 //
 VOID M_Init(VOID)
 {
-	// Enable write protection in ring-0.
+	// Enable write protection in ring-0 if available.
+
+	// Access the interrupt vectors used to store the memory region sizes.
+	// There are two.
 }
 
 PVOID API M_XMAlloc(    PVOID   force_addr,

@@ -9,8 +9,6 @@
 # - hexdump
 #
 
-echo Building OS/90
-
 source runconf/vars
 
 #
@@ -30,7 +28,7 @@ echo Packages: $packages[*]
 
 # Or just merge the source trees?
 
-for x in $packages
+for x in $packages[@]
 do
 	cd $x
 	./1_pkg Make
