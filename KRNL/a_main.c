@@ -34,7 +34,7 @@ enum {
 
 struct tss
 {
-	SHORT   _[25*2+1]
+	SHORT   _[25*2+1];
 	SHORT   bitmap_base;
 	BYTE    bitmap[8192];
 }__attribute__((packed));

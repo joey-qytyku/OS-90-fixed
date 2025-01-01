@@ -7487,3 +7487,159 @@ The only problem is if we have a situation where the allocation failed.
 gcc generates good enough code anyway.
 
 I also cannot find an actually good use for this anymore. There is port allocation for plug and play though.
+
+# December 22
+
+## Bootloader
+
+I would prefer to use FASM over watcom assembly.
+
+# December 24
+
+## Using C For Bootloader
+
+The XMS API can be called using modified calling conventions. Pragmas exist for that.
+
+Some function calls have mupltiple returns, but they can be split up into separate calls or be turned to a procedure.
+
+I can leave the operating system to do its own job at detecting memory above the ISA memory hole.
+
+Or I can do it all in the bootloader and not clog up my kernel code with INTxH garbage that is not needed.
+
+The compiler does not let me use 32-bit registers, so I cannot handle more than 64M of memory at a time. I could of course allocate in a loop.
+
+Or I can configure the XMS driver to not allocate more than that amount of memory and detect the rest manually. There is a BIOS call for that.
+
+Just like before.
+
+Now I wonder why I bothered doing this. It appears the only thing I have to gain is the compression and integration of the executables.
+
+Aside from that, the bootloader is perfectly working.
+
+So I can basically reuse the existing code. The only potential problem is too much memory being used before the ISA hole and there not being enough space for the full kernel and BSS section. This is very unlikely, but I may want to print an error for that, and do a proper check in the kernel.
+
+Nobody should use that much memory, but I can see real mode disk cachers potentially needing that much and I need to report such errors.
+
+Honestly, if you need that much disk cache, just use a 32-bit driver. It will be way faster. 32-bit disk access will be one of the first things I will do once drivers and programs can load.
+
+Using the existing code, I can add a check to ensure that there is space to load the kernel and that the XMS manager reports the correct amount of memory (along with an appropriate message.)
+
+There is ONE thing to add: report the size of the memory
+
+# December 26
+
+## Changing Direction
+
+I am thinking about writing for the 512-byte demoscene. I tried the CHIP-8 interpreter and it was not possible.
+
+Some ideas:
+- The snake game
+- Space invaders
+
+# December 28
+
+## Back to OS/90
+
+The bootloader needs to be fixed.
+
+Objectives for the bootloader:
+- Report the size of the allocated region
+- Maybe add some sanity checks to ensure the kernel will actually fit. This requires checking the file size.
+
+
+I find myself poorly motivated right now. Maybe I should wait to go back home before coding anything.
+
+# December 29
+
+## Plan For Now
+
+- Update and clean up documentation.
+- Really am not in the mood for coding right now, but my next order of business is to make the bootloader report the size of the allocated region. THe rest is manually detected using the correct function from the BIOS.
+
+
+# December 30
+
+## C Library
+
+The C library can target a DOS environment and expect the existence of DOS calls. There is no need for it to be portable.
+
+I will have to test it on DOS, probably with DOSBox-X.
+
+### Compiler
+
+I have a copy of DJGPP for MacOS. If I can link my own library separately, maybe I can use DJGPP.
+
+I just need to provide the necessary options for a freestanding environment.
+
+crt0 also needs to be properly configured. Things like malloc and the default streams will have global variables local to the program.
+
+crt0 is always statically linked. It is not really an archive though, but a single object file.
+
+Not really. There is no linking process that would make crt0 capable of that. The library just needs to manage the context of the calling thread. In DOS, this will obviously not exist.
+
+Also, I have to keep in mind that DJGPP is not the best tool for creating a shared library file, unless I use the .o format and strip it, and therefore restrict myself to its unique COFF format, which is fine.
+
+### Linking and Shared Libraries
+
+DJGPP can generate a .a file from the objects. The most optimal way to link the library is to:
+- Separate almost every function into a different source file and therefore object file
+- Strip the final result to make sure there are no non-exported symbols
+
+Symbols not marked as visible explicitly can be removed using the strip `--all --discard-all` command. DJGPP supports this. Visibility attributes override this behavior.
+
+See: https://blog.fesnel.com/blog/2009/08/19/hiding-whats-exposed-in-a-shared-library/
+
+### Userspace Program Linkage
+
+I suppose a special section needs to exist for linking with libraries containing a list of libraries to import.
+
+Compiling programs will be rather difficult. Executables will be converted to single object files as well which have to be stripped.
+
+### Implementation Technique
+
+Names will have to be obscured in some way, either with underscores or something else. GCC makes this easy using the alias feature. I can make a macro like this:
+```
+int __jc(printf)(/*---*/);
+```
+
+The main technique I will use will be unit testing. I will run some functions in complex ways to test expected behavior, as well as run comprehensive tests to ensure proper behavior.
+
+### Calling Convention
+
+Programs designed for a different theoretical libc need to be runtime interoperable with my library. This makes very little sense in my environment, but the idea is that if I had some other C library (this is possible), I want the program to be able to switch between them if requested.
+
+Now that I think about it, I cannot really come up with anything in particular that requires me to use common calling conventions. jlibcq is not a drop in replacement. If a program or module uses a GNU or newlib header file, it must be linked against that.
+
+So there are no mandatory calling conventions, but cdecl is actually superior and conventional for C. It does not repeatedly change the stack pointer upon returns and allows successive calls to be cleaned with one addition.
+
+### Motivations
+
+The glibc port that DJGPP provides is probably too bloated for DOS. The Open Watcom one is probably good, but I just want to have the experience of writing a C library. It would look good on a resume.
+
+It is a lot of work though.
+
+An advantage may be that the static linking can be made much more efficient for programs that require it (native DOS).
+
+### Notes on Compilation
+
+A different C library requires separate compilation. The compiler and the library have to interact in the correct way to generate executables that work with one specific library.
+
+The naming of functions internally is totally my decision. I can do what newlib does and add a trailing underscore and then use a define.
+
+I am not sure if it would be a good idea to define the function calls barebones, even in a freestanding environment.
+
+### Can This Be Done?
+
+crt0.o is probably a required part of the program if I compile with DJGPP. It includes a stub too and the mode switching code.
+
+I am not sure how I am supposed to write my own version and test it.
+
+# January 1
+
+## Build System
+
+Can I update the build system to python?
+
+I don't really care much to writing OS/90 in a way that would have been feasible in the 90's. But either way, Python CAN run under DOS, although it is difficult. The latest version possible seems to be 2.4.2 which is very old.
+
+

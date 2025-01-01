@@ -1,11 +1,9 @@
 # Driver Executable Format
 
-Drivers are enhanced flat binaries with added relocation tables so that they can be loaded at arbitrary addresses.
+Drivers are generated using a linker script that copies raw data from the
 
-The OS/90 kernel provides no dynamic linking for kernel libraries.
+> When we use flat binary, will the relocation table be automatically applied?
 
-## Basic Structure
+The relocation table is stored in an unaligned and compressed format but it can be unwrapped in memory with minimal overhead.
 
-## Relocation Table
 
-Relocations with an addend are separated from relocations that do not have one.

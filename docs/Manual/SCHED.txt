@@ -94,7 +94,7 @@ o Never yield in T0 or T1.
 
 o Locked pages must be used for all kernel stacks and interrupt service routines. Never unlock such pages.
 
-o Atomic data structures such as locks must always exist on locked pages. (RATIONALE NEEDED)
+o Atomic data structures such as locks must always exist on locked pages.
 	- The rationale is that a page fault handler will run in a preemptible context and there is no guarantee that the lock will behave properly because the access is deffered and the lock could possbly be accessed by an exception handler.
 	- For this reason, lock used outside the kernel have to be created dynamically.
 - Only functions capable of running in a certain Tx should be used in a given context.

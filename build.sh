@@ -19,21 +19,20 @@ packages=()
 
 for x in */
 do
-	if [[ -f ${x}/1_instl.sh ]]; then
+	if [[ -f ${x}/1_pkg.sh ]]; then
 		packages+=($x)
 	fi
 done
 
-echo Packages: $packages[*]
+echo Packages: "${packages[*]}"
 
 # Or just merge the source trees?
 
-for x in $packages[@]
+for x in "${packages[@]}"
 do
-	cd $x
-	./1_pkg Make
+	cd ${PROJECT}/${x}
+	./1_pkg.sh Make
 	if [ $? -ne 0 ]; then
-		./1_pkg Clean
+		./1_pkg.sh Clean
 	fi
-	cd $PROJECT
 done

@@ -47,11 +47,11 @@ export "PATH=$PATH:$HOME/Desktop/open-watcom-v2/rel/armo64"
 # Cross compiler variables
 ###############################################################################
 
-KRNL_CC=i686-elf-gcc
-KRNL_CFLAGS="-x c -Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -mpreferred-stack-boundary=2"
+export KRNL_CC=i686-elf-gcc
+export KRNL_CFLAGS="-x c -Os -mgeneral-regs-only -nostdlib -nostartfiles -nodefaultlibs -ffreestanding -std=c99 -Wextra -mpreferred-stack-boundary=2"
 
 # May want to use gcc as the linker at some point.
-KRNL_LD=i686-elf-ld
+export KRNL_LD=i686-elf-ld
 
 #
 # DOS executable packer binary. This affects the size of the kernel loader.
@@ -69,21 +69,28 @@ export PACK16=$WATCOM/apack.exe
 
 echo "vars: checking for dependencies"
 set -e
-which nasm ${KRNL_CC} ${KRNL_LS}
+which nasm ${KRNL_CC} ${KRNL_LS} > /dev/null
 
 ###############################################################################
 # A few build system functions to make other scripts simpler.
 ###############################################################################
 
 # Works btw
-export function rm_ifexist() {
+function rm_ifexist() {
 	for x in $@;
 	do
-		if [[ -f $x ]]; then
+		test -f $x
+		if [ $? == 0 ]; then
 			rm $x
 		fi
 	done
 	return 0
 }
 
+function output_asm_bin() {
+	xxd -i $1 | sed -n '2,$ p' | sed -n '$ ! p' | sed -n '$ ! p' | awk '{print "DB"$0}'
+	return 0
+}
+
 export -f rm_ifexist
+export -f output_asm_bin
