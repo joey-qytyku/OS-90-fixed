@@ -15,12 +15,16 @@
 #include "sv86.h"
 #include "printf.h"
 
+struct __ivt { SHORT ip:16; SHORT cs:16; };
+
+__auto_type IVT = (const struct __ivt * const)0;
+
 static HV86 v86_handlers[256];
 
-static LONG     stack_alloc = 0xFFFF0000;
-static PVOID    stacks_base = (PVOID)0x105000;
+static LONG             stack_alloc = 0xFFFF0000;
+static PVOID            stacks_base = (PVOID)0x105000;
 
-static const LONG stack_size = 1024;
+static const LONG       stack_size = 1024;
 
 static LONG AllocateV86Stack(VOID)
 {
@@ -85,7 +89,7 @@ LONG INTxH(BYTE v, PREGS r)
 	LONG rval;
 	LONG level = 0;
 
-	r->ESP = 0x8FF0+16;
+	r->ESP = 0x8FF0+16; // This needs to go.
 	r->SS  = 0xFFFF;
 
 	DoInt:	Intw(r, IVT[int_caught].cs, IVT[int_caught].ip);

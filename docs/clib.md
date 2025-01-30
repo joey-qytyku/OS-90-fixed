@@ -10,7 +10,7 @@ printf and fprintf, or other related function calls need to operate on FILE stre
 
 FILE is an opaque type that is not supposed to be accessed directly. Technically it can be sometimes but that is not defined.
 
-FILE is an abstraction (not required) for file descriptors and adds additional features:
+FILE is an abstraction for file descriptors and adds additional features:
 - Buffering. The buffer length can be changed. Some streams can have immediate writeback or be line buffered.
 - Orientation: byte characters or wide characters. Does not have to be supported fully.
 - Binary or text mode
@@ -77,4 +77,14 @@ Making almost every function a separate file has the potential to greatly increa
 
 > Add macro for LOCALE_INCAPABLE for functions that are not updated for locales.
 
+## Stream Buffering
 
+Consider not using buffering at all.
+
+Well the advantage is that I can avoid having to perform a mode switch by calling INT 21h. This is not fast, so buffering reduces the number of filesystem calls, even if the filesystem implements its own buffer system.
+
+The cache driver has to copy from its own aligned buffers to the unaligned buffers of the userspace.
+
+## Compilation
+
+DJGPP may allow a freestanding compilation. crt0 and the stub are supposed to enter protected mode and set up the C environment.

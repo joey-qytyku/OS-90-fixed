@@ -40,10 +40,9 @@ typedef char  *PSIGBYTE;
 #define PVOID void*
 #define BOOL bool
 
+// I will remove this soon
 #define inline_memcpy(d, s, c) __builtin_memcpy((d), (s), (c))
 #define inline_memset(d, v, c) __builtin_memset((d), (v), (c))
-
-#define BIT(x) (1<<(x))
 
 #define API __attribute__((stdcall))
 
@@ -51,6 +50,9 @@ typedef char  *PSIGBYTE;
 	typedef rtype API (*_API_##name)(__VA_ARGS__);\
 	rtype API name(__VA_ARGS__)
 
+#define fromto(name, from, to) for (LONG name = (from); (name) < (to); (name)++)
+
+#define BIT(n) (1<<(n))
 
 //
 // In OS/90, NULL is actually 0xFFFFFFFF because 0
@@ -60,7 +62,7 @@ typedef char  *PSIGBYTE;
 // structures with NULL pointers cannot just be
 // zeroed.
 //
-#define OSNULL ((PVOID)0xFFFFFFFF)
+#define OSNULL ((PVOID)0xFFFFFFFFU)
 
 #ifdef NULL
 #warning "OS/90 does not use NULL. See related documentation."
@@ -70,19 +72,19 @@ typedef char  *PSIGBYTE;
 #define likely(x)   __builtin_expect((x),1)
 
 typedef struct __attribute__((packed)) {
-	#define I86_C   0x0001U
-	#define I86_PF  0x0004U
-	#define I86_AF  0x0010U
-	#define I86_ZF  0x0040U
-	#define I86_SF  0x0080U
-	#define I86_TF  0x0100U
-	#define I86_IF  0x0200U
-	#define I86_DF  0x0400U
-	#define I86_OF  0x0800U
-	#define I86_IOPL 0x3000U
-	#define I86_NT  0x4000U
-	#define I86_VM  0x00020000U
-	#define I86_AC  0x00040000U
+	#define I86_C       0x0001U
+	#define I86_PF      0x0004U
+	#define I86_AF      0x0010U
+	#define I86_ZF      0x0040U
+	#define I86_SF      0x0080U
+	#define I86_TF      0x0100U
+	#define I86_IF      0x0200U
+	#define I86_DF      0x0400U
+	#define I86_OF      0x0800U
+	#define I86_IOPL    0x3000U
+	#define I86_NT      0x4000U
+	#define I86_VM      0x00020000U
+	#define I86_AC      0x00040000U
 
 	union { LONG EAX; SHORT AX; struct { BYTE AL; BYTE AH; }; };
 	union { LONG EBX; SHORT BX; struct { BYTE BL; BYTE BH; }; };
@@ -116,16 +118,104 @@ typedef struct __attribute__((packed)) {
 // for testing purposes, to see if an interface is required.
 #define NOT_IMPLEMENTED() {__asm__ volatile("xchg %bx,%bx":::"memory");}
 
-// #define DCON_TERM_OLD    0x00
-// #define DCON_GETCHAR     0x01
-// #define DCON_PUTCHAR     0x02
-// #define DCON_GETAUX      0x03
-// #define DCON_PUTAUX      0x04
-// #define DCON_PUTPRN      0x05
-// #define DCON_CONIO       0x06
+/////////////////////////////////////////////////////////////////////////////
+//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                                                                         //
+// This file is part of OS/90.                                             //
+//                                                                         //
+// OS/90 is free software. You may distribute and/or modify it under       //
+// the terms of the GNU General Public License as published by the         //
+// Free Software Foundation, either version two of the license or a later  //
+// version if you chose.                                                   //
+//                                                                         //
+// A copy of this license should be included with OS/90.                   //
+// If not, it can be found at <https://www.gnu.org/licenses/>              //
+/////////////////////////////////////////////////////////////////////////////
 
+#ifndef IO_H
+#define IO_H
 
-// #define DCON_PUTS        0x09
-// #define DCON_READKEYS    0x0A
+static inline void rep_insb(void* mem, LONG count, SHORT port)
+{
+    __asm__ volatile(
+        "cld\n"
+        "rep insb"
+        : "=D"(mem), "=c"(count)
+        : "D"(mem), "c"(count), "d"(port)
+        : "memory"
+    );
+}
+
+static inline void rep_outsb(void *mem, LONG count, SHORT port)
+{
+    __asm__ volatile(
+        "cld\n"
+        "rep outsb"
+        :
+        : "S"(mem), "c"(count), "d"(port)
+        : "esi", "ecx", "edx", "memory"
+    );
+}
+
+static inline void rep_insw(void *mem, LONG count, SHORT port)
+{
+    __asm__ volatile(
+        "cld\n"
+        "rep insw"
+        :
+        : "D"(mem), "c"(count), "d"(port)
+        : "edi", "ecx", "edx", "memory"
+    );
+}
+
+static inline void rep_outsw(void *mem, LONG count, SHORT port)
+{
+    __asm__ volatile(
+        "cld\n"
+        "rep outsw;"
+        :
+        : "S"(mem), "c"(count), "d"(port)
+        : "esi", "ecx", "edx", "memory"
+    );
+}
+
+#define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\
+static inline _TYPE in##_ASM_TYPE_PREFIX(SHORT port)\
+{\
+    _TYPE ret;\
+    __asm__ volatile ("in" #_ASM_TYPE_PREFIX " %1, %0" :"=a"(ret) :"Nd"(port):"memory");\
+    return ret;\
+}
+
+#define _MAKE_PORT_OUT(_ASM_TYPE_PREFIX, _TYPE)\
+static inline void out##_ASM_TYPE_PREFIX (SHORT port, _TYPE val)\
+{\
+    __asm__ volatile ("out" #_ASM_TYPE_PREFIX " %0, %1": :"a"(val), "Nd"(port):"memory");\
+}
+
+_MAKE_PORT_OUT(b, BYTE);
+_MAKE_PORT_OUT(w, SHORT);
+_MAKE_PORT_OUT(l, LONG);
+
+_MAKE_PORT_IN(b, BYTE);
+_MAKE_PORT_IN(w, SHORT);
+_MAKE_PORT_IN(l, LONG);
+
+static inline void delay_outb(SHORT port, BYTE val)
+{
+    outb(port, val);
+    outb(0x80, 0); // Output to unused port for delay
+}
+
+static inline BYTE delay_inb(SHORT port)
+{
+    outb(0x80, 0);
+    return inb(port);
+}
+
+#undef _MAKE_PORT_OUT
+#undef _MAKE_PORT_IN
+
+#endif /* IO_H */
 
 #endif /* TYPE_H */

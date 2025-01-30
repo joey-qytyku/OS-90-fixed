@@ -100,7 +100,7 @@ When calling any interface, remember that anything that interacts with the user 
 	Advice
 --------------------------------------------------------------------------------
 
-SV86 is always slower than a capture handler. Anything done in 32-bits will be faster as there is no need to switch rings twice.
+SV86 is always slower than a capture handler. Anything done in 32-bits will be faster as there is no need to switch rings more than twice.
 
 If the API interfaces with a device (as many do), the implementor driver has many options for emulation:
 

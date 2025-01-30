@@ -18,7 +18,7 @@ OS/90 uses the SysV i386 calling conventions.
 [1]: https://www.sco.com/developers/devspecs/abi386-4.pdf
 [2]: https://learn.microsoft.com/en-us/cpp/c-runtime-library/direction-flag?view=msvc-170
 
-Some functions may deviate and use regparm instead, but the rest holds true.
+Some functions may deviate and use regparm instead, but the rest is true.
 
 The call mechanism is currently a call table at a fixed address called `Kernel`.
 
@@ -31,43 +31,6 @@ For example, GE_LOAD. This is called when a new driver is loaded. All other driv
 Drivers are identified by name in all interfaces exposed to them that permit communication with or knowledge of other drivers. The name MUST be 8 characters long to conform with FAT case, and may later be extended to support the tilde notation.
 
 Most of the events are not required for ordinary system operation and are there to allow for drivers to behave more optimally using certain features too complex to develop an entire API for. For example, we can handle APM or PnP events related to laptop lids or low-power states. Some are purely advisory and have no specific condition to be sent.
-
-```
-// This is more up-to-date right now.
-enum {
-	GE_LOAD = 0,
-	GE_UNLOAD,
-	GE_DRV_ENABLE,
-	GE_DRV_DISABLE,
-
-	// A DOS VM instance wants to change the vector of an IRQ.
-	// A virtual device driver should respond to this if
-	// interrupts must be simulated and it cares about this interrupt.
-	//
-	// Interrupts cannot go directly.
-	//
-	GE_SOFTWARE_WANTS_IRQ,
-
-	//
-	// A DOS VM has terminated and it happened to control the IRQ lines
-	// specified by the mask.
-	//
-	GE_IRQ_HOOKER_DONE,
-
-	// Rest are optional
-
-	GE_ENTER_SYSTEM_IDLE = 0x7000,
-	GE_SYSTEM_POWEROFF,
-	GE_FLUSH_BUFFERS,
-	GE_LAPTOP_LID_CLOSE,
-	GE_LAPTOP_LID_OPEN,
-	GE_DOCK,
-	GE_UNDOCK,
-	GE_MEMORY_LOW,
-	GE_SUBSYS_WANTS_DEV, // TODO REMOVE
-	GE_SUBSYS_RELEASE_DEV
-};
-```
 
 --------------------------------------------------------------------------------
 	Environment

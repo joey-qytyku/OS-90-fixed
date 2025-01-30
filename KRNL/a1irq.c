@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                     Copyright (C) 2022-2025, Joey Qytyku                //
 //                                                                         //
 // This file is part of OS/90.                                             //
 //                                                                         //
@@ -11,8 +11,6 @@
 // A copy of this license should be included with OS/90.                   //
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
-
-#include "z_io.h"
 
 #define IRQ_BASE        (0xA0)
 #define ICW1            (1<<4)

@@ -13,7 +13,6 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <stdarg.h>
-#include "z_io.h"
 #include "printf.h"
 
 // This be look hard to understand, but I got it from transforming existing

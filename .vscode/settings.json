@@ -84,7 +84,8 @@
         "TYPE.H": "cpp",
         "DRIVERS.H": "cpp",
         "X_MZLOAD.C": "cpp",
-        "X_DEFS.H": "cpp"
+        "X_DEFS.H": "cpp",
+        "EATPAGES.C": "cpp"
     },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",

@@ -9,7 +9,7 @@
 ;; version if you chose.                                                   ;;
 ;;                                                                         ;;
 ;; A copy of this license should be included with OS/90.                   ;;
-;; If not, it can be found at <https:;;www.gnu.org/licenses/>              ;;
+;; If not, it can be found at <https://www.gnu.org/licenses/>              ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;-------------------------------------------------------------------------------
@@ -97,8 +97,6 @@ cont:
         mov     ax,0FFFFh
         mov     ds,ax
         mov     ss,ax
-
-        ; Could this be a stack error? Maybe SP is to high?
 
         ; ES will address the IVT
         xor     ax,ax

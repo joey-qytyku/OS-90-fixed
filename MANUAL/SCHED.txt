@@ -65,7 +65,7 @@ There is ONE exception to this system. The FPU IRQ#13 handler represents more of
 	How Do I Get the Current Context Type?
 	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The answer: you don't. It is already known, and code should be specified for specific contexts.
+The answer: you don't. It is already known, and code should be specified for specific contexts or recieve that information.
 
 	Yield Semantics In Detail
 	~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -178,6 +178,8 @@ S_Terminate()
 ................................................................................
 
 Recommended function for terminating the active thread. This is useful for managing KTHREADS as it does not need a task handle and is reentrant.
+
+Internally disables interrupts, so T0 is safe.
 
 About:
 - T0, T1, T2

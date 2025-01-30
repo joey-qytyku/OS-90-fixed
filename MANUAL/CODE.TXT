@@ -3,16 +3,6 @@
 ================================================================================
 
 --------------------------------------------------------------------------------
-        Project Rules
---------------------------------------------------------------------------------
-
-OS/90 is intended to be the work of I, Joey Qytyku, and all code introduced to it that is not mine is credited appropriately, but OS/90 is NOT a team effort. If anybody wants to see their code added, please fork instead.
-
-Almost all code contained here is mine, and I intend it to be that way, but if anything does not belong to me and proper credit is not given, please inform me.
-
-OS/90 is licensed under GPLv2 and any compatible licenses and no proprietary software is required to run it either.
-
---------------------------------------------------------------------------------
         C Style Rules
 --------------------------------------------------------------------------------
 
@@ -78,14 +68,7 @@ BOOL Vm_PageOp( PVOID base,
 
 ................................................................................
 
-The argument types and names must all be tab aligned.
-
-Restrict pointer arguments should always use the RESTRICT macro over the type because not all compilers handle it the same way.
-
-................................................................................
-VOID Example_Memcpy(    PVOID *RESTRICT buff)
-................................................................................
-
+The argument types and names must all be tab aligned except if there is only one.
 
 Functions that take similar inputs should take them in roughly the same order.
 
@@ -129,8 +112,14 @@ Dynamic structures should have this sort of hierarchy. Ask if one is sufficient 
 - Never run CPU instructions that are not detected first
 - Always expect memory allocations to potentially fail
 - Run tests with inline asserts and testing functions.
-- Try to check pointers before dereferencing
 - If unsure about the behavior of various hardware configurations or confused by datasheets, do tests and use asserts in debug code.
 - Avoid assembly language unless it is clearly better.
-- Check generated code to see if a rewrite in assembly is needed
 
+        Philosophy
+        ~~~~~~~~~~
+
+Features are cringe. They just increase development time.
+Flat is better than nested.
+Do not worry about tidying-up or commenting code that already works properly.
+Modular, flat, independent components.
+No "big interface" for components to communicate.

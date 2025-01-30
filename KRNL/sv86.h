@@ -17,9 +17,6 @@
 
 #include "sv86.h"
 
-struct __ivt { SHORT ip:16; SHORT cs:16; };
-
-static struct __ivt * const IVT = (struct __ivt * const)0;
 
 typedef BOOL (*HV86)(PREGS);
 

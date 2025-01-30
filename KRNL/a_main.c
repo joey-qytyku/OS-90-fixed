@@ -17,7 +17,6 @@
 
 #include "task.h"
 #include "sv86.h"
-#include "z_io.h"
 
 #include "printf.h"
 
@@ -57,21 +56,12 @@ extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
-SEGMENT_DESCRIPTOR gdt[8];
-SEGMENT_DESCRIPTOR ldt[128];
-
-// V86 is special and requires an IOPB ALONE to dictate
-// if it should be direct.
-// We have an allow bitmap for that and setting the IOPB base
-// to something else denies all.
-struct tss TSS;
-
-__attribute__(( aligned(64) )) IDT_ENTRY idt[256];
-
-DESC_TAB_REG gdtr = {63,   (LONG)&gdt};
-DESC_TAB_REG idtr = {2047, (LONG)&idt};
-
-// BYTE rmca[];
+				SEGMENT_DESCRIPTOR      gdt[8];
+				SEGMENT_DESCRIPTOR      ldt[128];
+				struct tss              TSS;
+__attribute__(( aligned(64) ))  IDT_ENTRY               idt[256];
+				DESC_TAB_REG            gdtr= {63,(LONG)&gdt};
+				DESC_TAB_REG            idtr= {2047,(LONG)&idt};
 
 static VOID SetIsr(PVOID addr, BYTE i)
 {
@@ -82,37 +72,36 @@ static VOID SetIsr(PVOID addr, BYTE i)
 	idt[i].access = 0b10001110;
 }
 
-static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
+static VOID SetupStructures(VOID)
 {
-	static const BYTE access_cseg = 0x9A;
-	static const BYTE access_dseg = 0x92;
-	static const BYTE access_tss  = 0x89;
-	static const BYTE access_ldt  = 0x82;
+	static const BYTE
+		access_cseg     = 0x9A,
+		access_dseg     = 0x92,
+		access_tss      = 0x89,
+		access_ldt      = 0x82;
 
-	static const LONG limit_tss = sizeof(ldt)-1;
-	static const LONG base_tss  = (LONG)&TSS;
-
-	static const LONG base_ldt  = (LONG)ldt;
-	static const LONG limit_ldt = sizeof(ldt)-1;
+	static const LONG
+		limit_tss       = sizeof(ldt)-1,
+		base_tss        = (LONG)&TSS,
+		base_ldt        = (LONG)ldt,
+		limit_ldt       = sizeof(ldt)-1;
 
 	#define SC L_SegmentCreate
 	/* Selector     Base address    Limit           Access rights   ExtA
 	---------------------------------------------------------------------*/
-	SC(GDT_CSEG,    0,              0xFFFFFF,       access_cseg,    0xC0);
-	SC(GDT_DSEG,    0,              0xFFFFFF,       access_dseg,    0xC0);
-	SC(GDT_TSS,     base_tss,       104+8192,       access_tss,     0x00);
-	SC(GDT_LDT,     limit_ldt,      limit_tss,      access_ldt,     0);
-	SC(GDT_WIN16,   0x400,          255,            access_ldt,     0);
-	SC(GDT_RM_CS,   0xFFFF0,        0xFFFF,         access_cseg,    0);
-	SC(GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0);
+SC(     GDT_CSEG,    0,              0xFFFFFF,       access_cseg,    0xC0  );
+SC(     GDT_DSEG,    0,              0xFFFFFF,       access_dseg,    0xC0  );
+SC(     GDT_TSS,     base_tss,       104+8192,       access_tss,     0x00  );
+SC(     GDT_LDT,     limit_ldt,      limit_tss,      access_ldt,     0     );
+SC(     GDT_WIN16,   0x400,          255,            access_ldt,     0     );
+SC(     GDT_RM_CS,   0xFFFF0,        0xFFFF,         access_cseg,    0     );
+SC(     GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0     );
 	#undef SC
 
 	// Technically only 20 are supported ATM.
-	for (LONG i = 0; i < 32; i++)
-		SetIsr(&EXC_0 + i*16, i);
+	fromto(i, 0, 32)        SetIsr(&EXC_0 + i*16, i);
 
-	for (LONG i = 0; i < 15; i++)
-		SetIsr(&ISR_1+(i)*16, i+0xA1);
+	fromto(i, 0, 15)        SetIsr(&ISR_1+(i)*16, i+0xA1);
 
 	SetIsr(&IRQ0, 0xA0);
 
@@ -121,22 +110,22 @@ static VOID Gdt_Ldt_Idt_Tss_Tr(VOID)
 	// Note: LTR marks busy. This does not matter because we never enter
 	// task state segments anyway.
 	__asm__ volatile(
-		"lidt idtr\n"
-		"lgdt gdtr\n"
-		"mov $0x20,%%ax\n"
-		"lldt %%ax\n"
-		"mov $0x18,%%ax\n"
-		"ltr %%ax\n"
-		"mov $0x10,%%ax\n"
-		"mov %%ax,%%ds\n"
-		"mov %%ax,%%es\n"
-		"mov %%ax,%%ss\n"
+	"       lidt idtr\n             "
+	"       lgdt gdtr\n             "
+	"       mov $0x20,%%ax\n        "
+	"       lldt %%ax\n             "
+	"       mov $0x18,%%ax\n        "
+	"       ltr %%ax\n              "
+	"       mov $0x10,%%ax\n        "
+	"       mov %%ax,%%ds\n         "
+	"       mov %%ax,%%es\n         "
+	"       mov %%ax,%%ss\n         "
 
-		"xor %%ax,%%ax\n"
-		"mov %%ax,%%fs\n"
-		"mov %%ax,%%gs\n"
-		"jmpl $0x8,$cont__;"
-		"cont__:"
+	"       xor %%ax,%%ax\n         "
+	"       mov %%ax,%%fs\n         "
+	"       mov %%ax,%%gs\n         "
+	"       jmpl $0x8,$cont__;      "
+	"       cont__:                 "
 		:::"memory","eax"
 	);
 }
@@ -145,57 +134,36 @@ static VOID ConfigurePIT(VOID)
 {
 	const BYTE count[2] = {0xB0, 0x4};
 
-	outb(0x43, 0x36);
-	outb(0x40, count[0]);
-	outb(0x40, count[1]);
-}
-
-static VOID ConfigutePIC(VOID)
-{
-
-}
-
-static void pc(char c)
-{
-	static REGS r = {0};
-	r.AH = 2;
-	r.DL = c;
-	// r.SS = 0x8000;
-	// r.ESP = 4096;
-	INTxH(0x21, &r);
-}
-
-const char mystr[] = "Hello from INT 21H!\n\r$";
-
-static void TestINT21h()
-{
-	REGS r = {0};
+	outb(   0x43, 0x36      );
+	outb(   0x40, count[0]  );
+	outb(   0x40, count[1]  );
 }
 
 VOID KernelMain(VOID)
 {
-	// Zero BSS first, important
+	// Zero BSS first, important.
+	// May want to add sanity check int the mm code.
 
 	inline_memset((PVOID)&END_DATA, 0, (LONG)&BSS_SIZE);
 
-	Gdt_Ldt_Idt_Tss_Tr();
-
-	ConfigurePIT();
-
-	RemapPIC();
-
-	InitV86();
+	SetupStructures         ();
+	ConfigurePIT            ();
+	RemapPIC                ();
+	InitV86                 ();
 
 	__asm__ volatile(
-		"mov %%cr0,%%eax;"
-		"orl $(1<<16),%%eax;"
-		"mov %%eax,%%cr0"
+	"       mov %%cr0,%%eax;        "
+	"       orl $(1<<16),%%eax;     "
+	"       mov %%eax,%%cr0         "
 		:::"memory", "eax"
 	);
 
 	__asm__ volatile(
-		"mov %%cr3,%%eax; mov %%eax,%%cr3; sti"
-		:::"memory","eax");
+	"       mov %%cr3,%%eax;        "
+	"       mov %%eax,%%cr3;        "
+	"       sti                     "
+		:::"memory","eax"
+	);
 
 	__asm__ volatile("mov $0xDEAD,%%eax; jmp .":::"memory");
 }

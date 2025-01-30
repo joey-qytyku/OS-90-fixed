@@ -21,20 +21,50 @@ OS/90 works on any version of DOS compatible with at least 4.0. If Windows 3.1 s
 
 DR-DOS is also an option and may be more stable in some ways. So is PC-DOS.
 
+# Installing
+
+## From DOS
+
+It is possible to install the sources into a DOS machine and compile using DJGPP, though the code generated will likely be of inferior quality to a newer modern compiler. I have not tried to compile a newer version of DJGPP for DOS yet.
+
+Requirements:
+- 32M-48M of RAM
+- 512M of disk space
+- CWSDPMI, NASM (in path)
+- Long file name driver or use FreeDOS
+- DJGPP with GCC version 9.3.0 or later
+- Make, bash, grep
+
+Recommendations:
+- Use a disk cache driver to speed it up. Set the cache size to several megabytes if you can.
+- Get UPX and run `upx -d` on the `gcc`, `as`, `cc1` (found in libexec), `collect2`(also in libexec), and everything else you can find. This will massively speed up building but will increase disk usage due to decompression.
+
+Environment variables:
+- "CPU_": Anything that can be passed to GCC. See KRNL makefile.
+- ""
+
+- Simply change directory to each module and run `make` and `make install-dos`.
+
+Build and install the following modules:
+- KRNL
+- BOOT
+- LIBC
+- ATMLIB
+- ATMDESK
+
+Then enter the driver source tree within DJGPP/bash and build each necessary one.
+
+## From OS/90
+
+All of the above can be done from the OS/90 console window. This is useful for updating software. `make uninstall-dos` can be used to remove
+
+Run `make clean` when done with each to save disk space.
+
+# For Content Creators and Critics
+
+Send me an email if you want:
+- A customized distribution with proprietary software I cannot distribute openly.
+- Directions on doing things
+- Please limit discussions to matters of OS/90 or any other software.
+
 # Developer FAQ
-
-## How do I build OS/90?
-
-Read the comments on build.sh and edit the vars file in the project root. Install the dependencies before running because there is no checking.
-
-## How do I add packages to the build system?
-
-A file named 1_pkg.sh must exist.
-
-The first argument must be:
-- build         Build all source files and the final executable
-- install       Add to disk image
-- uninstall     Remove from disk image totally
-- clean         Delete all object files and any executables
-
-If a project uses a makefile it can invoke that on its own.

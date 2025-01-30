@@ -30,10 +30,6 @@ typedef struct __attribute__((packed)) {
 	#define BIOS_KF_INSERT          (BIT(7))
 	SHORT   kbflags;
 	BYTE    unknown_1; // Not sure
-
-
-
-
 }BDA, *P_BDA;
 
 // NOTE: Place the bit flag defines inline.

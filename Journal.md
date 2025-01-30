@@ -7642,4 +7642,191 @@ Can I update the build system to python?
 
 I don't really care much to writing OS/90 in a way that would have been feasible in the 90's. But either way, Python CAN run under DOS, although it is difficult. The latest version possible seems to be 2.4.2 which is very old.
 
+# January 18
+
+# January 19
+
+## What To Do Now
+
+First off, I do not need a perfect build system. Just one that is good enough. My soruce trees are flat.
+
+Once a build system is finished, I can continue working on booting the kernel.
+
+The old bootloader has significant problems, as specified earlier. It is incapable of reporting the true amount of memory on a system or sectioning off the contigous blocks usable by the OS.
+
+Aside from that, there is really no problem. The less I change the better.
+
+From what I can tell, there is no need to change the whole thing.
+
+Actually I remember some things now. We can force the user to limit the size reported and do part of the detection in the kernel but only for post-ISA hole memory. This means we ONLY neeed the size of the first allocated chunk and its location.
+
+# January 21
+
+I am really bored of the printf thing. Currently, I have a printf-style function available and it actually does not need to be compatible even if I give it more features.
+
+## Build System
+
+I should keep it very simple. The purpose is mainly to make the build system more modular and easier to understand.
+
+### Components
+
+- Tools: a class that is used by its name and not instantiated that abstracts a shell command or other program. They must be built before use if necessary.
+    - Operator overloading allows for C++-style redirection of outputs.
+        - Example: x = Grep("-n '//'") << Cat("main.c");
+    - The call operator is overloaded.
+    - The command string is generated and then executed in the shell.
+    - () is not required if there are no arguments.
+    - Tools can easily be reimplemented in Python if they do not already exist in order to avoid executing a real subprogram.
+    - Arguments can be arrays, strings, or maps.
+    - Builtin tools: LineCount, LnPfx, LnSfx
+
+- Module: A folder containing a file called `1.py` and `__init__.py`.
+    - There is currently no support for dependency checking
+    - A module is not a package. That is what a package manager is for.
+    - Modules can be build, cleaned, configured, tested, and ran
+    - Testing modules requires all other modules to be built.
+    - Only one module can be tested at once.
+    - Modules are controlled by the Project Executive. It provides builtin Tools for installing built files into the correct paths and sets proper options related to testing.
+    - Modules can set local module variables and inherit global project variables
+
+- Project Executive
+    - This is a script executed by the user combined with some library features mostly used internally
+    - Distribution generation handled here
+    - Provides features used for installation of built files
+
+- Module Installation
+    - The system has a defined filesystem structure.
+
+> "Solution"?
+
+## Filesystem Structure
+
+```
+OS90/
+    DRV/
+        0/
+        1/
+        ...
+        MY.DRV
+    CINC/
+        MYLIB.H
+        STDIO.H
+        ...
+    LIB/
+        LIBC90.DLL
+        MYLIB.DLL
+    HOME/
+
+    KERNEL.BIN
+    OS90.COM
+```
+
+# January 23
+
+## Build System
+
+Not having a proper build system is a major issue and is making it impossible to develop the OS.
+
+I will return to makefiles.
+
+Installation will involve mcopy but will work in a way that is compatible with DJGPP. That way a user could recompile their own kernel or something like that.
+
+Makefiles can also include others. This can be used for configuration.
+
+# January 24
+
+## Makefiles
+
+The current makefile w
+
+# January 28
+
+## C Library Testing
+
+I may not need to use the other computer for the C library at all. It is more convenient to do it here. DJGPP allows me to run everything on the intended architecture and reduces the build complications.
+
+DJGPP is required in general. Userspace must compile with it. Libraries will be generated as object files with names stripped and hidden default visibility.
+
+DJGPP can also do freestanding compilations so that is not a problem either.
+
+## Internals
+
+The testing architecture will be based on constructors. These work under DJGPP with no problems.
+
+A custom assert will be used which prints out a message with more detailed information on failure.
+
+### Function Declarations
+
+I will imitate the newlib approach by adding a newline to the end. A macro can then be defined. This means it will work even if I were to write this:
+```c
+int printf(const char *, ...);
+
+int main()
+{
+    printf("Hello, world!\n");
+    return 0;
+}
+```
+
+`printf` will expand to its correct meaning.
+
+The only problem with this is that assembly code may reference the wrong names. The thing is most assembly code will probably not even work on OS/90 if it was written for UNIX or anything else. It is unlikely to be portable.
+
+GCC allows function names to be decided using asm(). I can have two implementations of some sort of NAME macro. One will give it the stdlib name. The other will give it the underscore one. In C however, underscores will always used for library functions.
+
+This only matters for the declaration, not the definition.
+
+Example:
+```
+void *(const char *__s);
+```
+
+I prefer preceding underscore.
+
+## CLIB Build System
+
+All code will be in a single directory level. Each file will be compiled individually.
+
+This will be done 100% according to good practice.
+
+The following targets will be supported:
+- lib               Build everything and link as stripped object file
+- install-dos       Install for DOS compilation environment
+- install-test      Install in the test directory (used by DOSBox-X)
+- uninstall-dos
+- test              test-exec
+- clean
+
+# January 30
+
+## Memory Manager Overhaul
+
+I cannot think of a reasonable malloc design without multiple address spaces. brk would not be feasible without the potential for memory copying or changing address locations.
+
+## Ideas
+
+### Accessing process memory
+
+A special region in the kernel address space will be used to map 4M granular chunks of process address spaces to be accessible by the kernel.
+
+Each process can be given access to some fixed amount of memory. I can copy page directory entries to the assigned region for easy access.
+
+### The HMA
+
+The HMA is completely changed. It cannot be used as a communication region or contain page tables after boot.
+
+Well actually it can. As long as we save and restore the real mode pages that is all fine.
+
+Page tables obviously cannot reside in it since their addresses will change.
+
+### Allocating Page Tables
+
+Allocating page tables is the biggest problem because they cannot be accessed directly.
+
+It is not that bad if I use the process page directory entries to find their locations. Only one needs to be accessed at a time so it is easy to map a dedicated region.
+
+## Maybe Not?
+
+It will make the OS slower. Also, malloc does not benefit from it since allocating pages is not actually that slow. The only advantage is DOS programs being able to access more memory.
+
 
