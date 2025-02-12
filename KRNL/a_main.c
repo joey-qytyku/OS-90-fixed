@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                     Copyright (C) 2022-2025, Joey Qytyku                //
 //                                                                         //
 // This file is part of OS/90.                                             //
 //                                                                         //
@@ -18,7 +18,7 @@
 #include "task.h"
 #include "sv86.h"
 
-#include "printf.h"
+#define fromto(name, from, to) for (unsigned name=(from); (name) < (to); (name)++)
 
 enum {
 	GDT_NULL        = 0x00,
@@ -33,22 +33,22 @@ enum {
 
 struct tss
 {
-	SHORT   _[25*2+1];
-	SHORT   bitmap_base;
-	BYTE    bitmap[8192];
+	short   _[25*2+1];
+	short   bitmap_base;
+	char	bitmap[8192];
 }__attribute__((packed));
 
 typedef struct __attribute__((packed)) {
-	SHORT   limit;
-	LONG    base;
+	unsigned short	limit;
+	unsigned	base;
 }DESC_TAB_REG;
 
 typedef struct __attribute__((packed)) {
-	SHORT   off1;
-	SHORT   cseg;
-	BYTE    _res;
-	BYTE    access;
-	SHORT   off2;
+	unsigned short	off1;
+	unsigned short	cseg;
+	unsigned char	_res;
+	unsigned char	access;
+	unsigned short	off2;
 }IDT_ENTRY;
 
 extern char EXC_0;
@@ -56,17 +56,17 @@ extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
-				SEGMENT_DESCRIPTOR      gdt[8];
-				SEGMENT_DESCRIPTOR      ldt[128];
-				struct tss              TSS;
-__attribute__(( aligned(64) ))  IDT_ENTRY               idt[256];
-				DESC_TAB_REG            gdtr= {63,(LONG)&gdt};
-				DESC_TAB_REG            idtr= {2047,(LONG)&idt};
+__attribute__(( aligned(64) ))	SEGMENT_DESCRIPTOR	gdt[8];
+__attribute__(( aligned(64) ))	SEGMENT_DESCRIPTOR	ldt[128];
+__attribute__(( aligned(64) ))	struct tss		TSS;
+__attribute__(( aligned(64) ))	IDT_ENTRY		idt[256];
+				DESC_TAB_REG		gdtr={63,(unsigned)&gdt};
+				DESC_TAB_REG		idtr={2047,(unsigned)&idt};
 
 static VOID SetIsr(PVOID addr, BYTE i)
 {
-	idt[i].off1 = (LONG)((LONG)addr) & 0xFFFF;
-	idt[i].off2 = (LONG)((LONG)addr) >> 16;
+	idt[i].off1 = (unsigned)((unsigned)addr) & 0xFFFF;
+	idt[i].off2 = (unsigned)((unsigned)addr) >> 16;
 	idt[i].cseg = 0x8;
 	idt[i]._res = 0;
 	idt[i].access = 0b10001110;
@@ -74,20 +74,20 @@ static VOID SetIsr(PVOID addr, BYTE i)
 
 static VOID SetupStructures(VOID)
 {
-	static const BYTE
+	static const unsigned char
 		access_cseg     = 0x9A,
 		access_dseg     = 0x92,
 		access_tss      = 0x89,
 		access_ldt      = 0x82;
 
-	static const LONG
+	static const unsigned
 		limit_tss       = sizeof(ldt)-1,
-		base_tss        = (LONG)&TSS,
-		base_ldt        = (LONG)ldt,
+		base_tss        = (unsigned)&TSS,
+		base_ldt        = (unsigned)ldt,
 		limit_ldt       = sizeof(ldt)-1;
 
 	#define SC L_SegmentCreate
-	/* Selector     Base address    Limit           Access rights   ExtA
+	/* Selector     Base address    Limit        Access rights   ExtA
 	---------------------------------------------------------------------*/
 SC(     GDT_CSEG,    0,              0xFFFFFF,       access_cseg,    0xC0  );
 SC(     GDT_DSEG,    0,              0xFFFFFF,       access_dseg,    0xC0  );
@@ -99,9 +99,9 @@ SC(     GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0     );
 	#undef SC
 
 	// Technically only 20 are supported ATM.
-	fromto(i, 0, 32)        SetIsr(&EXC_0 + i*16, i);
+	fromto(i, 0, 32) SetIsr(&EXC_0 + i*16, i);
 
-	fromto(i, 0, 15)        SetIsr(&ISR_1+(i)*16, i+0xA1);
+	fromto(i, 0, 15) SetIsr(&ISR_1+(i)*16, i+0xA1);
 
 	SetIsr(&IRQ0, 0xA0);
 
@@ -132,24 +132,23 @@ SC(     GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0     );
 
 static VOID ConfigurePIT(VOID)
 {
-	const BYTE count[2] = {0xB0, 0x4};
+	const unsigned char count[2] = {0xB0, 0x4};
 
 	outb(   0x43, 0x36      );
 	outb(   0x40, count[0]  );
 	outb(   0x40, count[1]  );
 }
 
-VOID KernelMain(VOID)
+void KernelMain(void)
 {
 	// Zero BSS first, important.
 	// May want to add sanity check int the mm code.
+	rep_stosd((void*)&END_DATA, 0, (unsigned)&BSS_SIZE);
 
-	inline_memset((PVOID)&END_DATA, 0, (LONG)&BSS_SIZE);
-
-	SetupStructures         ();
-	ConfigurePIT            ();
-	RemapPIC                ();
-	InitV86                 ();
+	SetupStructures	();
+	ConfigurePIT	();
+	RemapPIC	();
+	InitV86		();
 
 	__asm__ volatile(
 	"       mov %%cr0,%%eax;        "

@@ -1,36 +1,87 @@
-typedef struct __attribute__((packed)) {
-	SHORT   comport[4];
-	SHORT   lptport[3]; // [1]
-	SHORT   ebdaseg;
+typedef enum {
+	GSC_40x25 		= 0,
+	COL_40x25 		= 1,
+	GSC_80x25 		= 2,
+	COL_80x25 		= 3,
+	COL_320x200_2BIT 	= 4,
+	GSC_320x200_2BIT	= 5,
+	MON_640x200		= 6,
+	MON_80x25		= 7,
+	COL_160x200_4BIT 	= 8,
+	COL_320x200_4BIT 	= 9,
+	MON_640x350		= 0xF,
+	COL_640x200_4BIT	= 0xA,
+	MON_640x480		= 0x11,
+	COL_640x480_4BIT	= 0x12,
+	COL_320x200_8BIT	= 0x13
 
-	#define BIOS_EQP_IPL_DISKETTE   (BIT(1))
-	#define BIOS_EQP_MATH_COPROC    (BIT(2))
-	#define BIOS_EQP_MOUSE_PS2      (BIT(3)) /*Don't actually trust this*/
-	#define BIOS_EQP_DEFAULT_VMODE  (BIT(4) | BIT(5))
-	#define BIOS_EQP_NUM_FLP_DRIVES (BIT(6) | BIT(7))
+}BIOS_VMODE;
 
-	#define BIOS_EQP_DMA            (BIT(8))
-	#define BIOS_EQP_NUM_COM_PORTS  (BIT(9) | BIT(10) | BIT(11))
-	#define BIOS_EQP_GAME_ADAPTER   (BIT(12))
-	#define BIOS_EQP_NUM_LPT_PORTS  (BIT(14) | BIT(15))
-	BYTE    equip[2];
+// Pack everything ahead, including substructures.
+#pragma pack(push, 1)
 
-	BYTE    :8;
-	SHORT   mem_kilos;      // Conventional
-	BYTE    :8;
-	BYTE    ps2_bios_control;
+typedef struct
+{
+	WORD	comport[4];
+	WORD	lptport[3]; // [1]
+	WORD	ebdaseg;
 
-	#define BIOS_KF_RSHIFT          (BIT(0))
-	#define BIOS_KF_LSHIFT          (BIT(1))
-	#define BIOS_KF_CTRL            (BIT(2)) /* Any CTRL key */
-	#define BIOS_KF_ALT             (BIT(3)) /* Any ALT key*/
-	#define BIOS_KF_SCRLLOCK        (BIT(4))
-	#define BIOS_KF_NUMLOCK         (BIT(5))
-	#define BIOS_KF_CAPSLOCK        (BIT(6))
-	#define BIOS_KF_INSERT          (BIT(7))
-	SHORT   kbflags;
-	BYTE    unknown_1; // Not sure
-}BDA, *P_BDA;
+	// Because of little endianness, the bits appear
+	// essentially in the order that one would expect.
+	// No need for structure nonsense.
+	union {
+		struct {
+			WORD	e_ipl_diskette	:1;
+			WORD	e_math_coproc	:1;
+			WORD	e_mouse_ps2	:1;
+			WORD	e_default_vmode	:2;
+			WORD	e_num_flp_drives:2;
+			WORD	:1;
+
+			WORD	e_dma		:1;
+			WORD	e_num_com_ports	:3;
+			WORD	e_game_adapter	:1;
+			WORD	e_num_lpt_ports	:2;
+			WORD	:1;
+		};
+		WORD equip;
+	};
+
+	// Used by the PCjr. Undefined here.
+	BYTE	:8;
+
+	// Conventional memory size. I recommend not using
+	// this and calling INT 12H, which it matches with.
+	WORD	mem_kilos;
+	BYTE	:8;
+
+	//
+	BYTE	ps2_bios_control;
+
+	union {
+		struct {
+		WORD kf_rshift:1;
+		WORD kf_lshift:1;
+		WORD kf_ctrl:1;		/* Any CTRL key */
+		WORD kf_alt:1;		/* Any ALT key*/
+		WORD kf_scrllock:1;
+		WORD kf_numlock:1;
+		WORD kf_capslock:1;
+		WORD kf_insert:1;
+		};
+		WORD kflags;
+	};
+	BYTE	_40_19;
+	WORD	kbuff_offset_head;
+	WORD	kbuff_offset_tail;
+	BYTE	kbuff[32];
+	union {
+
+		BYTE drv_recal_status:1;
+	};
+};
+
+#pragma pack()
 
 // NOTE: Place the bit flag defines inline.
 
@@ -41,7 +92,9 @@ one and use it for the EBDA. This is standard for PS/2 and better.
 
 OS/90 supports 4 LPT ports on devices that support it by checking if the value
 is within the 10-bit ISA-addressable port range. Anything higher than 1024
-or 0x400 does not make sense because 0x4000 cannot be an address within the
+or 0x400 does not make sense because 0x400 cannot be an address within the
 BIOS ROM (where EBDA is).
+
+The only computer with 4 LPTs that can run OS/90 is the Compaq Deskpro 386.
 
 */

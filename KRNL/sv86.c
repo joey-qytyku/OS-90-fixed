@@ -1,69 +1,42 @@
-/////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
-//                                                                         //
-// This file is part of OS/90.                                             //
-//                                                                         //
-// OS/90 is free software. You may distribute and/or modify it under       //
-// the terms of the GNU General Public License as published by the         //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.                                                   //
-//                                                                         //
-// A copy of this license should be included with OS/90.                   //
-// If not, it can be found at <https://www.gnu.org/licenses/>              //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+		      Copyright (C) 2022-2025, Joey Qytyku
+
+  This file is part of OS/90.
+
+  OS/90 is free software. You may distribute and/or modify it under
+  the terms of the GNU General Public License as published by the
+  Free Software Foundation, either version two of the license or a later
+  version if you choose.
+
+  A copy of this license should be included with OS/90.
+  If not, it can be found at <https://www.gnu.org/licenses/>
+*******************************************************************************/
 
 #include "sv86.h"
-#include "printf.h"
 
-struct __ivt { SHORT ip:16; SHORT cs:16; };
+struct __ivt { WORD ip:16; WORD cs:16; };
 
 __auto_type IVT = (const struct __ivt * const)0;
 
 static HV86 v86_handlers[256];
 
-static LONG             stack_alloc = 0xFFFF0000;
-static PVOID            stacks_base = (PVOID)0x105000;
-
-static const LONG       stack_size = 1024;
-
-static LONG AllocateV86Stack(VOID)
-{
-	if (stack_alloc == 0xFFFFFFFF) {
-		// No stack available
-		return (LONG)-1;
-	}
-	else {
-		register int index __asm__("eax") = 0;
-		__asm__ volatile ("bsfl %0,%1"
-			:"=r"(index)
-			:"b"(stack_alloc)
-		);
-		return index;
-	}
-}
-
-static BOOL Stub(PREGS r)
-{
-	(VOID)r;
-	return 1;
-}
-
-static inline VOID Pushw(PREGS r, SHORT v)
+static inline VOID Pushw(REGS PTR r, WORD v)
 {
 	r->SP -= 2;
-	*(PSHORT)(r->SS * 16 + r->SP) = v;
+	*(WORD PTR)(r->SS * 16 + r->SP) = v;
 }
 
-static inline SHORT Popw(PREGS r)
+static inline WORD Popw(REGS PTR r)
 {
-	SHORT v = *(PSHORT)(r->SS*16 + r->SP);
+	WORD v = *(WORD PTR)(r->SS*16 + r->SP);
 	r->SP += 2;
 	return v;
 }
 
-static inline VOID Intw(PREGS   r,
-			SHORT   new_cs,
-			SHORT   new_ip)
+static inline VOID Intw(REGS PTR	r,
+			WORD  		new_cs,
+			WORD   		new_ip
+			)
 {
 	Pushw(r, r->FLAGS);
 	Pushw(r, r->CS);
@@ -72,22 +45,28 @@ static inline VOID Intw(PREGS   r,
 	r->CS   = new_cs;
 }
 
-static inline VOID Iretw(PREGS r)
+static inline VOID Iretw(REGS PTR r)
 {
 	r->IP           = Popw(r);
 	r->CS           = Popw(r);
 	r->FLAGS        = Popw(r);
 }
 
+static BOOL Stub(REGS PTR r)
+{
+	(VOID)r;
+	return 1;
+}
+
 // It is important to accurately simulate the stack because some real mode
 // software modifies it intentionally.
 
 // WARNING: goto
-LONG INTxH(BYTE v, PREGS r)
+DWORD V86xH(BYTE v, REGS PTR r)
 {
-	LONG int_caught = v;
-	LONG rval;
-	LONG level = 0;
+	DWORD int_caught = v;
+	DWORD rval;
+	DWORD level = 0;
 
 	r->ESP = 0x8FF0+16; // This needs to go.
 	r->SS  = 0xFFFF;

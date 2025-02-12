@@ -1,8 +1,6 @@
 ================================================================================        OS/90 PCI Support
 ================================================================================
 
-> I may want to put this in the kernel.
-
 OS/90 has a driver called `PCI.RSX` that communicates with all device drivers that implement a PCI device.
 
 64-bit PCI devices are not supported.
@@ -45,7 +43,7 @@ o Devices can be on any bus.
 Device calls:
 
 ................................................................................
-BYTE PCI_CountDevices(LONG v_d);
+WORD PCI_CountDevices(LONG v_d);
 ................................................................................
 
 Returns the number of devices in the PCI bus that have a certain identification code, which includes the vendor ID and the device ID in the exact way it appears in the PCI configuration space.
@@ -55,7 +53,7 @@ Note that a byte is returned.
 	Limitations
 	~~~~~~~~~~~
 
-No more than 16 devices will be returned.
+No more than 16 devices will be returned currently. Do not rely on this.
 
 ................................................................................
 VOID PCI_OpenDevices(   LONG            v_d,
@@ -98,6 +96,6 @@ STAT PCI_DeleteDevices(LONG v_d);
 	Implementation Notes
 --------------------------------------------------------------------------------
 
-The driver does not reconfigure most resources. MMIO and ports spaces are kept the same.
+The driver does not reconfigure most resources. MMIO and ports spaces are kept the same. This should not be depended on.
 
-Interrupt lines, however, are reconfigured.
+Interrupt lines, however, are reconfigured. By default, the driver will try to share four lines, but this can be configured. Keep in mind that this may starve other drivers, and potentially cause non-PnP drivers to fail depending on the load order.

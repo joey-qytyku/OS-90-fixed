@@ -64,6 +64,20 @@
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "${default}"
+        },
+        {
+            "name": "DJGPP",
+            "defines": [],
+            "macFrameworkPath": [
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "compilerPath": "/Users/joeyqytyku/Desktop/djgpp/bin/i586-pc-msdosdjgpp-gcc",
+            "cStandard": "c99",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "${default}",
+            "compilerArgs": [
+                " -std=gnu99"
+            ]
         }
     ],
     "version": 4

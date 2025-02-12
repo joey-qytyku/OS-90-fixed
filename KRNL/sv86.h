@@ -18,13 +18,13 @@
 #include "sv86.h"
 
 
-typedef BOOL (*HV86)(PREGS);
+typedef BOOL (*HV86)(REGS PTR);
 
-LONG INTxH(BYTE v, PREGS r);
+unsigned V86xH(unsigned char v, REGS *r);
 
 // Returns the vector of next INT
 // Returns what if IRET?
-LONG EnterV86(PREGS r);
+DWORD EnterV86(REGS *r);
 
 VOID InitV86(VOID);
 

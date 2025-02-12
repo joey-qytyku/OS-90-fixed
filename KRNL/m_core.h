@@ -1,5 +1,5 @@
 /*******************************************************************************
-		      Copyright (C) 2022-2024, Joey Qytyku
+		      Copyright (C) 2022-2025, Joey Qytyku
 
   This file is part of OS/90.
 
@@ -15,8 +15,8 @@
 #ifndef MM_H
 #define MM_H
 
-#define MB(x) ((x) * 1048576)
-#define KB(x) ((x) * 1024)
+#define MB(x) ((x) * 1048576U)
+#define KB(x) ((x) * 1024U)
 
 #define ALIGN_VAL(V, A) ((V+(A-1)) & (-(A))
 
@@ -59,6 +59,5 @@
 
 #define PO_RW
 
-API_DECL(PVOID, M_CMAlloc, LONG);
 
 #endif /* MM_H */

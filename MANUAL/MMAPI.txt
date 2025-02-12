@@ -3,9 +3,10 @@
 ================================================================================
 
 The OS/90 memory manager supports:
-o Demand paging (e.g. loading a program larger than RAM)
-o Single address space
-o Uncommitted memory
+* Demand paging (e.g. loading a program larger than RAM)
+* Single address space
+* Uncommitted memory
+* malloc/free
 
 RAM and page file space are indexed in an array called the MAT or Memory Allocation Table.
 
@@ -143,10 +144,9 @@ Return:
 Example:
 
 ................................................................................
-	MSTAT M_XFree(PVOID base);
+	STAT M_XFree(PVOID base);
 ................................................................................
 
-Returns
 
 ................................................................................
 	STAT M_Copy(PVOID alloc_to, PVOID alloc_from);

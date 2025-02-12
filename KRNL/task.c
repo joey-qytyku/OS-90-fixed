@@ -7,11 +7,13 @@ TASK t0;
 TASK t1;
 TASK t2;
 
-VOID CreateTestTask(    PTASK   t,
-			PTASK   next,
-			PTASK   prev,
-			VOID (*tp)(PVOID)
-			)
+VOID CreateTestTask
+(
+	PTASK CPTR_CDR t,
+	PTASK CPTR_CDR next,
+	PTASK CPTR_CDR  prev,
+	VOID (*tp)(PVOID)
+)
 {
 	t->regs.ESP = (LONG)t+4096;
 	t->regs.EFLAGS = I86_IF;

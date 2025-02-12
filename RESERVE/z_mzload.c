@@ -1,5 +1,6 @@
 #include "m_core.h"
 
+// Pack?
 typedef struct {
 	SHORT   e_magic;
 	SHORT   e_cblp;

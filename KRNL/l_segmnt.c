@@ -19,8 +19,7 @@ extern SEGMENT_DESCRIPTOR gdt[], ldt[];
 #define GET_DESC(selector) \
 	( ( ((selector)>>2) & 1 ? ldt : gdt) + ( (selector) >> 3) )
 
-VOID API L_SegmentSetBase(      SHORT   selector,
-				LONG    base_addr)
+VOID API L_SegmentSetBase(WORD selector, DWORD base_addr)
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 
@@ -29,17 +28,15 @@ VOID API L_SegmentSetBase(      SHORT   selector,
 	s->b_base3 = (base_addr>>24) & 0xFF;
 }
 
-VOID API L_SegmentSetLimit(     SHORT   selector,
-				LONG    limit)
+VOID API L_SegmentSetLimit(WORD	selector, DWORD limit)
 {
-	SEGMENT_DESCRIPTOR
-		*s = GET_DESC(selector);
+	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 
 	s->limit1 = limit & 0xFFFF;
 	s->extaccess_byte |= (limit >> 16) & 0xF;
 }
 
-LONG API L_SegmentGetLimit(SHORT selector)
+DWORD API L_SegmentGetLimit(WORD selector)
 {
 	SEGMENT_DESCRIPTOR
 		*s = GET_DESC(selector);
@@ -47,11 +44,14 @@ LONG API L_SegmentGetLimit(SHORT selector)
 	return s->limit1 | ((s->extaccess_byte & 0xF)<<16);
 }
 
-VOID API L_SegmentCreate(       SHORT   selector,
-				LONG    base_addr,
-				LONG    limit,
-	                        LONG    access,
-				LONG    exaccess)
+VOID API L_SegmentCreate
+(
+	WORD	selector,
+	DWORD	base_addr,
+	DWORD	limit,
+	DWORD	access,
+	DWORD	exaccess
+)
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 

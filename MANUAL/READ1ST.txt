@@ -6,7 +6,7 @@
 	NULL Is Not Zero!
 --------------------------------------------------------------------------------
 
-In OS/90, NULL is actually 0xFFFFFFFF because 0 is a valid address. 0xFFFFFFFF is an unmapped page and the page before that is a call table for the kernel API.
+In OS/90, NULL is actually 0xFFFFFFFF because 0 is a valid address. 0xFFFFFFFF is an unmapped.
 
 This MUST be taken into consideration. E.g. structures like linked lists with NULL pointers cannot just be zeroed unless the zero is given special meaning by checking it. Otherwise, a NULL dereference cannot be an error.
 
@@ -19,14 +19,76 @@ NULL is not defined, but there is `OSNULL`, which indicates the environment diff
 This has no noticable impact on code density. Even comparisons are abbreviated in x86 for long operands, along with signed immediate push operations.
 
 --------------------------------------------------------------------------------
-	Error Codes
+	C99 and SysV i386 Compliance
 --------------------------------------------------------------------------------
 
-Error codes have the following bits:
+OS/90 is written to be compatible with the GNU dialect of C99. This is not advertise, but is a general principle.
 
-NP IA x x x x
+C99 introduced the strict aliasing rule, by which it is potentially dangerous to cast a pointer of one type to another and assume they do not alias.
 
-IA and the x fields represent which argument of a function is invalid. There can be more than one
+The SysV ABI is generally used. Structure layouts and most calling conventions conform to the rules found in this specification because GCC already adheres to it internally.
+
+--------------------------------------------------------------------------------
+	Kernel Types
+--------------------------------------------------------------------------------
+
+The OS/90 kernel is intended to follow more strict design protocols and standards of quality compared to userspace. One aspect of this is a more explicit and readable type system.
+
+The following are the fundamental integer types:
+
+Unsigned        Signed
+------------------------
+BYTE            S_BYTE
+WORD            S_WORD
+DWORD           S_DWORD
+QWORD           S_QWORD
+
+
+There are also modifiers for pointers implemented as macros. The protocol is:
+- First part describes the pointer (CPTR = constant pointer, PTR is just pointer)
+- Underscore plus second part describes the data pointed to it (R=restrict,CD=const data)
+- CD comes before R if the former is present.
+
+Some examples:
+................................................................................
+DWORD PTR p1;
+DWORD CTR p2;
+
+WORD CPTR_CDR p3; // Constant pointer to constant data + restrict
+................................................................................
+
+This is easier than writing const once or twice, or restrict.
+
+DWORD const*const __restrict => 28 chars
+DWORD CPTR_CDR               => 14 chars
+
+Use restrict to relax alias checking for same-type arguments or in structures with the same thing.
+
+In the context of a function, restrict means that the pointers are expected to not overlap. If there is only one argument of a specific type,
+
+--------------------------------------------------------------------------------
+	Strict Aliasing in Detail
+--------------------------------------------------------------------------------
+
+Pointers of different types should never alias. The compiler gives some warnings.
+
+The following link is an article that summarizes the issue in greater detail:
+
+TLDR:
+* It cannot always be assumed that integer types do not alias if a stdint type is used with an integral one. `int8_t*` could be the same as `char*` and the compiler will consider that to be an alias.
+* Some compilers make very strong assumptions that different pointer types never alias.
+* This creates problems with malloc if it has a different name because it returns void and can be converted to more than one typed pointer that could be assumed non-aliasing by the compiler.
+* C99 does things differently and potentially breaks C89 code.
+
+--------------------------------------------------------------------------------
+	Atomic Operations
+--------------------------------------------------------------------------------
+
+Never use volatile. Ever. Some people use it to access framebuffers because the compiler will not do anything strange with the ordering, but the definition of volatile is not entirely clear to many. It is not a proper memory fence.
+
+GCC will not generate the most optimal code for volatile. It tends to load before changes.
+
+Compilers do not reorder function calls, even if they are inline, if there are side effects.
 
 --------------------------------------------------------------------------------
 	Configuration File

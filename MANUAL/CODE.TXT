@@ -9,9 +9,7 @@
         Tabs or Spaces
         ~~~~~~~~~~~~~~
 
-Both. Tabs are used to indent and spaces are used to refine at the space level.
-
-A special VSCode extension exists for this. If the editor does not have such a feature, spaces should be prefered. I don't make a big deal about this, just eb consistent.
+Tabs. This is a file size consideration.
 
         Naming
         ~~~~~~
@@ -22,14 +20,6 @@ MACRO_DEFINE_CASE
 TYPE_CASE
 variable_case
 ................................................................................
-
-All structures must be typedefed to have a pointer type and a regular type:
-- THETYPE
-- PTHETYPE
-
-If it starts with P, add an underscore:
-- PTYPE
-- P_PTYPE
 
         Bracket Style
         ~~~~~~~~~~~~~
@@ -81,6 +71,48 @@ VOID SubByte(PBYTE ch, LONG num) { (*ch)++; }
         Design Principles
 --------------------------------------------------------------------------------
 
+        Signedness
+        ~~~~~~~~~~
+
+If a module is intended to be portable, use stdint.h for everything that explicitly requires a size. size_t should be used instead of int and long.
+
+Never compare different signs without explicitly casting. Always use an unsigned type unless a negative has meaning in the context and is needed.
+
+This applies to kernel and user.
+
+        Good Practice
+        ~~~~~~~~~~~~~
+
+Never shift by an arbitrary number without checking. Always use buffer sizes correctly. Do not allocate large structures on the stack.
+
+Never allow anything to fail silently.
+
+The following options should be used for GCC. Resolving warnings takes precendent over other style guidelines:
+
+-Wall
+-Wextra
+-Wcast-align
+-Wcast-qual
+-Wdisabled-optimization
+-Wformat=2
+-Winit-self
+-Wlogical-op
+-Wmissing-include-dirs
+-Wold-style-cast
+-Wredundant-decls
+-Wshadow
+-Wsign-promo
+-Wstrict-null-sentinel
+-Wstrict-overflow=5
+-Wundef
+-Wno-unused
+-Wno-parentheses
+-fdiagnostics-show-option
+-Wconversion
+-Wrestrict
+
+This is very strict.
+
         Static Limits
         ~~~~~~~~~~~~~
 
@@ -114,12 +146,3 @@ Dynamic structures should have this sort of hierarchy. Ask if one is sufficient 
 - Run tests with inline asserts and testing functions.
 - If unsure about the behavior of various hardware configurations or confused by datasheets, do tests and use asserts in debug code.
 - Avoid assembly language unless it is clearly better.
-
-        Philosophy
-        ~~~~~~~~~~
-
-Features are cringe. They just increase development time.
-Flat is better than nested.
-Do not worry about tidying-up or commenting code that already works properly.
-Modular, flat, independent components.
-No "big interface" for components to communicate.

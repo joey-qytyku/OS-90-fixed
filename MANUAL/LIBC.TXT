@@ -1,0 +1,30 @@
+================================================================================
+	OS/90 C Library
+================================================================================
+
+JQ-LIBC is the C library of OS/90. It is custom-designed for the OS and is original code unless stated otherwise in the source.
+
+OS/90 LIBC does not advertise to be 100% compatible with any ISO standard, but it intends to be close enough to port most common programs. It is also not meant to be compatible with programs written for DJGPP, but some efforts may be made in the future.
+
+It is not intended to be a replacement for the DJGPP library or newlib, it is designed for OS/90 in particular.
+
+--------------------------------------------------------------------------------
+	C99 Compliance
+--------------------------------------------------------------------------------
+
+Newer extensions may be supported, but
+
+--------------------------------------------------------------------------------
+	Features that Will Be Supported
+--------------------------------------------------------------------------------
+
+* dos.h, i86.h, and some other libraries may be supported.
+* Some compatibility for the DJGPP library.
+- math.h support.
+
+--------------------------------------------------------------------------------
+	Features Not Supported
+--------------------------------------------------------------------------------
+
+* All wide character functions
+* Most GNU or POSIX extensions

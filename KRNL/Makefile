@@ -24,7 +24,5 @@ LDFLAGS += -T 1_link.ld
 # of a libgcc call even in a freestanding environment. BTW libgcc is not
 # that big. Most features are not used, e.g. 64-bit division.
 
-
-
 all:
 

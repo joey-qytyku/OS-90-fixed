@@ -20,8 +20,6 @@ OS/90 uses the SysV i386 calling conventions.
 
 Some functions may deviate and use regparm instead, but the rest is true.
 
-The call mechanism is currently a call table at a fixed address called `Kernel`.
-
 # Events
 
 Drivers use a global event system. Any driver can post an event and all drivers must respond. This is done IN ORDER unless otherwise specified.
@@ -81,27 +79,3 @@ Cancellation prevents any other driver from receiving this event. This only work
 INTxH must be used, however, ensure the VM bit is disabled (it should be by default anyway) and a capture handler will detect it as a protected mode request, permitting the use of 32-bit file operations.
 
 A 32-bit code descriptor must be allocated for this purpose and put into the CS field.
-
-
-
---------------------------------------------------------------------------------
-	Building drivers
---------------------------------------------------------------------------------
-
-The process is:
-- Link an ELF executable using GCC toolchain.
-- Use a linker script to generate an extended flat binary with approprate data.
-
-There are no DLLs, no symbol imports, or anything like that.
-
---------------------------------------------------------------------------------
-	Kernel Versions
---------------------------------------------------------------------------------
-
-New kernel versions may change the call table entries, but this is not a problem. They can be changed by using a tool called DRVUP.EXE.
-
-```
-	drvup <OLDSTAB> <NEWSTAB> <DRVFOLDER>
-```
-
-The drivers are patched.

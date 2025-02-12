@@ -7829,4 +7829,347 @@ It is not that bad if I use the process page directory entries to find their loc
 
 It will make the OS slower. Also, malloc does not benefit from it since allocating pages is not actually that slow. The only advantage is DOS programs being able to access more memory.
 
+## LIBC Name
 
+
+# February 3
+
+## printf
+
+I should simplify the code and make printf no longer portable:
+- Assume 32-bit SysV ABI, IE long is 32-bit
+- This means size_t, ssize_t, and long are 32-bit.
+
+I can therefore reduce the overall complexity.
+
+
+## COFF Loader
+
+I can load COFF files built for DJGPP faster by detecting that it is a stubbed COFF file and perform the loading process entirely in the kernel. This avoids having to perform slower DPMI calls.
+
+# February 4
+
+## Support for Wide Character Functions
+
+printf can be made to work with wide characters by including the whole implementation as a header file and defining a macro or two so that it compiles a different version. Two separate files can be used for this as well.
+
+wprintf is not supported by the DJGPP library so I have no ways to test it.
+
+# February 5
+
+## Type layout
+
+Reconsider:
+```
+LONG CPC    =>  LONG const * const
+LONG PTR    =>  LONG *
+LONG CPCDR  =>  LONG const * const __restrict
+BYTE CPCDR  =>  BYTE const * const __restrict
+```
+Shorter than writing const and restrict.
+
+Also consider changing the names to the old ones:
+```
+BYTE    S_BYTE
+WORD    S_WORD
+DWORD   S_DWORD
+QWORD   S_QWORD
+```
+
+# February 6
+
+Currently, there is no way to build the OS and the codebase is currently undergoing some changes.
+
+I will not continue with the kernel until the following conditions are met:
+- printf is done and tested.
+
+malloc can wait although it may not take that much time.
+
+Currently printf is going through deportification to make it 100% optimized for i386. I have a sript that executes it in parallel with
+
+## Notes About malloc
+
+A custom malloc will probably not comply with pointer aliasing rules.
+
+It can return a restricted pointer but that would have to cast to an incompatible type. Void pointers have this problem in general, but malloc could easily collide with a dangling pointer.
+
+For that it requires a special attribute for GCC.
+
+The real thing is that pointers to the allocated block will alias and can be of any type. There is no way to predict this.
+
+
+Functions that return non-aliasing pointers can be marked with the malloc attribute. Even if it returns NULL, it is underfined to ever dereference a NULL anyway.
+
+
+## Notes About memcpy
+
+MMX is the most common SIMD ISA of the 90's. It is capable of 64-bit memory accesses.
+
+According to Intel optimization guides, 8-byte transfers are faster even if the bus is 32-bit, such as a PCI video card.
+
+String ops are still very fast though.
+
+## Kernel Formatted Printing and Strings
+
+Strings will be implemented as `BYTE PTR`. This is legal in C and I used this early in the project.
+
+Because the kernel is meant to be clearly distinguished from the rest of the environment, we need a proper version of each feature that standard C has.
+
+printf is very complex to be integrated into the kernel. I like the function in general but I think that it may not be the most optimal.
+
+The most significant problem is the use of C integral types which I would normally like to avoid, but I already know what they alias to anyway.
+
+Maybe I can change NULL to OSNULL and it should work.
+
+## Kernel String Operations
+
+These will be rewritten in the appropriate style.
+
+## printf Again
+
+The buffer commit procedure is different between printf and snprintf. printf prints the number of correctly generated characters, while snprintf prints the number that was supposed to be printed as the size of the output is already constrained and nul is inserted to make the size clear.
+
+For the C library implementation, it will be necessary to use different commit options for both. sprintf is deprecated but many old programs use it and it has a much simpler procedure.
+
+Well that was pointless because printf is never used to commit to a real buffer. The actual C library will probably call fwrite or fputc.
+
+Buffer commit will influence the return value. This should be made clear.
+
+# February 7
+
+## printf disaster
+
+I made the snprintf commit function work correctly but now absolutely nothing works.
+
+Aside from the buffer commit function, everything is insanely broken. Attempting to call the core function causes it to fail. This happened on Linux too.
+
+## Solution
+
+I did not add any major features to the unportable one, so I will go back to the portable one.
+
+# February 8
+
+## Memory Operations for OS/90 Kernel
+
+I prefer pascal strings and think they should be used. The string operations will be designed for pascal strings instead. There will be compatibility for C strings with the null terminator.
+
+There is no standard format for a pascal string, but mine will use a 16-bit size specifier. It will have some overhead but I consider it worth it.
+
+I also will implement some of my own byte operations. Can there be special optimizations?
+
+## GCC Builtins and Optimization
+
+I have heard that both glibc and builtins are not always the fastest options.
+
+So I have a heuristic plan for a fast set of memory operations.
+
+memcpy can use a ternary operator and check some compile-time constant values to determine the appropriate action.
+
+If the block is a multiple of 4, we can inline a full rep movsd.
+
+This is not entirely bad.
+```
+push c
+push s
+push d
+call memcpy
+add esp,12
+```
+
+This will be at best 17 bytes if the count is <= 255. It also depends on the stack pointer heavily (both inside the call and outside of it).
+
+If we know how many double words there are to copy, there is no reason to do this. GCC does have string op support.
+
+I should also research how good GCC is at copying structures.
+
+Also, memcpy returns the destination. I would prefer a function that returns void because it is more efficient and does not need to return anything.
+
+I cannot reference memcpy at all by symbol name because drivers cannot use it.
+
+So I will need to create my own inline method of doing byte string ops. Many of these operations are highly inline-able.
+
+## New Trick
+
+It is possible to use LEA to multiply by odd numbers in a chain.
+
+```
+lea eax,[ebx+ebx*2] ; x3
+```
+
+This is faster than using IMUL and does the same thing.
+
+# February 9
+
+## memcpy misalignment recovery
+
+The calulcations:
+```
+- Align both pointers
+- Calculate the extraneous byte size
+- Copy count - uabytes / 4 DWORDS
+- Copy extraneous
+```
+
+Here is the idea:
+```
+0123456789ABCDEF
+_NNNNNNNNNNNN___
+_BBB________B
+____DDDDDDDD____
+```
+
+The offset of the pointer within a DWORD block does not tell the number of extraneous bytes at the head, but 4-x gives that.
+
+This process is done to both pointers to get the number of head unaligned bytes.
+
+The next step is to calculate this exact same thing BUT for the pointers plus the copy size >> 2.
+
+In this case we DO need the other pointers.
+
+# February 10
+
+## COFF Loader
+
+The kernel will operate like this:
+- Drivers are COFF object files, not executables, like dynamic libraries.
+- Kernel symbols are exported by name, no longer using a call table.
+- Drivers can include others as dependencies
+- The method of listing the import library list is manually implemented for flexibility.
+
+To access something like the PCI API, the PCI driver must be present and included as a dependency.
+
+```
+#include <drvlib/pci.h>
+#include <krnl/drivers.h>
+
+DRIVER_IMPORT_LIST("PCI");
+
+void Main(void);
+
+STAT GeneralDispatch(DWORD code, DWORD arg)
+{
+    switch (code)
+    {
+        case GE_INIT:
+            Main();
+        break;
+
+        default:
+        return 0;
+    }
+}
+
+void Main(void)
+{
+    WORD n = PCI_CountDevices(PCIDEV_IDE | PCIVEN_ANY);
+    if (n == 0) {
+        Report("IDE drive not found\n\r");
+    }
+    HPCIDEV PTR p_devs = malloc(n*sizeof(HPCIDEV));
+
+    PCI_OpenDevices(PCIDEV_IDE | PCIVEN_ANY, p_devs, n);
+
+    // ....????
+}
+
+```
+
+Just some random code I threw together. Probably not going to look like that in practice.
+
+It may be necessary to load libraries at run time. This can be solved by making undefined symbols not an error and if they are called, the driver can be forced to deactivate.
+
+## Managed Memory?
+
+I can garbage collect driver allocated memory to make memory leaks slightly easier to prevent.
+
+```
+DrvAlloc(DRV_NAME, 100);
+```
+
+Internally, a small header can be used to keep track of the driver, just 8 bytes to identify it.
+
+A fast way to lookup driver names is to load the first 4 bytes of the name (its unique identifier) and find the similarity before checking the next 4 bytes.
+
+This can fail if the second double word is the differentiator unless we scan that too on a second pass. Two DWORD compares cant be that slow.
+
+## Alignment Guarantees
+
+I would like to make a guarantee that types are naturally aligned regardless of compiler settings. This allows for some simplifications.
+
+For example, an inline movs can assume the alignment of pointers.
+
+This can be problematic for referencing data that does not have a definite alignment.
+
+It is very helpful to know the alignments because it is possible to use the correct inline assembly operation.
+
+Not really though. The size matters more. But it cannot be taken advantage of if the alignment is not defined.
+
+Really? I think alignment guarantees are fine, but it can make structure packing impossible without special types. The improved optimization when size optimizing is obvious though, but I can enable it manually too.
+
+Leave it to the compiler.
+
+As for an auto movs operation only the count matters and what it is divisible by. A compound expression can sort it out. If the count is not a compile-time constant, we just do movsb.
+
+Strings, however, may need alignment. Zero-terminated strings probably do not since they are already slow, but pascal strings can benefit. If a 32-bit size is used, it will already be aligned in practice.
+
+## The Loader
+
+Loading an executable is a process with individual steps. My first loader code will not load and execute it, but demonstrate that it works correctly.
+
+The loader must be able to parse all parts of the file for access using an interface.
+
+This loader is needed because we want to be able to run DJGPP executables without any of the bloated init code. We also need to be able to load drivers.
+
+There are stages:
+- Header and section parsing to convert to internal representation.
+
+```
+COFF_Open
+COFF_Close
+
+COFF_ForEachSection
+```
+
+Symbols get special fixups and are dealt with once other things are handled.
+
+Sections are parts of the file. They are read directly from it into memory using a specified address which is also the fixup address. The loader is designed for single address spaces.
+
+# February 11
+
+## Integral Types
+
+If I know exactly what BYTE, DWORD, and WORD are, what is the point in even using them? Most of the time, functions that take integers will take a 32-bit one.
+
+I will test many components outside of the OS to verify correct behavior before final integration. It is not convenient to use the integral types combined with the kernel types. It makes little sense because I already know what they are, so it is all pointless.
+
+Also, pressing the shift key all the time is avoidable.
+
+Basically, the exceptions to the type rules make the rules pointless.
+
+Also the pointer idea needs to go because it looks unconventional and not very C-like.
+
+I should make the code look familiar to the average C programmer.
+
+## Changes to Style
+
+Structures are capitalized and typedef'ed as usual, but integral types will replace the OS/90 ones.
+
+The main reason I even used the all caps integer types was because I wanted to immitate the Win32 style, which only works the way that it does because long ago, there were different pointer types (far, near, etc.) and that made things easier.
+
+Anyway, I will remove the typedefs permanently.
+
+Rules will include using unsigned whenever a signed is not explicitly needed.
+
+The integration of C-like function calls makes it totally pointless to even bother with the current typedefs.
+
+## Attribute Malloc
+
+This attribute only applies the unique addressing knowledge if the pointer is not null. The thing is, null pointers are not 0, so it cannot really do this.
+
+However, dereferencing an INVALID object is illegal in the same way dereferencing NULL is. If the object is invalid, it will cause an error at runtime unless caught by a conditional check.
+
+So malloc is safe to use even if NULL is not 0. In fact, the not_null attribute can be used to indicate that the pointer will not be zero.
+
+malloc cannot return a pointer to something that is already allocated. If something is freed and allocated over, any pointers that existed to it previously are considered invalid, or "dangling pointers." Same goes for any pointers stored inside the block or references thereof.
+
+The attribute would be: ` __attribute__((malloc (free), returns_nonnull))`

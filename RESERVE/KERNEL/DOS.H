@@ -344,6 +344,9 @@ typedef _Packed struct {
 	//
 	BYTE    path[64][26];
 
+	// I shoudl REALLY reduce that. 64-byte path can easily be malloc'd.
+
+
 	// Bytes: 3,940
 }EMU_CONTEXT,*PEMU_CONTEXT;
 /*
