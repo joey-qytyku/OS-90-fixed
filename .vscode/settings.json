@@ -87,7 +87,9 @@
         "X_DEFS.H": "cpp",
         "EATPAGES.C": "cpp",
         "DOS.H": "cpp",
-        "S_INT.H": "cpp"
+        "S_INT.H": "cpp",
+        "DOS.C": "cpp",
+        "SV86.H": "cpp"
     },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",

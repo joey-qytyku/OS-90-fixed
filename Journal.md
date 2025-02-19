@@ -8173,3 +8173,316 @@ So malloc is safe to use even if NULL is not 0. In fact, the not_null attribute 
 malloc cannot return a pointer to something that is already allocated. If something is freed and allocated over, any pointers that existed to it previously are considered invalid, or "dangling pointers." Same goes for any pointers stored inside the block or references thereof.
 
 The attribute would be: ` __attribute__((malloc (free), returns_nonnull))`
+
+# February 14
+
+## Disk Cache and FS Cache
+
+Instead of using a cache coordination protocol, both can hook each INT 13H. If the filesystem driver is loaded, it can apply its own caching and if it decides not to, it can deffer to the disk driver by refusing to handle INT 13H.
+
+The caching the FS driver would do relates mostly to directory contents and FAT structures. The protocol for caching those is significantly different and not much code could be reused either.
+
+## Malloc
+
+Wasting 128 bytes for each small allocation frame seems like a bad idea.
+
+I should use 64-bit masks. It is slightly slower but much more efficient.
+
+Also bit scan is not arbitrarily fast. It costs 3 clocks per leading or trailing zero. For a 32-bit integer, the worst case is 10+31*3=103 clocks which is VERY slow.
+
+It is actually faster to perform branches and avoid this.
+
+On the 486, it is just as slow. No improvement at all. The pentium roughly halves the clocks and also there are branch prediction benefits.
+
+The number of leading bits to scan can be reduced by alternating between forward and backward scans.
+
+On modern CPU's, bit scanning has not been data dependent for a while.
+
+I asked ChatGPT about this and it says that alternating reduces the worst case complexity.
+
+## Driver Symbol Exports
+
+For comparison, the PE and ELF formats use sections for import and export tables.
+
+I may have to do this because the symbol table may not be very god at differentiating.
+
+There seems to be no way to do...
+
+# February 15
+
+I do not intend to write my own linker, so the loader can be optimized for loading executables and libraries.
+
+I have confirmation that COFF does not support symbol visibility. The compiler says so when I try to change it to hidden.
+
+## Return To Call Tables?
+
+I can try to use symbols, but there are cases in which using symbols exclusively is not desirable. If I want to access the services of a driver it is best to do this dynamically and not import the driver like a DLL.
+
+I can define a macro for each export function that call the table automatically.
+
+This is actually a very good idea.
+
+With one thing: the call table must be considered costant, along with all members. That way the compiler can optimize it better.
+
+This means that we do not have to deal with symbols at all ATM.
+
+Macros just alias the table entry. It could even work within the kernel.
+```
+#define M_Alloc ((SVC_TABLE*)(0xFFFFF000))->M_Alloc
+```
+
+For drivers, this makes the code more readable. For the kernel, it is totally disabled by a compiler define.
+
+The only issue with this is the overhead of accessing the memory.
+
+In assembly, I could write:
+```
+kall    M_Alloc, 8, PO_RW
+```
+
+kall being a portmanteau of kernel and call.
+
+Member dereferencing is a high-precedent operation, along with calling.
+
+So if I add a number to the return value of one of these macro calls, it should work.
+
+A more robust way could be to define a function-like macro. This is necessary for some functions to be efficient, such as memset of memcpy.
+
+## memset
+
+memset only works at the byte level. It can be optimized by broadcasting the value of this byte to a full 32-bit register, which allows for SIMD-style operation with the stosd code.
+
+## Making String Ops Faster?
+
+Null-terminated strings are known for their slowness.
+
+In general, strings are not usually that large. There are also optimizations that can be expanded from macros to make some of them simpler.
+
+strlen on a constant string can return its size minus 1.
+strcmp can expand into an ASM snippet that does a fast comparison either using base register indexing or a string op.
+
+chtype functions can be totally inlined. There is basically no reason to call anything since they are about two or three comparisons anyway. Lookup tables are not even worth it for these.
+
+There is a difference between the function macro and the name. They cannot redefine.
+
+## Linking Userspace with Kernel
+
+printf.c will simply include the printf.c of the library. Same with malloc. Defines can be used before to control parameters.
+
+## malloc
+
+64-bit allocation flags will be used for the smallest frame. This means 60 bytes per allocation.
+
+## Making Memory Allocation Faster
+
+I have discussed this before, but it needs to be done again.
+
+Physical memory allocation is currently VERY slow. The main problem with it is that allocations in higher regions of memory require potentially thousands of iterations, which is VERY slow and requires accessing very non-temporal regions of the memory table.
+
+I can use tree structures.
+
+There are two potential tree ideas:
+- Binary tree where the physical memory total is halved by 2
+- Large allocations get a large block with no children.
+
+The requirement is that allocating these structures must be done in a fixed region of memory and should be fast.
+
+# February 17
+
+## Allocating Memory
+
+I will not make any major changes to the basic algorithm. It will use linear searches.
+
+But I will use a few new tricks to speed up allocation.
+
+- Parallel arrays for determining free memory
+
+This allows 16K aligned and granular chunks to be allocated, which is 4x faster.
+
+Large allocations will allocate in 16K chunks __using a memcpy-like optimization__ so that it uses as many 16K blocks as possible.
+
+I can use a lookup table to speed up the counting process and fall back to a regular calculation for chunks that are too large.
+
+Idea: size goes into byte-based lookup table.
+
+Memory waste is not permitted.
+
+- Alternation
+
+Alternating from the bottom and top of the tables halves the worst case complexity
+
+- Fast single page allocation
+
+The kernel malloc will heavily use single page allocations.
+
+This can be optimized by scanning 32-bit free table entries and checking if there are any free.
+
+Checking the individual entry can be done branchlessly using test/set and a table for the index, but it is best done with branches to avoid memory access.
+
+The last entries are the least likely to be allocated.
+
+Single pages can be allocated in an alternating pattern from the center of the largest memory block.
+
+### Summary
+
+This requires no changes to the algorithm but significantly improves the speed of allocation, especially of large blocks.
+
+Allocating page granular chunks is always possible, but it is just slower and done as a fallback. No memory is wasted.
+
+## Avoiding Zero Extends
+
+The zero extend operation is usually slower than zeroing the register first when accessing a memory operand.
+
+The ABI mandates that there is no extension done upon pushing to the stack except for char to an int, which is the C standard.
+
+There are reasons for this. The compiler may push a 32-bit register and not bother doing the sign extension itself, which may be good for code size.
+
+However, it is slow to do it in the first place for data that is constant (e.g. an interrupt vector) and movzx is slower that xor/mov on some CPU's, despite GCC generating it on 386 tuning.
+
+Even if a function genuinely takes a char, it should always promote to a full integer.
+
+This may be useful for printf.
+
+## Aliasing in the Kernel
+
+The memory manager will probably make extensive use of unsave pointer operations and casting. I would like to avoid writing the MM in assembly.
+
+Mostly for the memory allocation stuff, this is a possibility. Bytes may need to be accessed as a word.
+
+I can always use a union. This is cleaner most of the time.
+
+```
+#pragma pack(4)
+typedef union {
+    unsigned char   b[4]
+    unsigned short  w[2];
+    unsigned int    d;
+}MFE;
+#pragma pack()
+```
+
+The performance is basically the same, since we are dealing with offsets anyway.
+
+## MM Terminology
+
+Tables of Frames:           fft
+Virtual address space:      vas
+Buffer break indicator:     bbk
+
+## Opaque Types
+
+I can do something like this to add compile-time diagnostics to misuse of buffers.
+
+```
+typedef struct IN;
+typedef struct OUT;
+
+
+void ReadData(IN *buff, unsigned size);
+```
+
+For calling:
+```
+ReadData((IN*)buff, 1024);
+```
+
+It is almost impossible to get wrong. This is also good if the function takes more pointers, some with different properties.
+
+This is for functions that do not have a definite type. Instead of void, we use an opaque pointer that requires an explicit cast, which makes it clear when reading.
+
+If the data type is known, this is NOT done.
+
+Other examples of this include unsanitized strings of buffers from userspace in the kernel.
+
+My example may not be perfect, but this is considered good practice these days.
+
+It does not violate pointer aliasing. I can create as many unsafely casted pointers as I want. They are not invalid unless accessed incorrectly when more than one is still in scope and get used.
+
+Opaque types never get dereferenced.
+
+I can also make pointer types that act as containers, with 4-byte packing of course so they can be passed. Restrict variants can exist too.
+
+And a define can generate them for custom types.
+
+void ReadData(in_char buff, unsigned size)
+{
+    for (int i = 0; i < size; i++)
+        buff.p[i] = GetDataOrSomething();
+}
+
+ReadData((in_char)my_buffer, 1024);
+
+With proper naming, this may not be necessary.
+
+Actaully NO, we cannot cast a pointer to a structure. But we can use a compound initializer.
+
+ReadData((inbuf_char){my_buffer}, 1024);
+
+The purpose is to make sure that one type is not mismatched with another when the underlying data type is irrelevant or intentionally hidden.
+
+Void pointers are generally unsafe and the C compiler will only generate a warning. This is not a problem with C++ and I can of course just prohibit it with the appropriate option.
+
+So really it is more of a style thing and a way of proving that one knows what is being done. The purpose is self-documentation.
+
+I should not spam it too much though.
+
+But this would improve the self-documentation of the APIs and the code.
+
+# February 18
+
+## Pointers and Buffers
+
+void PrintStringConst(in_const_char_r str)
+{
+    //...
+}
+
+
+void S_Terminate(inp_TASK task);
+
+S_Terminate(my_task);
+S_Terminate(my_task);
+
+### Maybe Not
+
+This is only useful for opaque types of void pointers, which do not actually have a definite type.
+
+This is good for ensuring that the compiler has an error on all possible settings.
+
+Consider the unix read.
+
+ssize_t read(int fd, void *buf, size_t count);
+
+size_t and int are integer types that could be theoretically confused. Same goes for the pointer.
+
+An alternative could be:
+
+FILDE* open( /* ... */);
+
+ssize_t read((FILDE*)fd, void *buf, size_t count);
+
+Or whatever. I will keep this in mind for later.
+
+## Scheduler
+
+The time slicing can be replaced by the idle thread deciding which task to switch to in a loop.
+
+That completely throws out my percent of the CPU idea. It was not that great to begin with, but now I must think of a different plan.
+
+Timing becomes more precise though, especially for asynchronous signals.
+
+This is not actually very good at all. Totally inflexible. It changes at most one single time slice granted to a program.
+
+Very bad idea.
+
+## The Improvement of the Switch Action Idea
+
+We completely remove the need to perform useless memory copies which ammount to about 20 DWORD copies, or 40 load/stores. The only problem is the mediocre entrance mechanism.
+
+Maybe I can do parts of the switch process in the entry point before passing control over. That way I can save instructions and improve cache density.
+
+16-bit offsets will be used by the table, improving the density further.
+
+## Time Slices
+
+This is absolutely critical. I may chose to omit this temporarily and use round robin but a usable operating system will need proper scheduling.

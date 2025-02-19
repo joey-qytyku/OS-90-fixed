@@ -229,7 +229,7 @@ Safe in T2.
 	BOOL S_TaskInKernel(PTASK pt)
 ................................................................................
 
-Returns 1 if the task is in kernel mode and active. Redundant for the current task because it obviously is in the kernel if it is calling this.
+Returns 1 if the task is in kernel mode and active. Redundant for the current task because it obviously is in the kernel if it is calling this but does work.
 
 - T1,2
 

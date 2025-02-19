@@ -16,7 +16,7 @@ Linked lists can be made faster by knowing the size and the middle of the list, 
 # Plan
 
 Phase 1:
-- [DONE] Set up printf debugging
+- [REDO] Set up printf debugging
 - [DONE] Update PIT frequency to 1000Hz
 - [TODO] Make ring-0 threads fully work and demonstrate with a complex function
 - Implement basic scheduler calls and test

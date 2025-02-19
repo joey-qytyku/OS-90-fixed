@@ -159,6 +159,7 @@ V86_Monitor:
         add     word[edx+_ESP],2
         add     ebx,[edx+_ESP]
 
+        ; TODO: use xor eax,eax; maybe reorder for speed
         movzx   eax,byte [ebx-2]
 
         mov     word[edx+_EFLAGS],ax
@@ -232,6 +233,7 @@ V86_Monitor:
 
 section .bss
 
+        align 4
 saved_ebp  RESD 1
 saved_esi  RESD 1
 saved_edi  RESD 1

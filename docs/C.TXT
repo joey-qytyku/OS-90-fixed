@@ -1,0 +1,119 @@
+================================================================================
+	Programming with C
+================================================================================
+
+--------------------------------------------------------------------------------
+	Copright Notice and License
+--------------------------------------------------------------------------------
+
+> TODO, license under creative commons.
+
+--------------------------------------------------------------------------------
+	Why I Made This
+--------------------------------------------------------------------------------
+
+Every other C tutorial probably:
+1)	Relies on previous programming knowledge
+
+2)	They write a bunch of code that is nonsense to a beginner and backtrack
+	while trying to explain it
+
+3)	The people who make video tutorials tell beginners to copy some of
+	their code as a model, but this proves too inflexible and it is then hard to build on it.
+
+4)	The full toolchain is not properly explained.
+
+I understand it is necessary to explain things backward. When learning a language, it is best to compare it to ones own language than explain gramatical concepts like case, inflection, conjugation, articles, and whatnot.
+
+The goal is to make a definitive C tutorial.
+
+>>>
+Small projects:
+- Bit scanning and making it faster by splitting
+
+--------------------------------------------------------------------------------
+	What is Needed
+--------------------------------------------------------------------------------
+
+- A computer with Linux installed or Windows with WSL
+- Some basic command line knowledge
+- A good text editor (VSCode or Atom suggested)
+
+There is no need for programming experience AT ALL!
+
+--------------------------------------------------------------------------------
+	What is C Used For?
+--------------------------------------------------------------------------------
+
+C is used for the Windows and Linux kernels, most UNIX software, embedded systems, many operating system kernels, to implement dynamic languages such as Ruby and Python, and many more.
+
+There is essentially nothing that a high-level language can do that C cannot also do, but with additional steps and considerations. It is a low-level language that is translated to something that a computer can understand.
+
+At least one C implementation exists for essentially every CPU.
+
+--------------------------------------------------------------------------------
+	The Compiler
+--------------------------------------------------------------------------------
+
+The compiler is a program that translates a text file containing C code into a lower-level language. It typically invoked by a controller program which automatically inserts all necessary packages and passes the code through multiple stages until it reaches a certain final product.
+
+[ File ] => [ Compiler ] => [ Assembler ] => [ Linker ] => <Executable>
+
+The compiler takes code that looks like this:
+................................................................................
+int add_numbers(int first_number, int second_number)
+{
+	return first_number + second_number;
+}
+................................................................................
+
+And converts it to something more like this on an Intel CPU (32-bit):
+................................................................................
+add_numbers:
+	xor	eax,eax
+	mov	eax,[esp+4]
+	add	eax,[esp+8]
+	ret
+................................................................................
+
+add_numbers is defined in a C file as a function, which we will explain later, but feel free to think of it as being like the mathematical concept. It evaluates to the sum of its two inputs.
+
+The CPU does not really know what a function is, or what `add_numbers` is meant to do at the expression level. `add_numbers` is just a location that contains data to be executed.
+
+The assembler converts this text into the binary representation. The CPU does not run any of the output from the compiler. That is just another text file, written in a way that conveys the commands given to it in the C language.
+
+Your C file is just a list of commands. Everything is a list of commands. Eventually, those commands are executed to return the output which you requested at the beginning.
+
+A linker than inserts any additional data so that the code can call built-in features.
+
+We will use primarily the GNU Compiler Collection, which contains a number of compilers but most notably a C compiler.
+
+--------------------------------------------------------------------------------
+	Giving Commands
+--------------------------------------------------------------------------------
+
+Visit `godbolt.org`. This is a website that outputs the assembler output of a program written in a high-level language.
+
+Select C and the latest version of GCC for x86_64. This is the Intel/AMD architecture. If you are using a computer with a different CPU, there is no problem. The same concepts apply.
+
+By default, a function called `square` is provided. On the right, the assembly language output is shown. This is what the compiler generates from the code on the left.
+
+At the top level of the file, one can declare the existence of an item, or also decide its value.
+
+Delete the existing code.
+Replace it with the following:
+................................................................................
+int i;
+................................................................................
+
+A declaration or definition starts with a type and is followed by a name or its definition if needed.
+
+The generated output may be something like this:
+................................................................................
+i:
+	.zero   4
+................................................................................
+
+`.zero` is a command in assembly that means to generate a certain number of bytes. You should be familiar with gigabytes and megabytes. `int` on most platforms is four bytes long, and each byte is usually eight bits.
+
+A bit is either a 1 or a 0.

@@ -9,9 +9,9 @@ TASK t2;
 
 VOID CreateTestTask
 (
-	PTASK CPTR_CDR t,
-	PTASK CPTR_CDR next,
-	PTASK CPTR_CDR  prev,
+	TASK *	t,
+	TASK *	next,
+	TASK *	prev,
 	VOID (*tp)(PVOID)
 )
 {

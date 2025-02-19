@@ -5,35 +5,30 @@
 ; I am not sure if branch avoidance is the perfect strategy. I still have to
 ; deal with time slices.
 
-align 64
-switch_table:
-;       To R0   To R3   To VM
-;-------------------------------;
-DD      r0_r0,  r0_r3,  r0_vm,0 ; From R0
-DD      r3_r0,  r3_r3,  r3_vm,0 ; From R3
-DD      vm_r0,  vm_r3,  vm_vm,0 ; From VM
-
-; How can we make the table simpler?
-
-; Add a zero value so we can pitch down by *16
+section .text
 
 ;
-; In pseudo-C it would be like this:
-;       goto [current.index + next.index*3]
+; Switch to 16-bit offsets. The assembler can make this work and I tested it
+; for COFF output.
+;
+; goto [current.index+next.index*2 + next.index + table_base]
 ;
 
 ;
-; Also calculate the RB base before jumping.
+; A matrix of possible switch actions to be taken.
+; The Y-axis it the source. The X-axis is the destination.
 ;
+align 32
+sw:
+;       To R0      To R3      To VM
+;----------------------------------------;
+DW      r0_r0-sw,  r0_r3-sw,  r0_vm-sw,0 ; From R0
+DW      r3_r0-sw,  r3_r3-sw,  r3_vm-sw,0 ; From R3
+DW      vm_r0-sw,  vm_r3-sw,  vm_vm-sw,0 ; From VM
 
 	align   32
 IRQ0:
         xchg bx,bx;;;;
-
-        push    eax
-        mov     al,20h
-        out     20h,al
-        pop     eax
 
         push    ebx
         push    ecx
@@ -41,114 +36,60 @@ IRQ0:
         mov     ebx,esp
         and     ebx,~4095
 
+        ; With the pointer to the current task RD in EBX, calculate the address
+        ; of the next task in ECX.
         ;
-        ; What follows is extremely pipeline hostile code.
-        ; Can I make it any better?
-        ; Perhaps use more registers
-        ;
+        ; Alternating between two registers could improve performance, but
+        ; I will not try that for now.
 
-        ; Set ECX to the next task address
-        mov     ecx,ebx
         mov     ecx,[ss:ebx+_next]
 
-        ; Now get the switch action of the next task
-        mov     ecx,[ss:ecx+_switch_action]
+        ; We need the data segment to be set. This avoids copying a stack
+        ; segment override over 7 times.
+        mov     [ss:ebx+_DS],ds
 
+        push    byte 8
+        pop     ds
 
-        ; goto: (next*4) | current
-
-        ret     ;;;; FAILS HERE
-
-
-        align   64
-r0_r0:
-
-        ; Save the general registers to the current TB so we can use them.
-        ; DS is already set, no need for an override.
-
-        pop     dword [ebx+_ECX]
+        ; Save all general purpose registers. This faster than pushing because
+        ; there is no address generation interlock, but the imm has 1 clock
+        ; penalty on 486. Not on 586 though.
         mov     [ebx+_EAX],eax
         mov     [ebx+_EDX],edx
         mov     [ebx+_ESI],esi
         mov     [ebx+_EDI],edi
-
         mov     [ebx+_EBP],ebp
 
-        ; Save the stack but without EBX and the rest.
-        mov     [ebx+_ESP],esp
-        add     dword [ebx+_ESP],16     ; EBX,CS,EIP,EFLAGS
+        pop     dword [ebx+_ECX]
+        pop     dword [ebx+_EAX]
 
-        pop     dword [ebx+_EBX]
+        ; All registers are now copied. EBX and ECX still the same.
+        ; Get both of the switch actions.
+        mov     esi,[ebx+_switch]
+        mov     edi,[ecx+_switch]
 
-        ; We do not need an IRET at all. The stack must change, which is not
-        ; possible with IRET from ring-0 going into ring-0.
+        ; Load SOME of the next task registers. EAX, EBX, and ECX must be done
+        ; manually.
 
-        ; The IRET frame on the stack is EFLAGS, CS, EIP and nothing else.
-        ; We only need to save it.
+        jmp     [esi*2+edi+sw]
 
-        ; Load the registers from the next thread
-        ; EBX is still our current task block.
-        mov     ebx,[ebx+_tb_size]
-        mov     eax,[ebx+_EAX]
-        mov     ecx,[ebx+_ECX]
-        mov     edx,[ebx+_EDX]
-        mov     esi,[ebx+_ESI]
-        mov     edi,[ebx+_EDI]
-        mov     ebp,[ebx+_EBP]
+        align   32
+r0_r0:
+        ; The only thing left to do is to get into the context by loading
+        ; the registers. EBX is still the current task and ECX is the
+        ; target. We only need ECX of course.
 
-        ; Switch the stack to the next thread's
-        mov     esp,[ebx+_ESP]
+        ; The only flags that matter in a r0-r0 transfer of state are the
+        ; regular integer arithmetic ones and IF. popfd is actually fully
+        ; effective. No need for an IRET. There is also no code change to the
+        ; code segment, and sreg loads are wasteful in this case.
 
-        ; Build an IRET frame for entry
 
-        push    dword [ebx+_EFLAGS]
-        push    dword [ebx+_CS]
-        push    dword [ebx+_EIP]
 
-        ; Load EBX with the next value, don't need it now.
-        mov     ebx,[ebx+_EBX]
-        xchg bx,bx;;;;
-        iret
+        mov     esp,[ecx+_ESP]
 
         align   32
 r0_r3:
-        pop     ecx
-
-; Switching to ring-3 protected mode will involve direct segment loads
-; and an IRET with the full stack frame. The ring-3 RPL of the CS will tell
-; the CPU to switch.
-;
-
-        ; Save the current DS register. I do nto want to waste bytes on stack
-        ; segment overrides because that harms cache density.
-
-        mov     [ss:ebx+_EAX],eax
-        mov     [ss:ebx+_ECX],ecx
-        mov     [ss:ebx+_EDX],edx
-        mov     [ss:ebx+_ESI],esi
-        mov     [ss:ebx+_EDI],edi
-
-        ; Pop EBX from the stack and save it
-        pop     dword [ss:ebx+_EBX]
-
-        ; Save the stack pointer. Clean the stack too, EBX is not on it.
-        add     esp,12
-        mov     [ss:ebx+_ESP],esp
-
-        ; All registers saved, get next task block
-        mov     ebx,[ss:ebx+_next]
-
-
-
-        ; Load the next
-        mov     esp,[ss:ebx+_ESP]
-
-        ;
-        ; To the stack: SS, ESP, EFLAGS, CS, EIP
-        ;
-
-;        push
-
 
 r0_vm:
 

@@ -25,6 +25,8 @@ typedef VOID (*T2_TASK_EXITHOOK)(PREGS);
 
 typedef VOID (*T2_TASK_HND_EXCEPTION)(LONG, LONG);
 
+#pragma pack(1)
+
 typedef struct  Task_ {
 	REGS    regs;
 	PVOID   _next;
@@ -41,19 +43,20 @@ typedef struct  Task_ {
 	T2_TASK_EXITHOOK onexit;
 
 	char name[8]; // Need this? I guess for debugging.
-}TASK, *PTASK;
+}TASK;
+#pragma pack()
 
 #define TFLAG_MASK 0b111
 
 static inline PTASK GET_CURRENT_TASK(VOID)
 {
-	register LONG _ESP __asm__("esp");
+	register unsigned _ESP __asm__("esp");
 	return (PTASK)(_ESP & (~4095));
 }
 
-VOID CreateTestTask(    PTASK   t,
-			PTASK   next,
-			PTASK   prev,
+VOID CreateTestTask(    TASK *	t,
+			TASK *	next,
+			TASK *	prev,
 			VOID (*tp)(PVOID)
 			);
 

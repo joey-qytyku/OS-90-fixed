@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+// Not currently in use.
+
 #define rep_stosd(d,v,c) \
 __asm__ volatile ( \
 	"movl %0,%%edi\n\t" \
