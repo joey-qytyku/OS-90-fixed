@@ -31,6 +31,8 @@
 ; All registers are destroyed except ESP.
 ; SREGS are set to default kernel ones.
 ;
+; BTW this is SPEED CRITICAL!
+;
         bits    16
         ORG 16+3000h
         ; What about EBP!!!! Save it outside of this maybe?
@@ -44,8 +46,11 @@
         cmp     dl,7
         ja      .above
         jmp     .else
+        align   16
 .above:
         add     edx,70h-8
+
+        align   16
 .else:
         add     edx,8   ; They start at #8 anyway
 
@@ -86,13 +91,15 @@
         mov     cr0,eax
 
         ; Load the IDTR with something correct with real mode. Yes it works
-        ; like this! The IDTR is valid in real mode.
+        ; like this. The IDTR is valid in real mode.
         lidt    [RM_IDTR]
 
         ; Now in real mode. Make CS contain a proper segment so we can return
         ; from INT later.
 
         jmp     0FFFFh:cont
+
+        align   32
 cont:
         mov     ax,0FFFFh
         mov     ds,ax
@@ -137,6 +144,8 @@ cont:
         mov     ds,ax
         mov     esp,[dword 0FFFF0h + SAVE_ESP]
 
+        ; Load a 32-bit IDTR from 64-bit mode. NASM does not seem to
+        ; support an override.
         DB 66h
         lidt    [dword 0FFFF0h + SAVE_IDTR]
 

@@ -6,10 +6,10 @@
 // PSTDREGS is passed in EDX for assembly handlers.
 // May want to change.
 
-typedef VOID (*EXC_HANDLER)(PREGS);
+typedef void (*EXC_HANDLER)(PREGS);
 
 extern EXC_HANDLER handler_table[];
 
-VOID RemapPIC(VOID);
+void RemapPIC(void);
 
 #endif /* __CENTCOM_H__ */

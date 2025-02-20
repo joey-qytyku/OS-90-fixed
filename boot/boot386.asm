@@ -7,6 +7,12 @@ use and modify it to load other kernels.
 
 Assemble with NASM.
 
+Some facts about this bootloader:
+- I was 17 years old when I wrote this
+- The style is very different from my other asm code
+- This is one of my favorite programs which I wrote.
+- Very few changes have been made to this bootloader
+
 %endif
 
 ;-----------------------------
@@ -131,6 +137,19 @@ A20Enabled:
         je      HMA_OK
         ERROR   HMA_Error
 HMA_OK:
+        ; - NEW -
+        ; February 19, 2025: Added copy the reflection routine to clean up
+        ; my kernel code.
+
+        mov     ax,0xFFFF
+        mov     es,ax
+        mov     si,Reflect
+        mov     di,3000h+10h
+        mov     ecx,Reflect.end/4
+        rep     movsd
+
+        ; - END -
+
         ;How much extended memory - HMA
         ;Other functions will be used to get
         ;a more precise reading of extended memory
@@ -359,6 +378,12 @@ Corrupted:
 ;#############################
 ;############Data#############
 ;#############################
+
+        align   4
+Reflect:
+        incbin "REFLECT.BIN"
+        align   4
+Reflect.end:
 
 Path:   DB      "\OS90\KERNEL.BIN",0
 SavedProgBase: DW 0

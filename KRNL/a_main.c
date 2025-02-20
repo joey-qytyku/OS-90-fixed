@@ -31,8 +31,7 @@ enum {
 	GDT_WIN16       = 0x38
 };
 
-struct tss
-{
+struct tss {
 	short   _[25*2+1];
 	short   bitmap_base;
 	char	bitmap[8192];
@@ -56,14 +55,14 @@ extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
-__attribute__(( aligned(64) ))	SEGMENT_DESCRIPTOR	gdt[8];
-__attribute__(( aligned(64) ))	SEGMENT_DESCRIPTOR	ldt[128];
-__attribute__(( aligned(64) ))	struct tss		TSS;
-__attribute__(( aligned(64) ))	IDT_ENTRY		idt[256];
+__attribute__(( aligned(32) ))	SEGMENT_DESCRIPTOR	gdt[8];
+__attribute__(( aligned(32) ))	SEGMENT_DESCRIPTOR	ldt[128];
+__attribute__(( aligned(32) ))	struct tss		TSS;
+__attribute__(( aligned(32) ))	IDT_ENTRY		idt[256];
 				DESC_TAB_REG		gdtr={63,(unsigned)&gdt};
 				DESC_TAB_REG		idtr={2047,(unsigned)&idt};
 
-static VOID SetIsr(PVOID addr, BYTE i)
+static void SetIsr(void *addr, unsigned i)
 {
 	idt[i].off1 = (unsigned)((unsigned)addr) & 0xFFFF;
 	idt[i].off2 = (unsigned)((unsigned)addr) >> 16;
@@ -72,7 +71,7 @@ static VOID SetIsr(PVOID addr, BYTE i)
 	idt[i].access = 0b10001110;
 }
 
-static VOID SetupStructures(VOID)
+static void SetupStructures(void)
 {
 	static const unsigned char
 		access_cseg     = 0x9A,
@@ -130,15 +129,17 @@ SC(     GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0     );
 	);
 }
 
-static VOID ConfigurePIT(VOID)
+// 1 MS frequency
+static void ConfigurePIT(void)
 {
 	const unsigned char count[2] = {0xB0, 0x4};
 
-	outb(   0x43, 0x36      );
-	outb(   0x40, count[0]  );
-	outb(   0x40, count[1]  );
+	outb(0x43, 0x36);
+	outb(0x40, count[0]);
+	outb(0x40, count[1]);
 }
 
+__attribute__((noreturn))
 void KernelMain(void)
 {
 	// Zero BSS first, important.
@@ -168,7 +169,7 @@ void KernelMain(void)
 }
 
 __attribute__(( __noreturn__, __naked__, __section__(".init") ))
-VOID EntryPoint(VOID)
+void EntryPoint(void)
 {
 	__asm__ ("movl $(0x100000+65520), %esp");
 	__asm__ ("jmp KernelMain");

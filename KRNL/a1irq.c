@@ -19,20 +19,20 @@
 #define ICW4_8086       1
 #define ICW4_SLAVE      1<<3
 
-VOID API SetIrqMask(SHORT m)
+void API SetIrqMask(short m)
 {
 	delay_outb(0x21, m & 0xFF);
 	delay_outb(0xA1, m >> 8);
 }
 
-SHORT API GetIrqMask(VOID)
+short API GetIrqMask(void)
 {
 	return delay_inb(0x21) | (delay_inb(0xA1)<<8);
 }
 
-VOID RemapPIC(VOID)
+void RemapPIC(void)
 {
-	const SHORT m = GetIrqMask();
+	const short m = GetIrqMask();
 
 	// ICW1 to both PIC's
 

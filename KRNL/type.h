@@ -15,7 +15,7 @@
 #ifndef TYPE_H
 #define TYPE_H
 
-#define API __attribute__((stdcall))
+#define API __attribute__((cdecl, regparm(0)))
 
 #define API_DECL(rtype, name, ...)\
 	typedef rtype API (*_API_##name)(__VA_ARGS__);\

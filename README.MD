@@ -30,7 +30,7 @@ It is possible to install the sources into a DOS machine and compile using DJGPP
 Requirements:
 - 32M-48M of RAM
 - 512M of disk space
-- CWSDPMI, NASM (in path)
+- CWSDPMI, NASM (both in path)
 - Long file name driver or use FreeDOS
 - DJGPP with GCC version 9.3.0 or later
 - Make, bash, grep
@@ -38,10 +38,6 @@ Requirements:
 Recommendations:
 - Use a disk cache driver to speed it up. Set the cache size to several megabytes if you can.
 - Get UPX and run `upx -d` on the `gcc`, `as`, `cc1` (found in libexec), `collect2`(also in libexec), and everything else you can find. This will massively speed up building but will increase disk usage due to decompression.
-
-Environment variables:
-- "CPU_": Anything that can be passed to GCC. See KRNL makefile.
-- ""
 
 - Simply change directory to each module and run `make` and `make install-dos`.
 
@@ -56,7 +52,7 @@ Then enter the driver source tree within DJGPP/bash and build each necessary one
 
 ## From OS/90
 
-All of the above can be done from the OS/90 console window. This is useful for updating software. `make uninstall-dos` can be used to remove
+All of the above can be done from the OS/90 console window. This is useful for updating software. `make uninstall-dos` can be used to remove.
 
 Run `make clean` when done with each to save disk space.
 

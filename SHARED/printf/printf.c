@@ -18,11 +18,11 @@
 //
 
 //
-// If testing natively, compile with TESTING_NATIVE defined.
+// If testing natively, compile with SHARED_PRINTF_TESTING_NATIVE defined.
 //
 
-#if defined(TESTING_NATIVE)
-#	define ENABLE_FLOAT
+#if defined(SHARED_PRINTF_TESTING_NATIVE)
+#	define SHARED_PRINTF_ENABLE_FLOAT
 #	include <stdio.h>
 #	include <stdlib.h>
 #else
@@ -39,7 +39,7 @@ could be formats in the string.
 		{puts(fmt);} } \
 	else	{_printf(fmt, __VA_ARGS__);}
 
-#endif /* defined(TESTING_NATIVE) */
+#endif /* defined(SHARED_PRINTF_TESTING_NATIVE) */
 
 
 
@@ -63,28 +63,14 @@ could be formats in the string.
 #define STR_(x) #x
 
 /*
-Returns the number of characters needed to represent a number. x needs to be
-a numeric literal. May return more than necessary but will always return
-the correct number.
+Returns the number of characters needed to represent a number in DECIMAL.
+x needs to be a numeric literal.
 
-Only safe for buffer sizes.
-
-We can make this work better. Something like int i = "Hello"[0] == 'H'
-is perfectly valid.
-
-The implementation could use any representation for the byte sizes.
-
-I need to make improvements so that this handles each case properly.
-
-Also, I may want to define the buffer sizes or character countrs
-separately as constants or defines.
-
-Also, bit allocation, totally unrelated but as a note, can be optimized by
-performing a backward scan and a forward one, and subtracting the results.
-If this is large enough, we found the zone.
-
+When it comes to max values, signed or not, this always returns the correct
+results.
 */
-#define NDFIGS(x) ((sizeof(char []){STR_(x)})-1)
+#define NDFIGS(x) (sizeof(STR_(x))-1)
+
 
 // Divide but with cieling. Used to calculate octal digits. E.g.
 // 32-bit number is 32/3=10.66 but we ceil to get 11 digits.
@@ -495,7 +481,7 @@ static int atoi_substring(      const char * __restrict         str,
 		buff[j] = str[j];
 	buff[j] = 0;
 
-	return atoi(buff);
+	return libc90_atoi(buff);
 }
 
 static void set_fmt_params_defaults(printfctl *ctl)
@@ -525,7 +511,7 @@ static long long int consume_sigint(va_list *v, unsigned l)
 		case l_l:	return va_arg(*v, long);
 		case l_ll:	return va_arg(*v, long long int);
 		case l_j:	return va_arg(*v, intmax_t);
-		case l_z:	return va_arg(*v, ssize_t);
+		// case l_z:	return va_arg(*v, ssize_t);
 		default:	return 0;
 	}
 }
@@ -700,12 +686,14 @@ static void fmt_s(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 	do_pad(ctl, cmt, str, l);
 }
 
+#if defined(SHARED_PRINTF_ENABLE_FLOAT)
 static void fmt_g(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
 }
 static void fmt_G(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
 }
+#endif
 
 static void fmt_o(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
@@ -791,8 +779,12 @@ static const fmt_handler fmt_lookup[] = {
 	['X'] = fmt_x,
 	['s'] = fmt_s,
 	['d'] = fmt_i,
+
+	#if defined(SHARED_PRINTF_ENABLE_FLOAT)
 	['g'] = fmt_g,
 	['G'] = fmt_G,
+	#endif
+
 	['o'] = fmt_o,
 	['p'] = fmt_p,
 	['a'] = fmt_a,
@@ -995,7 +987,7 @@ static void set_fmt_params(     printfctl *     ctl,
 			break;
 
 			default:
-				printf("Unrecognized flag: {%c\n}",f[lx]);
+				;
 		}
 	}
 	out:
@@ -1045,7 +1037,7 @@ int _printf_core(       printfctl *__restrict   ctl,
 // Add support for duplicating characters?
 // Also this can be changed to work with VGA characters.
 
-#ifdef TESTING_NATIVE
+#ifdef SHARED_PRINTF_TESTING_NATIVE
 #define PUTCHAR_COMMIT _putchar_commit
 static void _putchar_commit(
 	printfctl *	ctl,
@@ -1179,7 +1171,7 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 // for a correctly working stdin/stdout. I saw this in the
 // standard header myself. However, it may need to be a
 // special case for thread safety.
-#ifdef TESTING_NATIVE
+#ifdef SHARED_PRINTF_TESTING_NATIVE
 int main(void)
 {
 	char b[1024];

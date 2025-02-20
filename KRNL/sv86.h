@@ -17,15 +17,14 @@
 
 #include "sv86.h"
 
+typedef bool (*HV86)(REGS*);
 
-typedef BOOL (*HV86)(REGS PTR);
-
-unsigned V86xH(unsigned char v, REGS *r);
+unsigned V86xH(unsigned int v, REGS *r);
 
 // Returns the vector of next INT
 // Returns what if IRET?
-DWORD EnterV86(REGS *r);
+unsigned EnterV86(REGS *r);
 
-VOID InitV86(VOID);
+void InitV86(void);
 
 #endif /* SV86_H */

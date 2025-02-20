@@ -14,7 +14,6 @@ typedef enum {
 	MON_640x480		= 0x11,
 	COL_640x480_4BIT	= 0x12,
 	COL_320x200_8BIT	= 0x13
-
 }BIOS_VMODE;
 
 // Pack everything ahead, including substructures.
@@ -22,63 +21,62 @@ typedef enum {
 
 typedef struct
 {
-	WORD	comport[4];
-	WORD	lptport[3]; // [1]
-	WORD	ebdaseg;
+	unsigned short	comport[4];
+	unsigned short	lptport[3]; // [1]
+	unsigned short	ebdaseg;
 
 	// Because of little endianness, the bits appear
 	// essentially in the order that one would expect.
 	// No need for structure nonsense.
 	union {
 		struct {
-			WORD	e_ipl_diskette	:1;
-			WORD	e_math_coproc	:1;
-			WORD	e_mouse_ps2	:1;
-			WORD	e_default_vmode	:2;
-			WORD	e_num_flp_drives:2;
-			WORD	:1;
+			unsigned short	e_ipl_diskette	:1;
+			unsigned short	e_math_coproc	:1;
+			unsigned short	e_mouse_ps2	:1;
+			unsigned short	e_default_vmode	:2;
+			unsigned short	e_num_flp_drives:2;
+			unsigned short	:1;
 
-			WORD	e_dma		:1;
-			WORD	e_num_com_ports	:3;
-			WORD	e_game_adapter	:1;
-			WORD	e_num_lpt_ports	:2;
-			WORD	:1;
+			unsigned short	e_dma		:1;
+			unsigned short	e_num_com_ports	:3;
+			unsigned short	e_game_adapter	:1;
+			unsigned short	e_num_lpt_ports	:2;
+			unsigned short	:1;
 		};
-		WORD equip;
+		unsigned short equip;
 	};
 
 	// Used by the PCjr. Undefined here.
-	BYTE	:8;
+	unsigned char	:8;
 
 	// Conventional memory size. I recommend not using
 	// this and calling INT 12H, which it matches with.
-	WORD	mem_kilos;
-	BYTE	:8;
+	unsigned short	mem_kilos;
+	unsigned char	:8;
 
 	//
-	BYTE	ps2_bios_control;
+	unsigned char	ps2_bios_control;
 
 	union {
 		struct {
-		WORD kf_rshift:1;
-		WORD kf_lshift:1;
-		WORD kf_ctrl:1;		/* Any CTRL key */
-		WORD kf_alt:1;		/* Any ALT key*/
-		WORD kf_scrllock:1;
-		WORD kf_numlock:1;
-		WORD kf_capslock:1;
-		WORD kf_insert:1;
+		unsigned short k_rshift:1;
+		unsigned short k_lshift:1;
+		unsigned short k_ctrl:1;		/* Any CTRL key */
+		unsigned short k_alt:1;			/* Any ALT key*/
+		unsigned short k_scrllock:1;
+		unsigned short k_numlock:1;
+		unsigned short k_capslock:1;
+		unsigned short k_insert:1;
 		};
-		WORD kflags;
+		unsigned short kflags;
 	};
-	BYTE	_40_19;
-	WORD	kbuff_offset_head;
-	WORD	kbuff_offset_tail;
-	BYTE	kbuff[32];
-	union {
-
-		BYTE drv_recal_status:1;
-	};
+	unsigned char _40_19;
+	unsigned short	kbuff_offset_head; // Verify this
+	unsigned short	kbuff_offset_tail;
+	unsigned char	kbuff[32];
+	// union {
+	// 	unsigned char drv_recal_status:1;
+	// };
 };
 
 #pragma pack()
