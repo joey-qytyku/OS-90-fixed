@@ -8486,3 +8486,102 @@ Maybe I can do parts of the switch process in the entry point before passing con
 ## Time Slices
 
 This is absolutely critical. I may chose to omit this temporarily and use round robin but a usable operating system will need proper scheduling.
+
+# February 20
+
+## Return to Bit Maps
+
+Using bit maps allows for fast garbage collection of the entire frame.
+
+I can safely special-case the first entry or slip in a bitmap into it and still get access.
+
+4 bytes is enough to protect the entry. The size class is essentially a unique identifier, so if we catch an invalid value as we are allocating, even if it is free, then the heap is fouled.
+
+The first two entries NEVER change.
+
+I will also add pointers to the next and previous frames.
+
+# February 23
+
+## Why C99?
+
+I understand limiting the standard library to C99 to reduce the amount of work I have to do, since most software for DOS is written for even older dialects and C99 is what made C what it is today.
+
+There are however some features I really like that cannot be provided by non-standard C++ extensions. One of them is constexpr, which is supported by by C23 for variables only.
+
+C++11 provides the complete version of constexpr.
+
+There are LOTS of things that are greatly simplified when using C++. For example, the printf implementation can be made more portable by determining the number of digits in numeric characters at compile time.
+
+So why should I care about C99? Even GCC 9 supports the new versions of C and CPP. Why do I want to simulate oldness?
+
+If I wanted to simulate oldness, I could have compiled the OS in Turbo C or Open Watcom, something actually historically used in the 90's.
+
+This would effect the performance characteristics, and that is not what I want.
+
+But at the same time, people DID write bloated C programs with poor optimizations. They wrote and ran these programs on their own systems. It was used for GUI programs mainly because they mostly call functions.
+
+I have made no efforts at portability. So what will I do?
+
+Why is it OS/90? It is not '90s themed at all. I hate that decade. I only like the technology.
+
+I do not live in the 90's. Maybe it is more impressive if I limit myself to 90's technology.
+
+NASM was introduced in 1996 although it did not reach full functionality until later. Open watcom was very popular in the 90's and was cheaper than other options.
+
+Many features that I have used so far are C99. It introduced:
+- long long
+- inline
+- snprintf
+- variadic macros
+- many more
+
+C99 is the premier C standard. Anything older is just deliberately creating more work for myself.
+
+I think strict C99 compliance is a good compromise. C89 is far too archaic.
+
+## malloc Code Ideas
+
+Because of the high amount of generic code I wonder if I should just compile it in C++. It does not depend whatsoever on anything OS/90 related anyway.
+
+Or I can include the implementation several times with macros as parameters.
+
+I think C++ is better. For integration, this is not a major problem and I can easily add C++ compilation to the build system.
+
+I wonder how much C++ I can even use though. printf could be enhanced with C++ compilation if it did not depend as much on buffers on the stack.
+
+C++ also can use variable length arrays on the GNU dialect.
+
+No I will NOT do this. I can recycle the same code however, using an include file.
+
+## malloc Again
+
+Using a lookup table is a good idea when the number of bits is 4.
+
+Instead of (ebx is the input):
+```
+    mov ebx,[mask]
+    bsf eax,ebx
+```
+
+I can write:
+```
+    mov ebx,[mask]
+    mov eax,[ebx+table]
+```
+
+The top takes 10+3*3=19,+4=22 for the bit scan in the worst
+
+The bottom takes 4 for the first and 4 for the next, but there is a 1 clock penalty for the immediate (on the 486?) and another for the address generation interlock.
+
+So 10 in total. The only issue is the decreased cache density.
+
+Bit scanning can be done directly. On old CPU's, this is not actually slow and its seems the speed is consistent.
+
+To make the code simplified I should not use structures for frames whatsoever. Instead, I will use a stride parameter to use for moving through this list.
+
+BTW when it comes to memory latency on modern CPUs it is way slower but the CPU is also faster, and on an old CPU the memory is very often clocked the same or similarily to the CPU.
+
+## Rewite malloc
+
+It is really bad and disorganized. I will end up deleting the code. Probably dont need to delete all of it.

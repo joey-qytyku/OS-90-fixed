@@ -71,6 +71,16 @@ IRQ0:
         ; Load SOME of the next task registers. EAX, EBX, and ECX must be done
         ; manually.
 
+        ; Sure? This will pull a 32-bit value. I can use an override prefix
+        ; but that is segment relative.
+
+        ; Also, SW is not added to the address we jump to. It is the address
+        ; we get the target from.
+
+        ; This cannot work.
+        ; Also, if I want to, I can 100% use the *3 LEA trick and reduce the
+        ; size anyway. Or not?
+
         jmp     [esi*2+edi+sw]
 
         align   32

@@ -12,12 +12,12 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#define IRQ_BASE        (0xA0)
-#define ICW1            (1<<4)
-#define LEVEL_TRIGGER   (1<<3)
-#define ICW1_ICW4       1
-#define ICW4_8086       1
-#define ICW4_SLAVE      1<<3
+static const unsigned char IRQ_BASE        = (0xA0);
+static const unsigned char ICW1            = (1<<4);
+static const unsigned char LEVEL_TRIGGER   = (1<<3);
+static const unsigned char ICW1_ICW4       = 1;
+static const unsigned char ICW4_8086       = 1;
+static const unsigned char ICW4_SLAVE      = 1<<3;
 
 void API SetIrqMask(short m)
 {
@@ -30,6 +30,7 @@ short API GetIrqMask(void)
 	return delay_inb(0x21) | (delay_inb(0xA1)<<8);
 }
 
+// This is done literally only once. Just do this as a static inline.
 void RemapPIC(void)
 {
 	const short m = GetIrqMask();

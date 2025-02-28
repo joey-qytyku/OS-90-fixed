@@ -368,8 +368,6 @@ GotoKernel:
         mov     es,ax
         mov     ss,ax
 
-        ; Changed to 8000_0001h for new VMA
-
         jmp     dword 8:0C000_0000h  ;Yes, this is a thing
 
 Corrupted:

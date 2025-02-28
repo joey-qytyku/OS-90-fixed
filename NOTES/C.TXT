@@ -27,10 +27,6 @@ I understand it is necessary to explain things backward. When learning a languag
 
 The goal is to make a definitive C tutorial.
 
->>>
-Small projects:
-- Bit scanning and making it faster by splitting
-
 --------------------------------------------------------------------------------
 	What is Needed
 --------------------------------------------------------------------------------

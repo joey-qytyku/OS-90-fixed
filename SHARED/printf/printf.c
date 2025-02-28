@@ -1,53 +1,56 @@
-//
-// Copyright (C) 2025 Joey Qytyku, All rights reserved
-//
-// This is a standards-compliant printf implementation written in one single
-// file with one header that targets C99 and higher.
-//
-// This is MY printf. There are hundreds like it, but this one is MINE.
-//
-// Tested against the output of the gnu libc printf, which is the reference
-// implementation used here.
-//
-// When compiling with floating point support, a standard library is required.
-// Otherwise, the implementation can be thought of as being in "embedded mode"
-// and does not have any float-related features.
-//
-// Aside from that, there is no dependency on stdlib functions and a built-in
-// implementation exists when necessary.
-//
+/*********************************  License  ***********************************
 
-//
-// If testing natively, compile with SHARED_PRINTF_TESTING_NATIVE defined.
-//
+			Copyright (C) 2025 Joey Qytyku
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the ?Software?), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED ?AS IS?, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+************************************  About  ***********************************
+
+This is a standards-compliant printf implementation written in one single
+file with one header that targets C99 and higher.
+
+This is MY printf. There are hundreds like it, but this one is MINE.
+
+It is tested against the output of the gnu libc printf, which is the reference
+implementation used here. Designed to be reentrant.
+
+When compiling with floating point support, a standard library is required.
+Otherwise, the implementation can be thought of as being in "embedded mode"
+and does not have any float-related features.
+
+Aside from that, there is no dependency on stdlib functions and a built-in
+implementation exists when necessary.
+
+If testing natively, compile with SHARED_PRINTF_TESTING_NATIVE defined.
+
+********************************************************************************
+TODO: (upd. Feb 27)
+	o Improve portability
+	o Theoretically support non-octet architectures (no 8-bit char)
+	o Float conversions
+*******************************************************************************/
+
 
 #if defined(SHARED_PRINTF_TESTING_NATIVE)
-#	define SHARED_PRINTF_ENABLE_FLOAT
-#	include <stdio.h>
-#	include <stdlib.h>
-#else
-
-/*
-Freestanding environment where we can freely define printf
-We do the efficient version where it is converted to puts() if there are no
-additional arguments. This is technically undefined behavior because there
-could be formats in the string.
-*/
-
-#	define printf(fmt, ...) { \
-	if (sizeof(_STR(__VA_ARGS__)<=1))\
-		{puts(fmt);} } \
-	else	{_printf(fmt, __VA_ARGS__);}
-
-#endif /* defined(SHARED_PRINTF_TESTING_NATIVE) */
-
-
+	#define SHARED_PRINTF_ENABLE_FLOAT
+	#include <stdio.h>
+	#include <stdlib.h>
+#endif
 
 // These ones are always going to exist, even if freestanding.
-#include <stdarg.h> /* variadic arguments*/
-#include <stddef.h> /* size_t */
-#include <sys/types.h> /* ssize_t */
-#include <stdint.h> /* Some macros needed for sizes??? */
+#include <stdarg.h>		/* variadic arguments*/
+#include <stddef.h>		/* size_t */
+#include <sys/types.h>		/* ssize_t */
+#include <stdint.h>
 
 #include <stdbool.h>
 #include <limits.h>
@@ -56,30 +59,49 @@ could be formats in the string.
 
 /* A freestanding environment may want float. An OS would not. */
 #ifdef ENABLE_FOAT
-#	include <float.h>
-#	include <math.h>
+	#include <float.h>
+	#include <math.h>
 #endif /* ENABLE_FOAT */
 
 #define STR_(x) #x
 
 /*
-Returns the number of characters needed to represent a number in DECIMAL.
-x needs to be a numeric literal.
-
-When it comes to max values, signed or not, this always returns the correct
-results.
+BTW ADD -Wstrict-aliasing=2 to kernel
 */
-#define NDFIGS(x) (sizeof(STR_(x))-1)
 
+/*
+	Returns the number of characters needed to represent a base-10 integer value.
+	Uses floating point, but it generates no code so it works when float is
+	disabled by the compiler.
+
+	This is the exact and reliable number for both buffer sizes and
+	iterations counts, and is truly portable. Works on GCC 4.4.7.
+*/
+#define DECFIGS(x) ((unsigned)__builtin_ceil(__builtin_log10(x))
+
+/*
+	For consistency, this has to return a value that works for any
+	input (useful later?).
+*/
+#define HEXFIGS(x) ((x)>=16?((sizeof(typeof(x))*8)-__builtin_clzll(x))/4:1)
 
 // Divide but with cieling. Used to calculate octal digits. E.g.
 // 32-bit number is 32/3=10.66 but we ceil to get 11 digits.
 #define CIELDIV_U(n, d) ((n) % (d) == 0 ? (n)/(d) : (n) / (d) + 1)
 
-#define unlikely(x) __builtin_expect((x),0)
-#define likely(x)   __builtin_expect((x),1)
+/*
+	Number of octal digits in a constant number, but it takes a TYPE
+	and NOT a number. Reliable and accurate.
+*/
+#define OCTFIGS(_TYPE) CIELDIV_U(sizeof(_TYPE)*CHAR_BIT, 3)
 
-// fmt char option always comes after the flags.
+#ifndef unlikely
+	#define unlikely(x) __builtin_expect((x),0)
+#endif
+
+#ifdef likely
+	#define likely(x)   __builtin_expect((x),1)
+#endif
 
 typedef enum {
 	l_NONE = 0,
@@ -88,8 +110,8 @@ typedef enum {
 	l_l,            // long
 	l_ll,           // long long
 	l_j,            // intmax_t
-	l_z,            //
-	l_t,
+	l_z,            // size_t
+	l_t,		// ptrdiff
 	l_L
 }lenmod;
 
@@ -496,6 +518,7 @@ static void set_fmt_params_defaults(printfctl *ctl)
 	ctl->justify = 1;       // Justify is to the right by default!!!
 }
 
+#define SIGNED_SIZE_TYPE typeof(-(SIZE_MAX/2)+1)
 //
 // When getting signed integers, it is necessary to sign extend the value
 // correctly. Not needed for anything unsigned. In that case only 64/32 matter
@@ -509,11 +532,28 @@ static long long int consume_sigint(va_list *v, unsigned l)
 		case l_h:	return (short)va_arg(*v, int);
 		case l_NONE:	return va_arg(*v, int);
 		case l_l:	return va_arg(*v, long);
-		case l_ll:	return va_arg(*v, long long int);
+		case l_ll:	return va_arg(*v, long long);
 		case l_j:	return va_arg(*v, intmax_t);
-		// case l_z:	return va_arg(*v, ssize_t);
+		case l_t:
+		case l_z:	return va_arg(*v, ptrdiff_t);
 		default:	return 0;
 	}
+/*
+	The z flag means a signed version of size_t. This is defined by posix.
+	Standard C does not define this for some reason but supports it in
+	printf.
+
+	This is strange because there is no standard type to represent it, so
+	how would one pass it?
+
+	ptrdiff_t is usually the same as ssize_t on posix. The manpage says
+	that it is fine to pass ssize_t to a ptrdiff_t format, but converting
+	to a intmax_t may not work as expected since they do not have to be
+	the same.
+
+	There is no better way to do this in C. typeof will give a signed number
+	and only C++ can remove a qualifier.
+*/
 }
 
 // Returns the size of a buffer needed to store an integer based on the
@@ -1032,11 +1072,6 @@ int _printf_core(       printfctl *__restrict   ctl,
 	return (int)ctl->bytes_printed;
 }
 
-// For YT: MS-PAINT STYLE COMICS? GC edit for arch?
-
-// Add support for duplicating characters?
-// Also this can be changed to work with VGA characters.
-
 #ifdef SHARED_PRINTF_TESTING_NATIVE
 #define PUTCHAR_COMMIT _putchar_commit
 static void _putchar_commit(
@@ -1166,30 +1201,3 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 		return r;
 	}
 }
-
-// Note: streams require callbacks to accept reads and writes. This allows
-// for a correctly working stdin/stdout. I saw this in the
-// standard header myself. However, it may need to be a
-// special case for thread safety.
-#ifdef SHARED_PRINTF_TESTING_NATIVE
-int main(void)
-{
-	char b[1024];
-
-	_printf("%.4x\n", 256);
-	printf("%.4x\n", 256);
-
-	//
-	// There is a difference between the DJGPP printf output and the
-	// GCC/Mac one. This is not a regression or error on my part, the OTHER
-	// printf is showing an abberation.
-	//
-	// In this case, I think DJGPP's library has a bug. It abberates from
-	// a standards-compliant one.
-	//
-	// Should send a report.
-	//
-
-	return 0;
-}
-#endif
