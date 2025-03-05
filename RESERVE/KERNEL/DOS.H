@@ -203,6 +203,8 @@ typedef struct {
 
 // MUST BE UNDER 4096 BYTES
 // Note that ^C does not require return in real mode.
+
+/* TODO: make this accessible from real mode */
 typedef _Packed struct {
 	//
 	// A full local interrupt vector table. This is looked up first

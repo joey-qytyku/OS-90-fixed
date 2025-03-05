@@ -89,7 +89,9 @@
         "DOS.H": "cpp",
         "S_INT.H": "cpp",
         "DOS.C": "cpp",
-        "SV86.H": "cpp"
+        "SV86.H": "cpp",
+        "SYNC.H": "cpp",
+        "climits": "cpp"
     },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",

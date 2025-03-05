@@ -74,14 +74,13 @@
             "compilerPath": "/Users/joeyqytyku/Desktop/djgpp/bin/i586-pc-msdosdjgpp-gcc",
             "cStandard": "c99",
             "cppStandard": "c++17",
-            "intelliSenseMode": "${default}",
-            "compilerArgs": [
-                " -std=gnu99"
-            ]
+            "intelliSenseMode": "gcc-x86"
         },
         {
             "name": "SHARED | printf",
-            "defines": ["SHARED_PRINTF_TESTING_NATIVE=1"],
+            "defines": [
+                "SHARED_PRINTF_TESTING_NATIVE=1"
+            ],
             "macFrameworkPath": [
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],

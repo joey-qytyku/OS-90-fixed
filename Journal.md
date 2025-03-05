@@ -8585,3 +8585,306 @@ BTW when it comes to memory latency on modern CPUs it is way slower but the CPU 
 ## Rewite malloc
 
 It is really bad and disorganized. I will end up deleting the code. Probably dont need to delete all of it.
+
+# February 28
+
+## printf and Checking Argument Sizes
+
+Many of the conversion handlers check the buffer length.
+
+### Iterate Faster Backward?
+
+If the buffer is written to in reverse, there is an advantage that involves keeping the result of the division needed to get the digits.
+
+The modulus of 10, which we also can divide by, is already computed in x86 as part of the operation.
+
+So we can remove the multiplication totally and do one single division operation.
+
+The buffer passed will be the tail byte. Getting the outputted character count should be returned for fast buffer copying.
+
+This is WAY faster. One expensive operation instead of two or three. It even beats the lookup table AND it is portable. It is also simpler!
+
+The only issue is that I have to rewrite some of the code that uses it.
+
+## Why It Is Better and other Improvements
+
+The code is shorter first of all.
+
+Also, this is way faster than a portable three expensive operations style because only one division happens per iteration and no multiplication at all.
+
+Even the lookup table is slower because it is less cache dense (10*4=40 bytes) and requires memory access with a ModRM/SIB operand and gets a one clock penalty on the 486 for the IMM.
+
+There is only one potential bottleneck and it is the fact that the iteration count is always the number of characters in the largest number.
+
+Also the pointer arithmetic should be done in the procedure so
+
+## Optimizations
+
+The compiler knows how to use LEA tricks to speed up multiplications. The early out that I already implemented gives it the information to know that it is safe.
+
+        mul     esi
+        mov     eax, edx
+        shr     eax, 3
+        lea     edx, [eax+48]
+        mov     BYTE PTR [ecx], dl
+        dec     ecx
+        cmp     ebx, ecx
+
+Actually, the compiler generates this as part of the loop ONLY for constant propagation. constprop symbols are used locally to calculate things in the static context with inputs under control of one translation unit.
+
+If the scope is public or an unknown input is passed, this does not happen.
+
+But the compiler is able to do that. It can completely fold functions by predetermining the results requested.
+
+The code is much more bloated that I had hoped. I can write this in assembly if I wanted.
+
+Yes, I could really write my own better implementation. It generates many pipelines hostile codes that I could beat myself.
+
+# March 1, 2025
+
+The compiler outputs extremely bad code for the conversion. In fact, it is so bad that I may need to provide an alternative i386 implementation in 100% inline assembly to make up for how bad it is.
+
+Here it is in GNU AS, but the pointer is AFTER the buffer, equal to its base plus size.
+
+```
+/*
+    This code mogs anything that even the latest GCC outputs. If compiling for
+    i386, this is used instead of the generic version. Could be changed to fit
+    64-bit too.
+
+    "Real Programmers Don't Use Pascal" vindicated.
+*/
+asm_v:
+    push %edi
+
+    movl 12(%esp),%ecx  ; ECX = iterations
+    movl 8(%esp),%edx   ; EDI = buffer, we need it for later
+    movl 4(%esp),%eax   ; EAX = value
+
+    ; If the number is under 65535, reduce iterations to 5 for ~-200 clocks
+    cmpl $0xFFFF,%eax
+    jae 0f
+    shl $1,%ecx
+
+    .align  16
+0:
+    subl $1,%edi        ; Decrement down
+    subl $1,%ecx        ; Decrement loop counter
+    xorl %edx,%edx      ; Clear EDX for division
+    divl %ecx           ; EDX now equal to the digit
+    add $'0',%dl        ; Convert to character
+    movb %dl,(%edi)     ; Copy to the buffer
+    jecxz 1f            ; If zero, leave
+    jmp 0b
+    .align 16
+1:
+
+    mov $'0',%eax
+    repe scasb
+    mov %edi,%eax
+
+    subl %edi,8(%esp)
+    mov %edi,%eax
+
+    pop %edi
+    ret
+```
+
+I added a fast exit for a value in the 16-bit range which reduces iterations to 5.
+
+This is worth it since the inner loop is about 46 on a 386. This saves 230 clocks for small numbers as it will unconditionally generate zeroes.
+
+But the timings would still be essentially the same.
+
+This is so much better than the compiled version that I would have to conditionally include it into the portable version. Even with the calling conventions followed, it is way smaller than the compiler's code.
+
+Backward copying is way faster than any calculation I might need to do so I can correctly copy it.
+
+Finding the number of leading zeroes can be done using `repe scasb` with AL set to '0'.
+
+## Other Ideas
+
+I can pass the value of the integer as a pointer so that the call can be dispatched with a table.
+
+One table can grab the buffer size, and another can dispatch. This may be somewhat expensive for cache locality.
+
+I can also set the iteration count using a parameter and completely avoid this. The cost is minimal and reduces the lookup table sizes.
+
+Not quite. Size counts are just a performance optimization. I still need to dispatch the right function call.
+
+The only problem my procedure has is that it takes many iterations. Buffer length parameters reduce this problem, but a lot of code uses the default size. It is better to have a good average or if possible, reduce iterations in general.
+
+A lookup table can be used that also is compatible with buffer lengths (can be the length itself) and the entries should be 8-bit for density.
+
+I don't think this would help much. The automatic 16-bit optimization is good enough.
+
+## Conversions Again
+
+Technically I do not need a special converter for each type, and although it can be used, it will not make the regular size faster.
+
+Anyway, 250 clocks is not actually that critical. It takes 300 to make a system call and 300 to go back.
+
+## Improvement Idea
+
+I can use the -1/not trick to get the number and constrain the iterations as with strlen. There is no need for a rep prefix. The only issue is relying on a separate branch
+
+Maybe not, but the scasb instruction can be sped up by setting EDI to a more reasonable offset.
+
+# March 2, 2025
+
+## Shell Completion and other enhancements
+
+I want OS/90 to have excellant tab completion.
+
+Some changes to the filesystem hierarchy are needed. I will add a directory for command line completions.
+
+Another enhancement I would like to do is make the shell prompt fixed to the bottom of the window. This can be done by making the prompt variable equal to an empty string and not echoing characters until the command is passed.
+
+Internally we will buffer the input before sending it.
+Also we are talking about the DOS prompt program, not the shell itself.
+
+The current working directory will be shown on the top of the window.
+
+So the idea is this:
+
+```
+--------------------------------------------------------------------------------
+[^] C:\OS90\HOME
+--------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------
+>>> dir /P
+```
+
+When enter is pressed, the command will go through and the DOS process of the shell will be stalled until the subprocess exists. Somehow I am supposed to know this and disable all the other controls.
+
+Changing the CWD of anything but the shell is a very bad idea, so it is turned off along with the command input.
+
+I should experiment with this concept on UNIX.
+
+Also, the up arrow to see the history can show each command string by stacking them on top of each other so that the user can see them more easily.
+
+# March 3, 2025
+
+I should also add horizontal separators if possible to separate the output of different commands.
+
+To test the concept, I can work on a terminal wrapper program for unix only using ncurses.
+
+## ia16-gcc compiler is now working
+
+I am able to run this compiler under Docker. No need to start the container either, I can execute it independently and build programs.
+
+## Idea For New Project
+
+A new shell?
+
+So I would have to implement all of the features available to the DOS shell.
+
+I have some ideas for features. First of all, the shell can be somehow reentrant, so that it can execute multiple shells using the same code.
+
+This would be possible in OS/90 but I have no way of testing it now. It could be implemented as a DLL perhaps.
+
+I can also use my 16-bit compiler to write it for DOS. This gives a lot more flexibility.
+
+The code would have to be resident but the entire context can be placed in extended memory using XMS.
+
+The problem is doing this globally. How would this actually coordinate properly in a multitasking system?
+
+Probably don't need to think about this.
+
+Motivation has been quite low lately. I don't really know what to work on.
+
+Tomorrow I have 4 hours to myself. Maybe I can record a video.
+
+I need actual ideas.
+
+## Video Ideas
+
+I am really starved of video ideas for my youtube channel.
+
+I need to do this as an extracurricular activity. I will write some ideas down.
+
+## Build System
+
+Header files can completely generate the code outputted by the compiler even if only headers are changed. Altering a static inline can completely change the code outputted.
+
+This means that C sources should depend on their headers.
+
+It also means that header files that are globally used should be used carefully.
+
+Right now my build system will just delete things. If a module has no changes then it will not.
+
+make works using targets. If the target is older than the source, then it has to run the job for it.
+
+I can depend on the header files per file somehow and it can work like that. At least the C library will need something like that as it will be composed of many up to a hundred files with the current layout.
+
+## DOS Control Blocks
+
+There is a structure used for controlling a DOS program that may be sharable with ring-3.
+
+Specifically, I would like there to be access to the framebuffer of the DOS program.
+
+Also, there is a need for cooked and raw IO so I can avoid allocating framebuffers.
+
+Not quite. A framebuffer has to be allocated, and it cannot be compatible with the ATM format unless it is copied.
+
+That makes me wonder if the current memory management system for ATM is actually a good idea.
+
+Or I can use a stacking window manager with no implicit composition.
+
+## DOS CTL Interface
+
+Making this ring-3 accessible can be very powerful.
+
+# March 4
+
+## printf Redesign
+
+Converting signed numbers is changed now. As long as the buffer is large enough, it is very easy to append a negative sign to the end.
+
+```
+if (v < 0) {
+    char * a = utoa_bw(blentab_i[f->lenmod], -v);
+    a[-1] = '-';
+}
+```
+
+The conversion that I have now already works as intended. We only need two converters, one for int and one for long long.
+
+## C Library Notes
+
+OS/90 is supposed to have optimized file IO at the kernel level, where there is more control.
+
+I wonder if I should strive for simplicity by making IO completely unbuffered.
+
+The problem with this is seeking would be extremely slow because of the ring switch overhead.
+
+The method of buffering is implementation-defined but the userspace can allocate them at will.
+
+## Idea: ring-0 userspace?
+
+This would allow direct access to ring-0 functionality but compromise security somewhat.
+
+A solution is to run programs inside segments, but the problem is that allocating memory becomes a challenge.
+
+

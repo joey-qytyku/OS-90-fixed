@@ -6,7 +6,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED ?AS IS?, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
@@ -15,28 +15,33 @@ SOFTWARE.
 
 ************************************  About  ***********************************
 
-This is a standards-compliant printf implementation written in one single
-file with one header that targets C99 and higher.
-
-This is MY printf. There are hundreds like it, but this one is MINE.
+This module is a standards-compliant printf implementation written in one single
+file with one header, and it targets C99 or higher.
 
 It is tested against the output of the gnu libc printf, which is the reference
 implementation used here. Designed to be reentrant.
 
-When compiling with floating point support, a standard library is required.
-Otherwise, the implementation can be thought of as being in "embedded mode"
-and does not have any float-related features.
+When compiling with floating point support, a standard library is required. If one does not exist, define them with macros or externally link the appropriate
+math functions.
 
 Aside from that, there is no dependency on stdlib functions and a built-in
 implementation exists when necessary.
 
 If testing natively, compile with SHARED_PRINTF_TESTING_NATIVE defined.
 
-********************************************************************************
-TODO: (upd. Feb 27)
-	o Improve portability
-	o Theoretically support non-octet architectures (no 8-bit char)
-	o Float conversions
+This printf is a good balance between efficiency and compactness. It may not be ideal for embedded projects if size is the most important, but the compiler does a good job with that regardless.
+
+********************************** How To Use **********************************
+
+This module implements a function called _printf_core. The source package should
+include examples of how to implement some of the derivatives.
+
+_printf_core is used to implement every other variant of the printf family.
+It works like vsnprintf but with a buffer write callback.
+
+Copy printf.c into your source tree and use another file to implement the
+functions needed with the desired function signature.
+
 *******************************************************************************/
 
 
@@ -46,16 +51,23 @@ TODO: (upd. Feb 27)
 	#include <stdlib.h>
 #endif
 
+#ifdef __MEDIUM__
+/*
+	Compiling for 16-bit DOS with ia16-gcc. Float is automatically
+	disabled.
+*/
+#endif
+
 // These ones are always going to exist, even if freestanding.
 #include <stdarg.h>		/* variadic arguments*/
 #include <stddef.h>		/* size_t */
 #include <sys/types.h>		/* ssize_t */
-#include <stdint.h>
+#include <stdint.h>		/* type sizes */
+#include <limits.h>		/* bit widths */
 
 #include <stdbool.h>
-#include <limits.h>
 
-#include <string.h>
+#include <string.h>		/* What to do about this? */
 
 /* A freestanding environment may want float. An OS would not. */
 #ifdef ENABLE_FOAT
@@ -77,7 +89,7 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	This is the exact and reliable number for both buffer sizes and
 	iterations counts, and is truly portable. Works on GCC 4.4.7.
 */
-#define DECFIGS(x) ((unsigned)__builtin_ceil(__builtin_log10(x))
+#define DECFIGS(x) ((unsigned)__builtin_ceil(__builtin_log10((double)(x))))
 
 /*
 	For consistency, this has to return a value that works for any
@@ -103,6 +115,10 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	#define likely(x)   __builtin_expect((x),1)
 #endif
 
+/*******************************************************************************
+				Type Definitions
+*******************************************************************************/
+
 typedef enum {
 	l_NONE = 0,
 	l_hh,           // Usually 8-bit
@@ -112,10 +128,9 @@ typedef enum {
 	l_j,            // intmax_t
 	l_z,            // size_t
 	l_t,		// ptrdiff
-	l_L
+	l_L		// Long float type
 }lenmod;
 
-//
 // This structure is the full context of a printf_core instance.
 // It contains things that are shared with helper routines and are
 // not worth making into local variables.
@@ -164,173 +179,127 @@ typedef struct {
 	char *out_buffer;
 }printfctl;
 
+
 //
 // This is called by the core function to write bytes from any buffer to the
 // target buffer. NULL must be handled internally by the caller.
 //
 typedef void (*commit_buffer_f)(printfctl *ctl, const char *b, size_t c);
 
-//
-// value is promoted to avoid losing the sign when converting narrow
-// values.
-//
-unsigned int libc90_atoi(const char *s)
+/*******************************************************************************
+			     Conversion functions
+*******************************************************************************/
+
+/* NUMBER OF DECIMAL CHARACTERS */
+static const size_t	ndc_int		= DECFIGS(INT_MAX),
+			ndc_uint	= DECFIGS(UINT_MAX),
+			ndc_char	= DECFIGS(CHAR_MAX),
+			ndc_uchar	= DECFIGS(UCHAR_MAX),
+			ndc_long	= DECFIGS(LONG_MAX),
+			ndc_llong	= DECFIGS(LLONG_MAX),
+			ndc_ulong	= DECFIGS(ULONG_MAX),
+			ndc_ullong	= DECFIGS(ULLONG_MAX),
+			ndc_size	= DECFIGS(SIZE_MAX);
+
+
+/* NUMBER OF OCTAL CHARACTERS */
+
+#if 0 /*__i386__*/
+/*
+    This code mogs anything that even the latest GCC outputs. If compiling for
+    i386, this is used instead of the generic version.
+
+    "Real Programmers Don't Use Pascal" vindicated.
+*/
+__attribute__((regparm(0), cdecl))
+static char *utoa_bw(char *tbuff, unsigned int value)
 {
-	static const unsigned int lookup[] =
-	{1,10,100,1000,10000,100000,1000000,10000000,100000000,1000000000};
+	__asm__ (
+	R"(
+	push %edi
 
-	unsigned int final = 0;
+	movl 16(%esp),%ecx  # ECX = iterations
+	movl 12(%esp),%edi   # EDI = buffer, we need it for later
+	movl 8(%esp),%eax   # EAX = value
 
-	if (s == NULL)
-		return 0;
+	# If the number is under 65535, reduce iterations to 5 for ~-200 clocks
+	cmpl $0xFFFF,%eax
+	jae 0f
+	shl $1,%ecx
+    jmp 0f
 
-	// Find end of the string.
-	size_t len = strlen(s);
-        unsigned int n = 0;
-	for (size_t i = 0; i < len; i++) {
-		if (s[i] == '-') {
-			n=1;
-			continue;
-		}
-		else if (s[i] == ' ')
-			continue;
-		final += lookup[len-i-1] * (unsigned)(s[i]-'0');
-	}
-	return n ? -final : final;
+	.align  16
+0:
+	xorl %edx,%edx      # Clear EDX for division
+	subl $1,%edi        # Decrement down
+	subl $1,%ecx        # Decrement loop counter
+	divl %ecx           # EDX now equal to the digit
+	add $'0',%dl        # Convert to character
+	movb %dl,(%edi)     # Copy to the buffer
+	jecxz 1f            # If zero, leave
+	jmp 0b
+	.align 16
+1:
+
+	mov $'0',%eax
+	repe scasb
+	mov %edi,%eax
+
+	subl 12(%esp),%edi
+	mov %edi,%eax
+
+	pop %edi
+	ret
+	)");
 }
+#else
 
-// Buffer should usually be 11 bytes, with one for null terminator
-// Returns number of character bytes outputted, or number of digits
-// and be used to insert null.
-unsigned int libc90_utoa64(unsigned long long int value, char *buff)
+static char *utoa_bw(char *tbuff, unsigned int value)
 {
-	static const unsigned long long int lookup[20] =
-	{
-	10000000000000000000ULL,1000000000000000000ULL,100000000000000000ULL,
-	10000000000000000ULL,1000000000000000ULL,100000000000000ULL,
-	10000000000000ULL,1000000000000ULL,100000000000ULL,10000000000ULL,
-	1000000000ULL,100000000ULL,10000000ULL,1000000ULL,100000ULL,10000ULL,
-	1000ULL,100ULL,10ULL,1ULL
-	};
+	tbuff--;
+	*(tbuff) = (char)( ((unsigned)'0') + value % 10 );
 
-	unsigned int i = 0;
+	if (value <= 9)
+		return tbuff;
 
-	// If we are printing only one digit (quite common) do the simple
-	// conversion.
-	if (value < 9) {
-		buff[i] = (char)((unsigned)value + (unsigned)'0');
-		return 1;
-	}
-
-	_Bool found_first_zero = 0;
-
-	for (unsigned int j = 0; j < 20; j++) {
-		unsigned int d = (unsigned)((value / lookup[j]) % 10ULL);
-
-		// We only care about zeroes if we have encountered the first
-		// non-zero digit (except if value is zero).
-
-		if (d == 0 && !found_first_zero) {
-			continue;
-		}
-		// If a non-zero is found, zeroes after
-		// matter so first condition is not true.
-		else if (d != 0) {
-			found_first_zero = 1;
-		}
-		buff[i++] = (char)((unsigned)'0' + d);
-	}
-	return i;
-}
-
-unsigned int libc90_utoa32(unsigned int value, char *buff)
-{
-	static const unsigned int lookup[] =
-	{
-	    1000000000,
-	    100000000,
-	    10000000,
-	    1000000,
-	    100000,
-	    10000,
-	    1000,
-	    100,
-	    10,
-	    1
-	};
-
-	// Index to the buffer and counter of significant
-	// digits put out.
-	unsigned int i = 0;
-
-	if (value < 9) {
-		buff[0] = (char)( value + (unsigned)'0' );
-		return 1;
+	for (unsigned i = 1; i < ndc_uint; i++) {
+		tbuff--;
+		*(tbuff) = (char)( (unsigned)'0' + (value /= 10) % 10);
 	}
 
-	int found_first_nonzero = 0;
+	for (unsigned i = 0; i < ndc_uint-1; i++)
+		if (*tbuff == '0')
+			tbuff++;
+		else
+			break;
 
-	for (unsigned int j = 0; j < 10; j++) {
-		unsigned int d = ((value / lookup[j]) % 10U);
+	return tbuff;
+}
+#endif
 
-		if ((d == 0) && (!found_first_nonzero)) {
-			continue;
-		}
-		else if (d != 0) {
-			found_first_nonzero = 1;
-		}
+static char *ulltoa_bw(char *tbuff, unsigned long long value)
+{
+	tbuff--;
+	*(tbuff) = (char)( (unsigned)'0' + value % 10 );
 
-		buff[i] = (char)( (unsigned)'0' + d );
-		i++;
+	if (value <= 9)
+		return tbuff;
 
+	for (unsigned i = 1; i < ndc_ullong; i++) {
+		tbuff--;
+		*(tbuff) = (char)((unsigned)'0' + (value /= 10LL) % 10LL);
 	}
-	return i;
+
+	for (unsigned i = 0; i < DECFIGS(ULLONG_MAX)-1; i++) {
+		if (*tbuff == '0')
+			tbuff++;
+		else
+			break;
+	}
+	return tbuff;
 }
 
-// There is no need for iterating when using precision on integer or hex.
-// Just offset from the end and then check for zeroes if needed. Check if
-// the padding is set.
-
-//
-// These functions only convert the magnitude and do not output a sign.
-//
-unsigned int libc90_itoa32(int value, char *buff)
-{
-	if (value < 0)
-		return libc90_utoa64((unsigned) (-value), buff);
-	else
-		return libc90_utoa64((unsigned) ( value), buff);
-}
-
-unsigned int libc90_itoa64(long long int value, char *buff)
-{
-	if (value < 0LL)
-		return libc90_utoa64((unsigned long long) (-value), buff);
-	else
-		return libc90_utoa64((unsigned long long) ( value), buff);
-}
-
-static void get_float_digits(float v, unsigned int *out)
-{
-	out[0] = (unsigned int)v;
-	out[1] = NDFIGS((unsigned int)v) * (v - (unsigned int)v);
-}
-
-// long double is the longest possible floating point type. We do not
-// actually know its size. It will be at least as long as double.
-// On x86 it will certainly be 80-bit, but on aarch64 it is 64-bit.
-//
-// C does not support anything shorter than a float so we only have three
-// variants to worry about.
-//
-// We can safely use memory allocation for this since it wont be used on KRNL.
-//
-void libc90_ftoa(long double value, char *buff)
-{
-	// We get the
-}
-
-unsigned libc90_itox
+static unsigned itox
 (
 	unsigned long long	value,
 	unsigned		cap,
@@ -347,7 +316,8 @@ unsigned libc90_itox
 
 	unsigned int nonzero_encountered = 0, ret = 0;
 
-	for (int i = (signed)maxdigits-1; i >= 0; i--) {
+	for (int i = (signed)maxdigits-1; i >= 0; i--)
+	{
 		char digit = lookup[ (value >> ((unsigned)i*4)) & 0xF ];
 
 		if (!nonzero_encountered && digit != '0')
@@ -361,12 +331,16 @@ unsigned libc90_itox
 	return ret;
 }
 
-// Limiting the digits is more of a performance optimization.
-// It reduces iterations but simple and'ing can do the trick for deciding
-// the proper of the value.
-unsigned int libc90_itoo(	unsigned long long int  value,
-				char *                  buff
-		)
+/*
+	Returns number of characters generated.
+
+	Forward generating to the buffer.
+*/
+static unsigned int itoo_fw
+(
+	unsigned long long int  value,
+	char *                  buff
+)
 {
 	unsigned int nonzero_encountered = 0;
 	unsigned int ret = 0;
@@ -384,31 +358,32 @@ unsigned int libc90_itoo(	unsigned long long int  value,
 	return ret;
 }
 
-// printf padding is actually dumber than I originally thought it was.
-// It does not account for the current position of the cursor relative to the
-// line.
-//
-// Padding is in relation to ONLY the thing being printed. To handle padding
-// with more than one thing, one would need to divide the value of the full
-// line area for both formats.
-//
-// For example:
-// printf("%-40s%40s", action, status);
-//
-// This could print something resembling:
-//      Loading data                                                    [OK]
-//
-// If the thing does not fit, well it just doesn't and it gets printed normally.
-//
-// Also, if including the number's sign with the padding, we just decrease the
-// width of the positive value by 1 so an extra space is printed.
-//
-//
-static void do_pad(     printfctl *     ctl,
-			commit_buffer_f cmt,
-			const char *    toprint,
-			size_t          length
-			)
+unsigned int custom_atou(const char *s)
+{
+	unsigned int final = 0;
+	unsigned int multiplier = 1;
+
+	if (s == NULL)
+		return 0;
+
+	// Find end of the string.
+	// USE THIS FOR DIGITS
+	size_t len = strlen(s);
+
+	for (size_t i = 0; i < len; i++) {
+		final += multiplier * (unsigned)(s[i]-'0');
+		multiplier *= 10;
+	}
+	return final;
+}
+
+static void do_pad
+(
+	printfctl *	ctl,
+	commit_buffer_f	cmt,
+	const char *	toprint,
+	size_t		length
+)
 {
 	size_t pad_width = ctl->padding_req;
 
@@ -436,42 +411,47 @@ static void do_pad(     printfctl *     ctl,
 
 }
 
-static inline unsigned int max(unsigned int x, unsigned int y)
+static inline unsigned umax(unsigned x, unsigned y)
 {
 	return x > y ? x : y;
 }
-
-static inline unsigned int min(unsigned int x, unsigned int y)
+static inline unsigned umin(unsigned x, unsigned y)
 {
 	return x < y ? x : y;
 }
-
-static inline unsigned int libc90_iabs(int a)
+static inline unsigned iabs(int a)
 {
 	return (unsigned)(a < 0 ? -(a) : a);
 }
+static inline unsigned long lliabs(long long a)
+{
+	return (unsigned long long) (a < 0 ? -(a) : (unsigned long long)a);
+}
 
-static void dup_buffer_with_zeroes_and_print(   printfctl *     ctl,
-						commit_buffer_f cmt,
-						const char *    b,
-						unsigned        old_buff_size,
-						unsigned        minimum,
-						char            prefix
-						)
+
+static void dup_buffer_with_zeroes_and_print
+(
+	printfctl *     ctl,
+	commit_buffer_f cmt,
+	const char *    b,
+	unsigned        old_buff_size,
+	unsigned        minimum,
+	char            prefix
+)
 {
 	unsigned int nz;
 
 	if (old_buff_size >= minimum)
 		nz = 0;
 	else
-		nz = libc90_iabs((signed)old_buff_size - (signed)minimum);
+		nz = iabs((signed)old_buff_size - (signed)minimum);
 
 	const unsigned int has_prefix = (prefix != 0);
 
 	char b2[has_prefix + nz + old_buff_size];
 
-	memset( b2+has_prefix, '0', nz);
-	memcpy( b2+has_prefix + nz, b, old_buff_size);
+	memset(b2+has_prefix, '0', nz);
+	memcpy(b2+has_prefix + nz, b, old_buff_size);
 
 	if (has_prefix)
 		b2[0] = prefix;
@@ -485,8 +465,8 @@ static void dup_buffer_with_zeroes_and_print(   printfctl *     ctl,
 // index_inc is address of index to the string. Incremented by the number
 // of digits found.
 
-static int atoi_substring(      const char * __restrict         str,
-				unsigned int * __restrict       index_inc
+static int atou_substring(      const char *	str,
+				unsigned int *	index_inc
 				)
 {
 	// Change the byte right after all the numbers that
@@ -497,13 +477,13 @@ static int atoi_substring(      const char * __restrict         str,
 	// it can save/restore that too.
 	int j;
 
-	char buff[11];
+	char buff[ndc_int];
 
 	for (j = 0; str[j] >= '0' && str[j] <= '9'; j++, (*index_inc)++)
 		buff[j] = str[j];
 	buff[j] = 0;
 
-	return libc90_atoi(buff);
+	return atoi(buff);
 }
 
 static void set_fmt_params_defaults(printfctl *ctl)
@@ -518,7 +498,6 @@ static void set_fmt_params_defaults(printfctl *ctl)
 	ctl->justify = 1;       // Justify is to the right by default!!!
 }
 
-#define SIGNED_SIZE_TYPE typeof(-(SIZE_MAX/2)+1)
 //
 // When getting signed integers, it is necessary to sign extend the value
 // correctly. Not needed for anything unsigned. In that case only 64/32 matter
@@ -565,79 +544,55 @@ static long long int consume_sigint(va_list *v, unsigned l)
 // l_j prints out (u)intmax_t.          Handled using long long.
 // l_z prints out (signed)size_t.       If 64-bit target, 64-bit.
 //
-static size_t integer_bufflen_lookup[] = {
-	[l_hh]  = NDFIGS(CHAR_MAX),
-	[l_h]   = NDFIGS(SHRT_MAX),
-	[l_NONE]= NDFIGS(INT_MAX),
-	[l_l]   = NDFIGS(LONG_MAX),
-	[l_ll]  = NDFIGS(LLONG_MAX),
-	[l_j]   = NDFIGS(INTMAX_MAX),
-	[l_z]   = NDFIGS(SSIZE_MAX)
+static unsigned char intblt[] = {
+	[l_hh]  = DECFIGS(UCHAR_MAX	),
+	[l_h]   = DECFIGS(USHRT_MAX	),
+	[l_NONE]= DECFIGS(UINT_MAX	),
+	[l_l]   = DECFIGS(ULONG_MAX	),
+	[l_ll]  = DECFIGS(ULLONG_MAX	),
+	[l_j]   = DECFIGS(UINTMAX_MAX	),
+	[l_z]   = DECFIGS(PTRDIFF_MAX	)
 };
-
-// For memcpy in clib, use a compound expression and if statements. They should
-// operate on 100% constant values and use features related to that.
-//
-// We still have to use a macro.
-//
 
 // printfctl *ctl
 // CHECK THE SIZE SPEC!!!
 static void fmt_i(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	// This format is modified by several of the size specifiers
-	// and the negative for space and plus sign modifiers.
-	// "% +i" is not possible because both would have a sign, making it
-	// pointless.
+	const	unsigned bl = intblt[ctl->length_mod];
+	const	unsigned lm = ctl->length_mod;
+		long long v = consume_sigint(va, lm);
+	const int has_prefix = (v < 0 || ctl->prepend_space || ctl->plus_sign);
+	char *a = NULL;
 
-	// Precision determines how many characters must be printed, and
-	// zeroes are added if needed.
 
-	const unsigned int bufflen = integer_bufflen_lookup[ctl->length_mod];
+	char b[ bl + has_prefix ];
 
-	char inc_sign = 0;
+	memset(b, '%', sizeof(b));
 
-	char _b[bufflen+1];
+	if (intblt[lm] <= intblt[l_NONE]) {
+		a = utoa_bw(b + sizeof b, iabs(v));
+	}
+	else {
+		a = ulltoa_bw(b + sizeof b, lliabs(v));
+	}
 
-	// This will hold only the MAGNITUDE and not the sign.
-	// b[0] is the first digit.
-	char *b = _b+1;
+	if (v < 0)			a[-1] = '-', a--;
+	else if (ctl->plus_sign)	a[-1] = '+', a--;
+	else if (ctl->prepend_space)	a[-1] = ' ', a--;
 
-	// Get a sign extended value. We cannot get a long long on a 32-bit
-	// system because it would consume two integers from the stack
-	// and corrupt everything.
-	const long long int val = consume_sigint(va, ctl->length_mod);
-
-	const unsigned int chars_gen =
-		bufflen > 10
-			?       libc90_itoa64(val, b):
-				libc90_itoa32((int)val, b);
-
-	inc_sign = ({char x;
-		if (ctl->plus_sign)             x = val >= 0 ? '+':'-';
-		else if (ctl->prepend_space)    x = val >= 0 ? ' ':'-';
-		else                            x = val >= 0 ?  0 :'-';
-		x;
-	});
-
-	_b[0] = inc_sign;
-
-	if (ctl->precision != 0) {
+	if (ctl->precision == 0) {
+		do_pad(ctl, cmt, a, (b+sizeof(b)) - a);
+	}
+	else {
+		// THis needs to be fixed actually
 		dup_buffer_with_zeroes_and_print(
 			ctl,
 			cmt,
-			b,
-			chars_gen,
+			a,
+			((b+sizeof(b)) - a),
 			ctl->precision,
-			inc_sign
-			);
-	}
-	else {
-		do_pad( ctl,
-			cmt,
-			inc_sign != 0 ? _b : b,
-			chars_gen + (inc_sign!=0)
-			);
+			has_prefix ? a[0] : 0
+		);
 	}
 }
 
@@ -671,7 +626,7 @@ static void fmt_x(printfctl *ctl, commit_buffer_f cmt,va_list *va)
 			va_arg(*va, unsigned long long int) :
 			va_arg(*va, unsigned int);
 
-	unsigned int chars_gen = libc90_itox(
+	unsigned int chars_gen = itox(
 						val,
 						ctl->req_fmt == 'X',
 						digits[ctl->length_mod],
@@ -737,16 +692,15 @@ static void fmt_G(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 
 static void fmt_o(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	#define ODS(_TYPE) CIELDIV_U(sizeof(_TYPE)*CHAR_BIT, 3)
 	static size_t digits[] = {
-		[l_hh   ] = ODS(unsigned char),
-		[l_h    ] = ODS(unsigned short),
-		[l_NONE ] = ODS(unsigned int),
-		[l_l    ] = ODS(unsigned long),
-		[l_ll   ] = ODS(unsigned long long),
-		[l_j    ] = ODS(uintmax_t),
-		[l_z    ] = ODS(size_t),
-		[l_t    ] = ODS(ptrdiff_t)
+		[l_hh   ] = OCTFIGS(unsigned char),
+		[l_h    ] = OCTFIGS(unsigned short),
+		[l_NONE ] = OCTFIGS(unsigned int),
+		[l_l    ] = OCTFIGS(unsigned long),
+		[l_ll   ] = OCTFIGS(unsigned long long),
+		[l_j    ] = OCTFIGS(uintmax_t),
+		[l_z    ] = OCTFIGS(size_t),
+		[l_t    ] = OCTFIGS(ptrdiff_t)
 	};
 	#undef ODS
 
@@ -758,7 +712,7 @@ static void fmt_o(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 
 	char b[bufflen];
 
-	unsigned int chars_gen = libc90_itoo(val, b);
+	unsigned int chars_gen = itoo_fw(val, b);
 
 	if (ctl->precision != 0) {
 		dup_buffer_with_zeroes_and_print(
@@ -837,16 +791,10 @@ static const fmt_handler fmt_lookup[] = {
 
 static char is_valid_fmt(char f)
 {
-	// Most common ones go first
-	// static const char pf[] = "iuxXsdgGopaAeEn";
-
 	if (fmt_lookup[(unsigned char)f] != NULL) {
 		return f;
 	}
-	// for (unsigned int i = 0; i < sizeof(pf); i++) {
-	// 	if (pf[i] == f)
-	// 		return f;
-	// }
+
 	return '\0';
 }
 
@@ -896,7 +844,7 @@ static void set_fmt_params(     printfctl *     ctl,
 				(unsigned)f[lx] <= (unsigned)'9'
 		){
 			ctl->padding_req =
-				(unsigned)atoi_substring(f + lx, &lx);
+				(unsigned)atou_substring(f + lx, &lx);
 		}
 
 		// Other things fit into a switch case.
@@ -997,7 +945,7 @@ static void set_fmt_params(     printfctl *     ctl,
 				else if (f[lx] >= '1' && f[lx] <= '9') {
 					ctl->precision =
 						(unsigned)
-						atoi_substring(f + lx, &lx);
+						atou_substring(f + lx, &lx);
 				}
 			break;
 
@@ -1035,13 +983,18 @@ static void set_fmt_params(     printfctl *     ctl,
 	ctl->inx = lx;
 }
 
+/*
+	A drawback to this function is that printing single characters is very
+	slow. This is visible when the cycles are low on DOSBox.
+	A callback must be called for every character, which contains condition
+	checks.
 
-// Buffer can be null, but the commit callback must handle this. That is not
-// done here.
-//
-//
-//
-int _printf_core(       printfctl *__restrict   ctl,
+	Remember that there are more normal chars that formats.
+
+	Also, I may want to use strchr or some other fast method to locate
+	each % sign and copy arbitrary numbers of bytes.
+*/
+int _printf_core(       printfctl *		ctl,
 			char *__restrict        buffer,
 			commit_buffer_f         cmt,
 			size_t                  count,
@@ -1056,7 +1009,7 @@ int _printf_core(       printfctl *__restrict   ctl,
 
 	while (f[ctl->inx] != 0)
 	{
-		if (f[ctl->inx] == '%') {
+		if (unlikely(f[ctl->inx] == '%')) {
 			ctl->inx++;
 			set_fmt_params_defaults(ctl);
 
@@ -1070,134 +1023,4 @@ int _printf_core(       printfctl *__restrict   ctl,
 	}
 
 	return (int)ctl->bytes_printed;
-}
-
-#ifdef SHARED_PRINTF_TESTING_NATIVE
-#define PUTCHAR_COMMIT _putchar_commit
-static void _putchar_commit(
-	printfctl *	ctl,
-	const char *	buff,
-	size_t		count
-	)
-{
-	if (buff == NULL) {
-		fputc((char)count, stderr);
-		ctl->bytes_printed++;
-		ctl->bytes_left--;
-	}
-	else {
-		fwrite(buff, count, 1, stderr);
-		ctl->bytes_printed += count;
-		ctl->bytes_left    -= count;
-	}
-}
-
-#elif defined(PUTCHAR_COMMIT)
-
-#else
-# warning "Define a static function called _putchar_commit before including"
-# warning "the implementation."
-# error "-- ABORT --"
-
-#endif
-
-//
-// The buffer commit procedure must:
-// - Move the `out_buffer` pointer according to the characters printed
-// - Decrease `bytes_left` for each byte committed
-//
-// The buffer pointer must be moved even if the results are not actually
-// copied. This is because pointer arithmetic is used to calculate the number
-// of printed bytes.
-//
-//
-//
-
-//
-// The buffer commit procedure must:
-// - Move the `out_buffer` pointer according to the characters printed.
-// - Decrease `bytes_left` for each byte committed. This has to actually
-//   be accurate.
-//
-// The buffer pointer must be moved even if the results are not actually
-// copied. This is because pointer arithmetic is used to calculate the number
-// of printed bytes.
-//
-
-static void _byte_buff_commit(  printfctl *     ctl,
-                                const char *    b,
-                                size_t          c
-                                )
-{
-        if (unlikely(ctl->out_buffer == NULL)) {
-                // We want the return value of snprintf to be the number of
-                // characters that were supposed to be printed. It can be
-                // higher than the bounds.
-                // The currect calculation does not depend on the initial
-                // count minus the number left to get the total printed because
-                // that is not what this is.
-
-                // Basically, just move the buffer forward for each character.
-                // Even if it overflows past the restrict count, it will be
-                // used to get the return value.
-                ctl->bytes_printed += c;
-        }
-        else {
-		const char *actual_ibuff = b == NULL ? (const char*)&c : b;
-                size_t actual_size = b == NULL ? 1 : min(c, ctl->bytes_left);
-
-                memcpy(ctl->out_buffer, b, actual_size);
-                ctl->out_buffer += actual_size;
-                ctl->bytes_printed += actual_size;
-                ctl->bytes_left -= actual_size;
-        }
-}
-
-int _printf(const char *__restrict f, ...)
-{
-	va_list args;
-	va_start(args, f);
-
-	printfctl ctl;
-
-	int r = _printf_core(
-		&ctl,
-		NULL,
-		PUTCHAR_COMMIT,
-		SIZE_MAX,
-		f,
-		args
-	);
-
-	va_end(args);
-	return r;
-}
-
-int _snprintf(char *s, size_t n, const char *__restrict f, ...)
-{
-	va_list args;
-	printfctl ctl;
-
-	va_start(args, f);
-
-	int r = _printf_core(&ctl, s, _byte_buff_commit, n, f, args);
-
-	// Insert null terminator
-	s[r] = 0;
-
-	// The return value if printf is updated according to the characters
-	// actually generated. If buffer commit wants to chop them out, it can.
-	// printf will still give the correct value.
-	//
-	// If the number returned by printf is bigger than n, we return
-	// negative.
-
-	if ((size_t)r > n) {
-		va_end(args);
-		return -1;
-	}
-	else {
-		va_end(args);
-		return r;
-	}
 }

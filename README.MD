@@ -59,8 +59,24 @@ Run `make clean` when done with each to save disk space.
 # For Content Creators and Critics
 
 Send me an email if you want:
-- A customized distribution with proprietary software I cannot distribute openly.
+- A customized distribution with proprietary software I cannot distribute openly
 - Directions on doing things
+-
 - Please limit discussions to matters of OS/90 or any other software.
 
 # Developer FAQ
+
+## What can I learn from the code?
+
+I considered making OS/90 somewhat of an educational project, but the code is not written in a way that would pass many industry-standard guidelines.
+
+If you are interested in embedded programming, OS/90 is a very excellent lesson in designing software for memory-constrained and performance-sensitive computer systems.
+
+In general, I discourage reading other people's code. I personally prefer to skim over other people's code and ideas and misinterpret their solution, and revise until I get something that solves the problem and does so in my own way.Learn about how others do abstraction and layout, or approach different problems.
+
+But there are exceptions:
+- My printf implementation
+- The custom C standard library
+- malloc
+- The scheduler
+

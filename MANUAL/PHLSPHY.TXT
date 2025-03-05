@@ -2,8 +2,9 @@
 	The Design Philosphy of OS/90
 ================================================================================
 
+Modular design, flat layout, independent components.
+No "big interface" for components to communicate.
+Everything works out of the box.
 Features are cringe. They just increase development time.
 Flat is better than nested.
-Do not worry about tidying-up or commenting code that already works properly.
-Modular, flat, independent components.
-No "big interface" for components to communicate.
+Do not worry about tidying-up already working code

@@ -20,11 +20,13 @@ Newer extensions may be supported, but
 
 * dos.h, i86.h, and some other libraries may be supported.
 * Some compatibility for the DJGPP library.
-- math.h support.
+* math.h support.
 
 --------------------------------------------------------------------------------
 	Features Not Supported
 --------------------------------------------------------------------------------
 
-* All wide character functions
+* All wide character functions (djgpp does not have them too)
 * Most GNU or POSIX extensions
+
+
