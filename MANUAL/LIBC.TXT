@@ -12,7 +12,7 @@ It is not intended to be a replacement for the DJGPP library or newlib, it is de
 	C99 Compliance
 --------------------------------------------------------------------------------
 
-Newer extensions may be supported, but
+C99 is the target.
 
 --------------------------------------------------------------------------------
 	Features that Will Be Supported

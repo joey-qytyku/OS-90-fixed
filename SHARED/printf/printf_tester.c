@@ -105,15 +105,11 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 
 int main(void)
 {
-	char b[1024];
-
-	_printf("%hhi\n", 256);
-	printf( "%hhi\n", 256);
-
+	_printf("%i\n", -1);
+	printf( "%i\n", -1);
 	// printf("%.4x\n", 256);
 
 }
-
 // ACTUALLY NOT QUITE. Passing a number that is smaller than an int is an
 // implicit promotion, which is a special rule with C.
 //

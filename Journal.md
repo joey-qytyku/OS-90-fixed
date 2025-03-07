@@ -8888,3 +8888,90 @@ This would allow direct access to ring-0 functionality but compromise security s
 A solution is to run programs inside segments, but the problem is that allocating memory becomes a challenge.
 
 
+# March 6
+
+## printf Reorganization
+
+Buffers should be allocated at the same size. This is not expensive and reduces the complexity of the stack allocation. The compiler does not need to remember how much it allocated as well.
+
+The calculations for the character count will remain the same.
+
+Calling the conversion function will take place with a helper.
+
+It will convert either a signed magnitude or an unsigned integer and put it to the buffer, all automatically and using the appropriate converter.
+
+The buffer will be allocated based on the number of characters for a uintmax_t, just to be safe I suppose.
+
+### Handling Signs
+
+First of all, I want to make it clear that I do not care much about how well it performs in ia16, that is not the intended target. The newlib printf is far better if size matters, and it does for 16-bit.
+
+But it is intended to work on basically anything.
+
+So putting the full value into a long long or intmax can work and it did work too.
+
+The problem is that the conversion requires divisions. If done on a 64-bit number this would be very slow.
+
+And fetching the argument must be done portably anyway.
+
+### Solution
+
+A universal auto-converter helper function will generate everything, including the sign.
+
+### Zero padding?
+
+Zero padding integers will actually require handling the signs. We NEED to somehow communicate the sign after a conversion.
+
+
+# March 7, 2025
+
+## Universal Callbacks for printf
+
+Buffer copying for zero padding is slowed down by however many characters are needed. Space padding also requires an individual buffer commit for each character.
+
+These are both useful features that are significantly slowed down.
+
+Not to mention, there is no benefit to intermediary buffering while doing the conversions because they will end up going into another buffer anyway.
+
+printf uses fwrite, which is faster, or fputc which is slower. Either way, there is slowness inherent to how we pass the data to be printed.
+
+So there is no reason to not use buffer commits for conversions. This also saves a lot of stack space.
+
+There will also be a character duplication call.
+
+This will classify as an partial rewrite. The dispatch parts are fine.
+
+## New Features
+
+I will define `ctype` to the character type being used.
+
+## Ideas For conversions
+
+With character duplication padding spaces or zeroes can easily be calculated. Padding will not have a prefix if not a signed value, so there can be a separate procedure for that.
+
+Buffer copying will not be necessary at all.
+
+Integer conversion helpers will deal with zero and space padding on their own. The difficulty is with the fact that there is no intermediary buffering.
+
+Here is a solution:
+- Converter takes printfctl
+- The 0 option excludes padding and precision, so we check for it first.
+- We check the sign if applicable and store the appropriate first char to output
+- During conversion loop, skip digits out of bounds
+- Decrement the padding chars for each leading zero found
+
+Maybe I should NOT. The buffer will not be that big. The conversion can do buffering itself.
+
+Not really. We will output zeroes anyway. So just subtract the max digits from the zero pad area width or precision, whichever is applicable.
+
+With that being said, iterating backward is the fastest way to convert.
+
+Also, the integer conversion buffer, if used, must be inside the printfctl structure to avoid needlessly allocating it per-conversion. We only need one.
+
+## More Ideas
+
+Add more options:
+- Disable long long
+- Disable zero as padding (0 flag)
+
+These are not very useful for the kernel and require bloated calls to libgcc that could otherwise be removed.

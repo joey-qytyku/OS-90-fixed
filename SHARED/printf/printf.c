@@ -89,13 +89,13 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	This is the exact and reliable number for both buffer sizes and
 	iterations counts, and is truly portable. Works on GCC 4.4.7.
 */
-#define DECFIGS(x) ((unsigned)__builtin_ceil(__builtin_log10((double)(x))))
+#define DECFIGS(x) ( (unsigned)__builtin_ceil(__builtin_log10( (double)(x))) )
 
 /*
 	For consistency, this has to return a value that works for any
 	input (useful later?).
 */
-#define HEXFIGS(x) ((x)>=16?((sizeof(typeof(x))*8)-__builtin_clzll(x))/4:1)
+#define HEXFIGS(x) ((x)>=16?((sizeof(typeof(x))*CHAR_BIT)-__builtin_clzll(x))/4:1)
 
 // Divide but with cieling. Used to calculate octal digits. E.g.
 // 32-bit number is 32/3=10.66 but we ceil to get 11 digits.
@@ -190,7 +190,7 @@ typedef void (*commit_buffer_f)(printfctl *ctl, const char *b, size_t c);
 			     Conversion functions
 *******************************************************************************/
 
-/* NUMBER OF DECIMAL CHARACTERS */
+/* NUMBER OF DECIMAL CHARACTERS. Does not include signs of course. */
 static const size_t	ndc_int		= DECFIGS(INT_MAX),
 			ndc_uint	= DECFIGS(UINT_MAX),
 			ndc_char	= DECFIGS(CHAR_MAX),
@@ -199,8 +199,11 @@ static const size_t	ndc_int		= DECFIGS(INT_MAX),
 			ndc_llong	= DECFIGS(LLONG_MAX),
 			ndc_ulong	= DECFIGS(ULONG_MAX),
 			ndc_ullong	= DECFIGS(ULLONG_MAX),
-			ndc_size	= DECFIGS(SIZE_MAX);
-
+			ndc_intmax	= DECFIGS(INTMAX_MAX),
+			ndc_uintmax	= DECFIGS(UINTMAX_MAX),
+			ndc_size	= DECFIGS(SIZE_MAX),
+			ndc_ssize	= DECFIGS(SIZE_MAX/2),
+			ndc_ptrdiff	= DECFIGS(-(PTRDIFF_MIN) * 2);
 
 /* NUMBER OF OCTAL CHARACTERS */
 
@@ -277,6 +280,28 @@ static char *utoa_bw(char *tbuff, unsigned int value)
 }
 #endif
 
+static char *ultoa_bw(char *tbuff, unsigned long value)
+{
+	tbuff--;
+	*(tbuff) = (char)( ((unsigned)'0') + value % 10 );
+
+	if (value <= 9)
+		return tbuff;
+
+	for (unsigned i = 1; i < ndc_ulong; i++) {
+		tbuff--;
+		*(tbuff) = (char)( (unsigned)'0' + (value /= 10) % 10);
+	}
+
+	for (unsigned i = 0; i < ndc_ulong-1; i++)
+		if (*tbuff == '0')
+			tbuff++;
+		else
+			break;
+
+	return tbuff;
+}
+
 static char *ulltoa_bw(char *tbuff, unsigned long long value)
 {
 	tbuff--;
@@ -290,7 +315,7 @@ static char *ulltoa_bw(char *tbuff, unsigned long long value)
 		*(tbuff) = (char)((unsigned)'0' + (value /= 10LL) % 10LL);
 	}
 
-	for (unsigned i = 0; i < DECFIGS(ULLONG_MAX)-1; i++) {
+	for (unsigned i = 0; i < ndc_ullong-1; i++) {
 		if (*tbuff == '0')
 			tbuff++;
 		else
@@ -419,15 +444,12 @@ static inline unsigned umin(unsigned x, unsigned y)
 {
 	return x < y ? x : y;
 }
-static inline unsigned iabs(int a)
-{
-	return (unsigned)(a < 0 ? -(a) : a);
-}
-static inline unsigned long lliabs(long long a)
-{
-	return (unsigned long long) (a < 0 ? -(a) : (unsigned long long)a);
-}
-
+/*
+	Inline absolute value that works for any type. There is no way to
+	unsign the type and prevent compiler warnings.
+	It will always work. Ignore them.
+*/
+#define _abs(a) ({ typeof(a) r = a < 0 ? -a : a; r; })
 
 static void dup_buffer_with_zeroes_and_print
 (
@@ -444,7 +466,7 @@ static void dup_buffer_with_zeroes_and_print
 	if (old_buff_size >= minimum)
 		nz = 0;
 	else
-		nz = iabs((signed)old_buff_size - (signed)minimum);
+		nz = _abs((signed)old_buff_size - (signed)minimum);
 
 	const unsigned int has_prefix = (prefix != 0);
 
@@ -535,50 +557,63 @@ static long long int consume_sigint(va_list *v, unsigned l)
 */
 }
 
-// Returns the size of a buffer needed to store an integer based on the
-// size specifier. DOES NOT INCLUDE SIGN.
-//
-// This works both ways because the digit counts are the same when using
-// twos complement.
-//
-// l_j prints out (u)intmax_t.          Handled using long long.
-// l_z prints out (signed)size_t.       If 64-bit target, 64-bit.
-//
-static unsigned char intblt[] = {
-	[l_hh]  = DECFIGS(UCHAR_MAX	),
-	[l_h]   = DECFIGS(USHRT_MAX	),
-	[l_NONE]= DECFIGS(UINT_MAX	),
-	[l_l]   = DECFIGS(ULONG_MAX	),
-	[l_ll]  = DECFIGS(ULLONG_MAX	),
-	[l_j]   = DECFIGS(UINTMAX_MAX	),
-	[l_z]   = DECFIGS(PTRDIFF_MAX	)
-};
+
+/*
+	Convers the magnitude and not the sign.
+	Can we just return the sign?
+*/
+static char *autoconv_i_mag(char *b, , unsigned *hpfx, unsigned lm, va_list *va)
+{
+	const size_t off = ndc_intmax;
+	/* char and short are promoted to an int. */
+
+	switch (lm)
+	{
+	case l_hh:
+	case l_h:
+	case l_NONE:
+		unsigned u = va_arg(*va, unsigned);
+		return utoa_bw(b+off, );
+	case l_l:
+		return ultoa_bw(b+off, );
+	case l_ll:
+		return ulltoa_bw(b+off, );
+	case l_j:
+		return ulltoa_bw(b+off, );
+	case l_z:
+		return ulltoa_bw(b+off, );
+	case l_t:
+		return ulltoa_bw(b+off, );
+	}
+}
+
 
 // printfctl *ctl
 // CHECK THE SIZE SPEC!!!
 static void fmt_i(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	const	unsigned bl = intblt[ctl->length_mod];
-	const	unsigned lm = ctl->length_mod;
-		long long v = consume_sigint(va, lm);
-	const int has_prefix = (v < 0 || ctl->prepend_space || ctl->plus_sign);
+	const unsigned lm = ctl->length_mod;
+
+	const unsigned has_prefix = (v < 0||ctl->prepend_space||ctl->plus_sign);
+
 	char *a = NULL;
 
+	char b[ndc_intmax + has_prefix];
 
-	char b[ bl + has_prefix ];
+	const size_t off = ndc_uintmax;
 
-	memset(b, '%', sizeof(b));
-
-	if (intblt[lm] <= intblt[l_NONE]) {
-		a = utoa_bw(b + sizeof b, iabs(v));
+	/* char and short are promoted to an int. */
+	switch (lm)
+	{
+	case l_hh:
+	case l_h:
+	case l_NONE:return a=utoa_bw  (b+off, va_arg(*va, unsigned));
+	case l_l:   return a=ultoa_bw (b+off, va_arg(*va, unsigned long));
+	case l_ll:  return a=ulltoa_bw(b+off, va_arg(*va, unsigned long long));
+	case l_j:   return a=ulltoa_bw(b+off, va_arg(*va, uintmax_t));
+	case l_z:   return a=ulltoa_bw(b+off, va_arg(*va, size_t));
+	case l_t:   return a=ulltoa_bw(b+off, va_arg(*va, ptrdiff_t));
 	}
-	else {
-		a = ulltoa_bw(b + sizeof b, lliabs(v));
-	}
-
-	if (v < 0)			a[-1] = '-', a--;
-	else if (ctl->plus_sign)	a[-1] = '+', a--;
-	else if (ctl->prepend_space)	a[-1] = ' ', a--;
 
 	if (ctl->precision == 0) {
 		do_pad(ctl, cmt, a, (b+sizeof(b)) - a);
@@ -598,6 +633,27 @@ static void fmt_i(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 
 static void fmt_u(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
+	const unsigned		lm = ctl->length_mod;
+	unsigned long long	v;
+	char *a = NULL;
+
+	char b[ndc_uintmax];
+
+	a = autoconv_u(b, lm, va);
+
+	if (ctl->precision == 0) {
+		do_pad(ctl, cmt, a, (size_t) ( (b+sizeof(b))-a) );
+	}
+	else {
+		dup_buffer_with_zeroes_and_print(
+			ctl,
+			cmt,
+			a,
+			(unsigned) ((b+sizeof(b)) - a),
+			ctl->precision,
+			0
+		);
+	}
 }
 
 static void fmt_x(printfctl *ctl, commit_buffer_f cmt,va_list *va)
@@ -767,31 +823,31 @@ typedef void (*fmt_handler)(    printfctl *__restrict   ctl,
 // This may be too large. I may want to reduce the size by basing them off
 // the first letter of alphabet.
 static const fmt_handler fmt_lookup[] = {
-	['i'] = fmt_i,
-	['u'] = fmt_u,
-	['x'] = fmt_x,  // They are the same and autodetected internally
-	['X'] = fmt_x,
-	['s'] = fmt_s,
-	['d'] = fmt_i,
+	['i'-'%'] = fmt_i,
+	['u'-'%'] = fmt_u,
+	['x'-'%'] = fmt_x,  // They are the same and autodetected internally
+	['X'-'%'] = fmt_x,
+	['s'-'%'] = fmt_s,
+	['d'-'%'] = fmt_i,
 
 	#if defined(SHARED_PRINTF_ENABLE_FLOAT)
-	['g'] = fmt_g,
-	['G'] = fmt_G,
+	['g'-'%'] = fmt_g,
+	['G'-'%'] = fmt_G,
 	#endif
 
-	['o'] = fmt_o,
-	['p'] = fmt_p,
-	['a'] = fmt_a,
-	['A'] = fmt_A,
-	['e'] = fmt_e,
-	['E'] = fmt_E,
-	['n'] = fmt_n,
-	['%'] = fmt_percent
+	['o'-'%'] = fmt_o,
+	['p'-'%'] = fmt_p,
+	['a'-'%'] = fmt_a,
+	['A'-'%'] = fmt_A,
+	['e'-'%'] = fmt_e,
+	['E'-'%'] = fmt_E,
+	['n'-'%'] = fmt_n,
+	['%'-'%'] = fmt_percent
 };
 
 static char is_valid_fmt(char f)
 {
-	if (fmt_lookup[(unsigned char)f] != NULL) {
+	if (fmt_lookup[(unsigned)f - (unsigned)'%'] != NULL) {
 		return f;
 	}
 
@@ -1014,7 +1070,7 @@ int _printf_core(       printfctl *		ctl,
 			set_fmt_params_defaults(ctl);
 
 			set_fmt_params(ctl, f, &v);
-			fmt_lookup[(unsigned char)ctl->req_fmt](ctl, cmt, &v);
+			fmt_lookup[(unsigned)ctl->req_fmt - (unsigned)'%'](ctl, cmt, &v);
 		}
 		else {
 			cmt(ctl, NULL, (size_t)f[ctl->inx]);
