@@ -69,11 +69,16 @@ functions needed with the desired function signature.
 
 #include <string.h>		/* What to do about this? */
 
+#include <stdlib.h> /* WILL REMOVE ONCE NEW ATOI IS FINISHED */
+
 /* A freestanding environment may want float. An OS would not. */
 #ifdef ENABLE_FOAT
 	#include <float.h>
 	#include <math.h>
 #endif /* ENABLE_FOAT */
+
+/* Use? */
+#define max(a,b) ({typeof(a) _a = (a), _b = (b); _a > _b ? _a : _b; })
 
 #define STR_(x) #x
 
@@ -89,13 +94,13 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	This is the exact and reliable number for both buffer sizes and
 	iterations counts, and is truly portable. Works on GCC 4.4.7.
 */
-#define DECFIGS(x) ( (unsigned)__builtin_ceil(__builtin_log10( (double)(x))) )
+#define DFIG(x) ( (unsigned)__builtin_ceil(__builtin_log10( (double)(x))) )
 
 /*
 	For consistency, this has to return a value that works for any
 	input (useful later?).
 */
-#define HEXFIGS(x) ((x)>=16?((sizeof(typeof(x))*CHAR_BIT)-__builtin_clzll(x))/4:1)
+#define XFIG(x) ((x)>=16?((sizeof(typeof(x))*CHAR_BIT)-__builtin_clzll(x))/4:1)
 
 // Divide but with cieling. Used to calculate octal digits. E.g.
 // 32-bit number is 32/3=10.66 but we ceil to get 11 digits.
@@ -105,7 +110,7 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	Number of octal digits in a constant number, but it takes a TYPE
 	and NOT a number. Reliable and accurate.
 */
-#define OCTFIGS(_TYPE) CIELDIV_U(sizeof(_TYPE)*CHAR_BIT, 3)
+#define OFIG(_TYPE) CIELDIV_U(sizeof(_TYPE)*CHAR_BIT, 3)
 
 #ifndef unlikely
 	#define unlikely(x) __builtin_expect((x),0)
@@ -131,13 +136,19 @@ typedef enum {
 	l_L		// Long float type
 }lenmod;
 
-// This structure is the full context of a printf_core instance.
-// It contains things that are shared with helper routines and are
-// not worth making into local variables.
-//
-// This allows for reentrancy.
-//
-typedef struct {
+struct _pfc;
+
+typedef void (*commit_buffer_f)(struct _pfc *ctl, const char *b, size_t c);
+typedef void (*dupch_f)(struct _pfc *ctl, char ch, size_t n);
+
+typedef void (*fmt_handler)
+(
+	struct _pfc *		ctl,
+	commit_buffer_f         cmt,
+	va_list *               va
+);
+
+struct _pfc {
 	size_t		bytes_left;
 	size_t		bytes_printed;
 	unsigned int	padding_req;
@@ -177,152 +188,282 @@ typedef struct {
 	// It moves up as things are printed.
 	//
 	char *out_buffer;
-}printfctl;
+
+	commit_buffer_f cmt;
+	dupch_f dup;
+	va_list *v;
+	/* Octal needs the most digits. */
+	char buff[32];
+};
+
+typedef struct _pfc printfctl;
+
+static const size_t
+ndc_int		= DFIG(INT_MAX),
+ndc_uint	= DFIG(UINT_MAX),
+ndc_char	= DFIG(CHAR_MAX),
+ndc_uchar	= DFIG(UCHAR_MAX),
+ndc_ushort	= DFIG(USHRT_MAX),
+ndc_short	= DFIG(SHRT_MAX),
+ndc_long	= DFIG(LONG_MAX),
+ndc_llong	= DFIG(LLONG_MAX),
+ndc_ulong	= DFIG(ULONG_MAX),
+ndc_ullong	= DFIG(ULLONG_MAX),
+ndc_intmax	= DFIG(INTMAX_MAX),
+ndc_uintmax	= DFIG(UINTMAX_MAX),
+ndc_size	= DFIG(SIZE_MAX),
+ndc_ssize	= DFIG(SIZE_MAX/2),
+ndc_ptrdiff	= DFIG(PTRDIFF_MAX),
+ndc_uptrdiff	= DFIG(PTRDIFF_MAX/2-1);
+
+#define _abs(T, a) (unsigned T)({ unsigned T r = a < 0 ? -a : a; r; })
+
+static const unsigned char uint_iters_tab[8] = {
+	[l_hh]   = ndc_uchar,
+	[l_h]    = ndc_ushort,
+	[l_NONE] = ndc_uint,
+	[l_l]    = ndc_ulong,
+	[l_ll]   = ndc_ullong,
+	[l_z]    = ndc_size,
+	[l_t]    = ndc_uptrdiff,
+	[l_j]    = ndc_uintmax
+};
+
+static const unsigned char int_iters_tab[8] = {
+	[l_hh]   = ndc_char,
+	[l_h]    = ndc_short,
+	[l_NONE] = ndc_int,
+	[l_l]    = ndc_long,
+	[l_ll]   = ndc_llong,
+	[l_z]    = ndc_ssize,
+	[l_t]    = ndc_ptrdiff,
+	[l_j]    = ndc_intmax
+};
+
+static unsigned max_minus_min(unsigned int a, unsigned int b)
+{
+	return (unsigned)( a < b ? b - a : a - b );
+}
+
+void convert_int(printfctl *pc)
+{
+	unsigned iters = int_iters_tab[pc->length_mod];
+	unsigned N = 0;
+
+	char *pb = pc->buff + sizeof(pc->buff);
+
+	memset(pc->buff, '0', sizeof(pc->buff));
+
+	if (iters <= ndc_int) {
+		int v = va_arg(*pc->v, int);
+		unsigned a = _abs(int, v);
+		N = v < 0;
+
+		for (unsigned i = 0; i < iters; i++) {
+			pb--;
+			*pb = (a % 10U) + '0';
+			a /= 10U;
+		}
+	}
+	else {
+		long long v = va_arg(*pc->v, long long);
+		unsigned long long a = _abs(long long, v);
+		N = v < 0;
+
+		for (unsigned i = 0; i < iters; i++) {
+			pb--;
+			*pb = (a % 10) + '0';
+			a /= 10;
+		}
+	}
+
+	// Find first non-zero character in the sequence
+	// pb is at the last character generated, regardless of the type
+	// so redundant iterations can be avoided.
+	for (unsigned i = 0; i < sizeof(pc->buff); i++) { /*-1?*/
+		if (*pb != '0')
+			break;
+		pb++;
+	}
+
+	/*
+	OUTPUT SECTION
+	*/
+
+	unsigned chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
+
+	char pfxch = (const char[]){0,'-','+','-',' ','-'}[pc->plus_sign*2+pc->prepend_space*4+N];
+
+	if (chars_gen == 0) chars_gen = 1;
+
+	if (unlikely(pc->leading_zero_pad)) {
+		/*
+		Leading zero padding is a totally unique scenario that
+		I do not want to bloat the most common code path with.
+		Precision is redundant in this case and we can rely on
+		this to simplify things. Integers also cannot get
+		trailing zeroes for obvious reasons.
+
+		The only options relevant now are:
+		- +	(plus sign is used if positive)
+		- space (space is used if positive)
+		- Nothing
+
+		The sign is the first thing to be printed. It is one
+		character that can be substituted entirely with a
+		zero char.
+		*/
+
+		// Is padding necessary? If so, we just print.
+		// This includes the prefix character
+		if (chars_gen + (pfxch!=0) >= pc->padding_req) {
+			// Print the number as-is
+			pc->dup(pc, pfxch, pfxch != 0);
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			/*
+			In this case, padding is necessary.
+			*/
+			pc->dup(pc, pfxch, 1);
+			pc->dup(
+				pc,
+				'0',
+				pc->padding_req - chars_gen - (pfxch!=0)
+			);
+			pc->cmt(pc, pb, chars_gen);
+		}
+	}
+	/* NOT USING ZEROES TO PAD, PADDING WITH SPACES */
+	else {
+		if (pc->justify == 1) {
+
+			// Infinite loop caused by overflow in subtraction?
+			if (pc->padding_req != 0 && pc->padding_req > chars_gen)
+				pc->dup(
+					pc,
+					' ',
+					pc->padding_req - chars_gen
+				);
+
+			pc->dup(pc, pfxch, pfxch != 0);
 
 
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			/*
+			Justifying to the left is much simpler as the prefix
+			can be outputted unconditionally.
+			*/
+			pc->dup(pc, '-', N);
+			pc->cmt(pc, pb, chars_gen);
+			pc->dup(
+				pc, ' ',
+				max(chars_gen, pc->padding_req)-chars_gen-N
+			);
+		}
+	}
+}
+
+// There are limited options fro the sign. It will take up some amount
+// of space, but there is the possibility that there may be no need for space at
+// all.
 //
-// This is called by the core function to write bytes from any buffer to the
-// target buffer. NULL must be handled internally by the caller.
 //
-typedef void (*commit_buffer_f)(printfctl *ctl, const char *b, size_t c);
+//
 
-/*******************************************************************************
-			     Conversion functions
-*******************************************************************************/
 
-/* NUMBER OF DECIMAL CHARACTERS. Does not include signs of course. */
-static const size_t	ndc_int		= DECFIGS(INT_MAX),
-			ndc_uint	= DECFIGS(UINT_MAX),
-			ndc_char	= DECFIGS(CHAR_MAX),
-			ndc_uchar	= DECFIGS(UCHAR_MAX),
-			ndc_long	= DECFIGS(LONG_MAX),
-			ndc_llong	= DECFIGS(LLONG_MAX),
-			ndc_ulong	= DECFIGS(ULONG_MAX),
-			ndc_ullong	= DECFIGS(ULLONG_MAX),
-			ndc_intmax	= DECFIGS(INTMAX_MAX),
-			ndc_uintmax	= DECFIGS(UINTMAX_MAX),
-			ndc_size	= DECFIGS(SIZE_MAX),
-			ndc_ssize	= DECFIGS(SIZE_MAX/2),
-			ndc_ptrdiff	= DECFIGS(-(PTRDIFF_MIN) * 2);
+static void convert_uint(printfctl *pc)
+{
+	unsigned iters = uint_iters_tab[pc->length_mod];
 
-/* NUMBER OF OCTAL CHARACTERS */
+	char *pb = pc->buff + sizeof(pc->buff);
 
-#if 0 /*__i386__*/
+	memset(pc->buff, '0', sizeof(pc->buff));
+
+	if (iters <= ndc_uint) {
+		unsigned a=va_arg(*pc->v, unsigned);
+
+		for (unsigned i = 0; i < iters; i++) {
+			pb--;
+			*pb = (a % 10) + '0';
+			a /= 10;
+		}
+	}
+	else {
+		unsigned long long a=va_arg(*pc->v, unsigned long long);
+
+		for (unsigned i = 0; i < iters; i++) {
+			pb--;
+			*pb = (a % 10) + '0';
+			a /= 10;
+		}
+	}
+
+	// Find first non-zero character in the sequence
+	// pb is at the last character generated, regardless of the type
+	// so redundant iterations can be avoided.
+	for (unsigned i = 0; i < sizeof pc->buff - 1; i++) {
+		if (*pb != '0')
+			break;
+		else
+			pb++;
+	}
+
+	unsigned chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
+
+	/*
+	Zero padding excludes all other options except the pad count.
+	We assume this is highly unlikely, as this option is rarely used.
+	*/
+	if (unlikely(pc->leading_zero_pad)) {
+		// Is this correct?
+		pc->dup(pc, '0', max(pc->padding_req - (pb - pc->buff), 0) );
+		pc->cmt(pc, pb, chars_gen);
+	}
+	else {
+		if (pc->justify == 1) {
+			pc->dup(pc,
+				' ',
+				max(chars_gen, pc->padding_req)
+				- chars_gen
+			);
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			pc->cmt(pc, pb, chars_gen);
+			pc->dup(pc, ' ', max(chars_gen, pc->padding_req)
+					- chars_gen
+			);
+		}
+	}
+}
+
 /*
-    This code mogs anything that even the latest GCC outputs. If compiling for
-    i386, this is used instead of the generic version.
+	if (unlikely(pc->leading_zero_pad)) {
+		pc->dup(pc, '-', (unsigned)N);
 
-    "Real Programmers Don't Use Pascal" vindicated.
+		// Is this correct?
+		pc->dup(pc, '0', (pb - pc->buff) - (unsigned)N);
+		pc->cmt(pc, pb, chars_gen);
+	}
+
+	else {
+		if (pc->justify == 1) {
+			pc->dup(pc, ' ', max(chars_gen, pc->padding_req) - chars_gen - (unsigned)N);
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			pc->dup(pc, '-', 1);
+			pc->cmt(pc, pb, chars_gen);
+			pc->dup(
+				pc, ' ',
+				max(chars_gen, pc->padding_req)-chars_gen-(unsigned)N
+			);
+		}
+	}
 */
-__attribute__((regparm(0), cdecl))
-static char *utoa_bw(char *tbuff, unsigned int value)
-{
-	__asm__ (
-	R"(
-	push %edi
-
-	movl 16(%esp),%ecx  # ECX = iterations
-	movl 12(%esp),%edi   # EDI = buffer, we need it for later
-	movl 8(%esp),%eax   # EAX = value
-
-	# If the number is under 65535, reduce iterations to 5 for ~-200 clocks
-	cmpl $0xFFFF,%eax
-	jae 0f
-	shl $1,%ecx
-    jmp 0f
-
-	.align  16
-0:
-	xorl %edx,%edx      # Clear EDX for division
-	subl $1,%edi        # Decrement down
-	subl $1,%ecx        # Decrement loop counter
-	divl %ecx           # EDX now equal to the digit
-	add $'0',%dl        # Convert to character
-	movb %dl,(%edi)     # Copy to the buffer
-	jecxz 1f            # If zero, leave
-	jmp 0b
-	.align 16
-1:
-
-	mov $'0',%eax
-	repe scasb
-	mov %edi,%eax
-
-	subl 12(%esp),%edi
-	mov %edi,%eax
-
-	pop %edi
-	ret
-	)");
-}
-#else
-
-static char *utoa_bw(char *tbuff, unsigned int value)
-{
-	tbuff--;
-	*(tbuff) = (char)( ((unsigned)'0') + value % 10 );
-
-	if (value <= 9)
-		return tbuff;
-
-	for (unsigned i = 1; i < ndc_uint; i++) {
-		tbuff--;
-		*(tbuff) = (char)( (unsigned)'0' + (value /= 10) % 10);
-	}
-
-	for (unsigned i = 0; i < ndc_uint-1; i++)
-		if (*tbuff == '0')
-			tbuff++;
-		else
-			break;
-
-	return tbuff;
-}
-#endif
-
-static char *ultoa_bw(char *tbuff, unsigned long value)
-{
-	tbuff--;
-	*(tbuff) = (char)( ((unsigned)'0') + value % 10 );
-
-	if (value <= 9)
-		return tbuff;
-
-	for (unsigned i = 1; i < ndc_ulong; i++) {
-		tbuff--;
-		*(tbuff) = (char)( (unsigned)'0' + (value /= 10) % 10);
-	}
-
-	for (unsigned i = 0; i < ndc_ulong-1; i++)
-		if (*tbuff == '0')
-			tbuff++;
-		else
-			break;
-
-	return tbuff;
-}
-
-static char *ulltoa_bw(char *tbuff, unsigned long long value)
-{
-	tbuff--;
-	*(tbuff) = (char)( (unsigned)'0' + value % 10 );
-
-	if (value <= 9)
-		return tbuff;
-
-	for (unsigned i = 1; i < ndc_ullong; i++) {
-		tbuff--;
-		*(tbuff) = (char)((unsigned)'0' + (value /= 10LL) % 10LL);
-	}
-
-	for (unsigned i = 0; i < ndc_ullong-1; i++) {
-		if (*tbuff == '0')
-			tbuff++;
-		else
-			break;
-	}
-	return tbuff;
-}
 
 static unsigned itox
 (
@@ -346,7 +487,7 @@ static unsigned itox
 		char digit = lookup[ (value >> ((unsigned)i*4)) & 0xF ];
 
 		if (!nonzero_encountered && digit != '0')
-	            nonzero_encountered=1;
+		    nonzero_encountered=1;
 
 		if (nonzero_encountered) {
 			buff[ret] = digit;
@@ -372,8 +513,8 @@ static unsigned int itoo_fw
 
 	for (int i = 21; i >= 0; i--) {
 		const char digit = (char)( ((value >> (i*3)) & 7) + '0' );
-	        if (!nonzero_encountered && digit != '0')
-	            nonzero_encountered=1;
+		if (!nonzero_encountered && digit != '0')
+			nonzero_encountered=1;
 
 		if (nonzero_encountered) {
 			buff[ret] = digit;
@@ -383,6 +524,7 @@ static unsigned int itoo_fw
 	return ret;
 }
 
+// Still untested.
 unsigned int custom_atou(const char *s)
 {
 	unsigned int final = 0;
@@ -402,101 +544,13 @@ unsigned int custom_atou(const char *s)
 	return final;
 }
 
-static void do_pad
-(
-	printfctl *	ctl,
-	commit_buffer_f	cmt,
-	const char *	toprint,
-	size_t		length
-)
-{
-	size_t pad_width = ctl->padding_req;
-
-	static char b[2] = {' ', '0'};
-
-	if (length >= pad_width || pad_width == 0) {
-		cmt(ctl, toprint, length);
-		return;
-	}
-
-	#define _inspad \
-	for (size_t i = 0; i < pad_width - length; i++) { \
-		cmt(ctl, b + !!ctl->leading_zero_pad, 1); \
-	}
-
-	if (ctl->justify == 0) {
-		cmt(ctl, toprint, length);
-		_inspad
-	}
-	else {
-		_inspad
-		cmt(ctl, toprint, length);
-	}
-	#undef _inspad
-
-}
-
-static inline unsigned umax(unsigned x, unsigned y)
-{
-	return x > y ? x : y;
-}
-static inline unsigned umin(unsigned x, unsigned y)
-{
-	return x < y ? x : y;
-}
-/*
-	Inline absolute value that works for any type. There is no way to
-	unsign the type and prevent compiler warnings.
-	It will always work. Ignore them.
-*/
-#define _abs(a) ({ typeof(a) r = a < 0 ? -a : a; r; })
-
-static void dup_buffer_with_zeroes_and_print
-(
-	printfctl *     ctl,
-	commit_buffer_f cmt,
-	const char *    b,
-	unsigned        old_buff_size,
-	unsigned        minimum,
-	char            prefix
-)
-{
-	unsigned int nz;
-
-	if (old_buff_size >= minimum)
-		nz = 0;
-	else
-		nz = _abs((signed)old_buff_size - (signed)minimum);
-
-	const unsigned int has_prefix = (prefix != 0);
-
-	char b2[has_prefix + nz + old_buff_size];
-
-	memset(b2+has_prefix, '0', nz);
-	memcpy(b2+has_prefix + nz, b, old_buff_size);
-
-	if (has_prefix)
-		b2[0] = prefix;
-
-	do_pad(ctl, cmt, b2, sizeof b2);
-}
-
-// atoi but for a non-null terminated substring.
-// Used to extract numbers from printf flags for padding and precision.
-//
-// index_inc is address of index to the string. Incremented by the number
-// of digits found.
+static inline unsigned umax(unsigned x, unsigned y) { return x > y ? x : y; }
+static inline unsigned umin(unsigned x, unsigned y) { return x < y ? x : y; }
 
 static int atou_substring(      const char *	str,
 				unsigned int *	index_inc
 				)
 {
-	// Change the byte right after all the numbers that
-	// follow the first one to zero and then use atoi.
-	// It will be restored later. This is way faster than
-	// copying to a buffer.
-	// Also, there is no worry about writing past the nullterm and
-	// it can save/restore that too.
 	int j;
 
 	char buff[ndc_int];
@@ -508,233 +562,24 @@ static int atou_substring(      const char *	str,
 	return atoi(buff);
 }
 
-static void set_fmt_params_defaults(printfctl *ctl)
-{
-	ctl->padding_req=0;
-	ctl->alternate=0;
-	ctl->length_mod=l_NONE;
-	ctl->prepend_space=0;
-	ctl->plus_sign=0;
-	ctl->leading_zero_pad=0;
-	ctl->precision=0;
-	ctl->justify = 1;       // Justify is to the right by default!!!
-}
-
-//
-// When getting signed integers, it is necessary to sign extend the value
-// correctly. Not needed for anything unsigned. In that case only 64/32 matter
-// because of stack alignment.
-//
-static long long int consume_sigint(va_list *v, unsigned l)
-{
-	switch (l)
-	{
-		case l_hh:	return (char)va_arg(*v, int);
-		case l_h:	return (short)va_arg(*v, int);
-		case l_NONE:	return va_arg(*v, int);
-		case l_l:	return va_arg(*v, long);
-		case l_ll:	return va_arg(*v, long long);
-		case l_j:	return va_arg(*v, intmax_t);
-		case l_t:
-		case l_z:	return va_arg(*v, ptrdiff_t);
-		default:	return 0;
-	}
-/*
-	The z flag means a signed version of size_t. This is defined by posix.
-	Standard C does not define this for some reason but supports it in
-	printf.
-
-	This is strange because there is no standard type to represent it, so
-	how would one pass it?
-
-	ptrdiff_t is usually the same as ssize_t on posix. The manpage says
-	that it is fine to pass ssize_t to a ptrdiff_t format, but converting
-	to a intmax_t may not work as expected since they do not have to be
-	the same.
-
-	There is no better way to do this in C. typeof will give a signed number
-	and only C++ can remove a qualifier.
-*/
-}
-
-
-/*
-	Convers the magnitude and not the sign.
-	Can we just return the sign?
-*/
-static char *autoconv_i_mag(char *b, , unsigned *hpfx, unsigned lm, va_list *va)
-{
-	const size_t off = ndc_intmax;
-	/* char and short are promoted to an int. */
-
-	switch (lm)
-	{
-	case l_hh:
-	case l_h:
-	case l_NONE:
-		unsigned u = va_arg(*va, unsigned);
-		return utoa_bw(b+off, );
-	case l_l:
-		return ultoa_bw(b+off, );
-	case l_ll:
-		return ulltoa_bw(b+off, );
-	case l_j:
-		return ulltoa_bw(b+off, );
-	case l_z:
-		return ulltoa_bw(b+off, );
-	case l_t:
-		return ulltoa_bw(b+off, );
-	}
-}
-
-
 // printfctl *ctl
 // CHECK THE SIZE SPEC!!!
 static void fmt_i(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	const unsigned lm = ctl->length_mod;
-
-	const unsigned has_prefix = (v < 0||ctl->prepend_space||ctl->plus_sign);
-
-	char *a = NULL;
-
-	char b[ndc_intmax + has_prefix];
-
-	const size_t off = ndc_uintmax;
-
-	/* char and short are promoted to an int. */
-	switch (lm)
-	{
-	case l_hh:
-	case l_h:
-	case l_NONE:return a=utoa_bw  (b+off, va_arg(*va, unsigned));
-	case l_l:   return a=ultoa_bw (b+off, va_arg(*va, unsigned long));
-	case l_ll:  return a=ulltoa_bw(b+off, va_arg(*va, unsigned long long));
-	case l_j:   return a=ulltoa_bw(b+off, va_arg(*va, uintmax_t));
-	case l_z:   return a=ulltoa_bw(b+off, va_arg(*va, size_t));
-	case l_t:   return a=ulltoa_bw(b+off, va_arg(*va, ptrdiff_t));
-	}
-
-	if (ctl->precision == 0) {
-		do_pad(ctl, cmt, a, (b+sizeof(b)) - a);
-	}
-	else {
-		// THis needs to be fixed actually
-		dup_buffer_with_zeroes_and_print(
-			ctl,
-			cmt,
-			a,
-			((b+sizeof(b)) - a),
-			ctl->precision,
-			has_prefix ? a[0] : 0
-		);
-	}
+	convert_int(ctl);
 }
 
 static void fmt_u(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	const unsigned		lm = ctl->length_mod;
-	unsigned long long	v;
-	char *a = NULL;
-
-	char b[ndc_uintmax];
-
-	a = autoconv_u(b, lm, va);
-
-	if (ctl->precision == 0) {
-		do_pad(ctl, cmt, a, (size_t) ( (b+sizeof(b))-a) );
-	}
-	else {
-		dup_buffer_with_zeroes_and_print(
-			ctl,
-			cmt,
-			a,
-			(unsigned) ((b+sizeof(b)) - a),
-			ctl->precision,
-			0
-		);
-	}
+	convert_uint(ctl);
 }
 
 static void fmt_x(printfctl *ctl, commit_buffer_f cmt,va_list *va)
 {
-	char b[sizeof(long long) * 2];
-
-	static const size_t digits[] = {
-		[l_hh]  = 2*sizeof(char),
-		[l_h]   = 2*sizeof(short),
-		[l_NONE]= 2*sizeof(int),
-		[l_l]   = 2*sizeof(long),
-		[l_ll]  = 2*sizeof(long long),
-		[l_j]   = 2*sizeof(intmax_t),
-		[l_z]   = 2*sizeof(size_t)
-	};
-
-	// It is safe to limit the precision with a larger than needed number
-	// when using a narrow type but this will stack smash for anything
-	// larger than 20 because of the long long type.
-
-	// We can still use this for printing hex since the data sizes totally
-	// correspond.
-	const size_t bufflen = digits[ctl->length_mod];
-	unsigned long long int val =
-		bufflen > 8U ?
-			va_arg(*va, unsigned long long int) :
-			va_arg(*va, unsigned int);
-
-	unsigned int chars_gen = itox(
-						val,
-						ctl->req_fmt == 'X',
-						digits[ctl->length_mod],
-						b
-						);
-
-	// According to cppreference:
-	// For integer numbers it is ignored if the precision is explicitly
-	// specified.
-	// So basically only one can be true and we check for the precision
-	// first since it takes precedent.
-
-	if (ctl->precision != 0) {
-		// The existing do_pad function is not sufficient for this
-		// purpose. It does not allow for the arbitrary length
-		// leading zeroes required.
-		dup_buffer_with_zeroes_and_print(
-			ctl,
-			cmt,
-			b,
-			chars_gen,
-			ctl->precision,
-			0
-		);
-	}
-	else {
-		// Padding with zeroes is automatically handled.
-		do_pad(ctl, cmt, b, chars_gen);
-	}
 }
 
 static void fmt_s(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	// If the string is null, it is undefined behavior.
-	// For interoperability, we output (null)
-	// The string uses the precision field to limit the length
-
-	const char * __restrict str = va_arg(*va, const char *);
-
-	// Not defined, but added for interoperability with code that relies
-	// on null strings not failing.
-	if (str == NULL) {
-		do_pad(ctl, cmt, "(null)", 6);
-		return;
-	}
-
-	size_t l = strlen(str);
-
-	if (ctl->precision != 0) // Unlikely
-		l = l >= ctl->precision ? ctl->precision : l;
-
-	do_pad(ctl, cmt, str, l);
 }
 
 #if defined(SHARED_PRINTF_ENABLE_FLOAT)
@@ -748,41 +593,6 @@ static void fmt_G(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 
 static void fmt_o(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
-	static size_t digits[] = {
-		[l_hh   ] = OCTFIGS(unsigned char),
-		[l_h    ] = OCTFIGS(unsigned short),
-		[l_NONE ] = OCTFIGS(unsigned int),
-		[l_l    ] = OCTFIGS(unsigned long),
-		[l_ll   ] = OCTFIGS(unsigned long long),
-		[l_j    ] = OCTFIGS(uintmax_t),
-		[l_z    ] = OCTFIGS(size_t),
-		[l_t    ] = OCTFIGS(ptrdiff_t)
-	};
-	#undef ODS
-
-	const size_t bufflen = digits[ctl->length_mod];
-
-	const unsigned long long val = bufflen >= digits[l_ll] ?
-						va_arg(*va, unsigned long long):
-						va_arg(*va, unsigned int);
-
-	char b[bufflen];
-
-	unsigned int chars_gen = itoo_fw(val, b);
-
-	if (ctl->precision != 0) {
-		dup_buffer_with_zeroes_and_print(
-			ctl,
-			cmt,
-			b,
-			chars_gen,
-			ctl->precision,
-			0
-		);
-	}
-	else {
-		do_pad(ctl, cmt, b, chars_gen);
-	}
 }
 static void fmt_p(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
@@ -791,8 +601,6 @@ static void fmt_p(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 	// We will do (nil) for null pointers and regular 0x format with
 	// lower cases.
 	// Most modifiers for it are invalid.
-
-
 }
 static void fmt_a(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 {
@@ -815,43 +623,45 @@ static void fmt_percent(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 	cmt(ctl, NULL, '%');
 }
 
-typedef void (*fmt_handler)(    printfctl *__restrict   ctl,
-				commit_buffer_f         cmt,
-				va_list *               va
-				);
-
-// This may be too large. I may want to reduce the size by basing them off
-// the first letter of alphabet.
-static const fmt_handler fmt_lookup[] = {
-	['i'-'%'] = fmt_i,
-	['u'-'%'] = fmt_u,
-	['x'-'%'] = fmt_x,  // They are the same and autodetected internally
-	['X'-'%'] = fmt_x,
-	['s'-'%'] = fmt_s,
-	['d'-'%'] = fmt_i,
+static const fmt_handler fmt_lookup[127] = {
+	['i'] = fmt_i,
+	['u'] = fmt_u,
+	['x'] = fmt_x,  // They are the same and autodetected internally
+	['X'] = fmt_x,
+	['s'] = fmt_s,
+	['d'] = fmt_i,
 
 	#if defined(SHARED_PRINTF_ENABLE_FLOAT)
-	['g'-'%'] = fmt_g,
-	['G'-'%'] = fmt_G,
+	['g'] = fmt_g,
+	['G'] = fmt_G,
 	#endif
 
-	['o'-'%'] = fmt_o,
-	['p'-'%'] = fmt_p,
-	['a'-'%'] = fmt_a,
-	['A'-'%'] = fmt_A,
-	['e'-'%'] = fmt_e,
-	['E'-'%'] = fmt_E,
-	['n'-'%'] = fmt_n,
-	['%'-'%'] = fmt_percent
+	['o'] = fmt_o,
+	['p'] = fmt_p,
+	['a'] = fmt_a,
+	['A'] = fmt_A,
+	['e'] = fmt_e,
+	['E'] = fmt_E,
+	['n'] = fmt_n,
+	['%'] = fmt_percent,
 };
 
 static char is_valid_fmt(char f)
 {
-	if (fmt_lookup[(unsigned)f - (unsigned)'%'] != NULL) {
-		return f;
-	}
+	return fmt_lookup[(unsigned)f] != 0 ? f : '\0';
+}
 
-	return '\0';
+static void set_fmt_params_defaults(printfctl *ctl)
+{
+	/* No worries, most of these can be write-combined */
+	ctl->padding_req=0;
+	ctl->alternate=0;
+	ctl->length_mod=l_NONE;
+	ctl->prepend_space=0;
+	ctl->plus_sign=0;
+	ctl->leading_zero_pad=0;
+	ctl->precision=0;
+	ctl->justify = 1;       // Justify is to the right by default!!!
 }
 
 //
@@ -859,8 +669,7 @@ static char is_valid_fmt(char f)
 // the va_list is for the case in which we need use the * prefix.
 //
 static void set_fmt_params(     printfctl *     ctl,
-				const char *    f,
-				va_list *       v
+				const char *    f
 				)
 {
 	// Leave at zero by default so conversions can check if padding
@@ -904,13 +713,12 @@ static void set_fmt_params(     printfctl *     ctl,
 		}
 
 		// Other things fit into a switch case.
-		else
-		switch (f[lx])
+		else switch (f[lx])
 		{
 			case 'h':
-				// Probably wrong, refactor?????
+				// Probably wrong, refactor????????
 				ctl->length_mod = ({unsigned char c;
-					if (f[lx+1]=='h') {
+					if (f[lx+1]=='h'){
 						c=l_hh;
 						lx+=2;
 					}
@@ -924,14 +732,12 @@ static void set_fmt_params(     printfctl *     ctl,
 
 			case 'l':
 				ctl->length_mod = ({unsigned char c;
-					if (f[lx+1]=='l') {
-						c=l_ll;
+					if (f[lx+1]=='l')
+						c=l_ll,
 						lx+=2;
-					}
-					else {
-						c=l_l;
+					else
+						c=l_l,
 						lx++;
-					}
 					c;
 				});
 			break;
@@ -995,7 +801,7 @@ static void set_fmt_params(     printfctl *     ctl,
 				// Next character is asterick?
 				// Set precision using extra int.
 				if (f[lx] == '*') {
-					ctl->precision = va_arg(*v, unsigned);
+					ctl->precision = va_arg(*ctl->v, unsigned);
 					lx++;
 				}
 				else if (f[lx] >= '1' && f[lx] <= '9') {
@@ -1026,7 +832,7 @@ static void set_fmt_params(     printfctl *     ctl,
 				// This is for an asterick encountered on its
 				// own. This right-justified by default.
 
-				ctl->padding_req = va_arg(*v, unsigned);
+				ctl->padding_req = va_arg(*ctl->v, unsigned);
 				lx++;
 			break;
 
@@ -1050,27 +856,34 @@ static void set_fmt_params(     printfctl *     ctl,
 	Also, I may want to use strchr or some other fast method to locate
 	each % sign and copy arbitrary numbers of bytes.
 */
-int _printf_core(       printfctl *		ctl,
-			char *__restrict        buffer,
-			commit_buffer_f         cmt,
-			size_t                  count,
-                        const char *__restrict  f,
-                        va_list                 v
-                )
+int _printf_core
+(
+	printfctl *		ctl,
+	char *  __restrict	buffer,
+	commit_buffer_f		cmt,
+	dupch_f			_dup,
+	size_t			count,
+	const char *__restrict	f,
+	va_list			v
+)
 {
 	ctl->bytes_left = count;
 	ctl->out_buffer = buffer;
 	ctl->bytes_printed = 0;
 	ctl->inx=0;
+	ctl->cmt = cmt;
+	ctl->dup = _dup;
+	ctl->v   = &v;
 
 	while (f[ctl->inx] != 0)
 	{
 		if (unlikely(f[ctl->inx] == '%')) {
 			ctl->inx++;
-			set_fmt_params_defaults(ctl);
 
-			set_fmt_params(ctl, f, &v);
-			fmt_lookup[(unsigned)ctl->req_fmt - (unsigned)'%'](ctl, cmt, &v);
+			set_fmt_params_defaults(ctl);
+			set_fmt_params(ctl, f);
+
+			fmt_lookup[(unsigned)ctl->req_fmt](ctl, cmt, &v);
 		}
 		else {
 			cmt(ctl, NULL, (size_t)f[ctl->inx]);

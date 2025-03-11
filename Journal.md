@@ -8975,3 +8975,15 @@ Add more options:
 - Disable zero as padding (0 flag)
 
 These are not very useful for the kernel and require bloated calls to libgcc that could otherwise be removed.
+
+# March 11
+
+## printf
+
+The current integer formatter is ridiculously complicated. It stretches C syntax to the maximum and is impossible for anyone else to follow. It partially works, but honestly could be far better.
+
+Using dup and cmt is good for density and reducing stack usage. I can simply handle every possible case after performing a proper conversion of the number.
+
+The sign, if relevant, should be passed when converting signed integers.
+
+

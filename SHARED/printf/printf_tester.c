@@ -1,4 +1,6 @@
 #define SHARED_PRINTF_TESTING_NATIVE
+#define SHARED_PRINTF_LLONG 1
+
 #include "printf.c"
 
 static void _putchar_commit(
@@ -17,6 +19,19 @@ static void _putchar_commit(
 		ctl->bytes_printed += count;
 		ctl->bytes_left    -= count;
 	}
+}
+
+static void _putchar_dup(	printfctl *	ctl,
+				char		c,
+				size_t		count
+){
+	// if (count > ctl->bytes_left) {
+	// 	count = ctl->bytes_left;
+	// }
+	ctl->bytes_printed += count;
+
+	for (size_t i = 0; i < count; i++)
+		fputc(c, stderr);
 }
 
 static void _byte_buff_commit(  printfctl *     ctl,
@@ -48,6 +63,11 @@ static void _byte_buff_commit(  printfctl *     ctl,
         }
 }
 
+void _byte_buff_dup(printfctl *pc, char c, size_t count)
+{
+
+}
+
 int _printf(const char *__restrict f, ...)
 {
 	va_list args;
@@ -59,6 +79,7 @@ int _printf(const char *__restrict f, ...)
 		&ctl,
 		NULL,
 		_putchar_commit,
+		_putchar_dup,
 		SIZE_MAX,
 		f,
 		args
@@ -75,7 +96,7 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 
 	va_start(args, f);
 
-	int r = _printf_core(&ctl, s, _byte_buff_commit, n, f, args);
+	int r = _printf_core(&ctl,s,_byte_buff_commit,_byte_buff_dup,n,f,args);
 
 	// Insert null terminator
 	s[r] = 0;
@@ -103,12 +124,13 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 // standard header myself. However, it may need to be a
 // special case for thread safety.
 
+//
+
 int main(void)
 {
-	_printf("%i\n", -1);
-	printf( "%i\n", -1);
-	// printf("%.4x\n", 256);
-
+	#define TEST "[%-2i]\n", 1
+	_printf(TEST);
+	fprintf(stderr, TEST);
 }
 // ACTUALLY NOT QUITE. Passing a number that is smaller than an int is an
 // implicit promotion, which is a special rule with C.
