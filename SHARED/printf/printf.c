@@ -120,10 +120,6 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 	#define likely(x)   __builtin_expect((x),1)
 #endif
 
-/*******************************************************************************
-				Type Definitions
-*******************************************************************************/
-
 typedef enum {
 	l_NONE = 0,
 	l_hh,           // Usually 8-bit
@@ -141,12 +137,7 @@ struct _pfc;
 typedef void (*commit_buffer_f)(struct _pfc *ctl, const char *b, size_t c);
 typedef void (*dupch_f)(struct _pfc *ctl, char ch, size_t n);
 
-typedef void (*fmt_handler)
-(
-	struct _pfc *		ctl,
-	commit_buffer_f         cmt,
-	va_list *               va
-);
+typedef void (*fmt_handler)(struct _pfc * ctl);
 
 struct _pfc {
 	size_t		bytes_left;
@@ -240,13 +231,25 @@ static const unsigned char int_iters_tab[8] = {
 	[l_j]    = ndc_intmax
 };
 
+static inline unsigned umax(unsigned x, unsigned y) { return x > y ? x : y; }
+static inline unsigned umin(unsigned x, unsigned y) { return x < y ? x : y; }
+
 static unsigned max_minus_min(unsigned int a, unsigned int b)
 {
 	return (unsigned)( a < b ? b - a : a - b );
 }
 
+/*
+Potential problem: long is not fetched by its own method.
+Also, I am assuming that long long is the same as intmax_t
+
+On the sysv abi, this has basically no effect.
+*/
+
 void convert_int(printfctl *pc)
 {
+	static const char pfx_tab[] = {0,'-','+','-',' ','-'};
+
 	unsigned iters = int_iters_tab[pc->length_mod];
 	unsigned N = 0;
 
@@ -292,7 +295,7 @@ void convert_int(printfctl *pc)
 
 	unsigned chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
 
-	char pfxch = (const char[]){0,'-','+','-',' ','-'}[pc->plus_sign*2+pc->prepend_space*4+N];
+	char pfxch = pfx_tab[pc->plus_sign*2+pc->prepend_space*4+N];
 
 	if (chars_gen == 0) chars_gen = 1;
 
@@ -337,17 +340,20 @@ void convert_int(printfctl *pc)
 	/* NOT USING ZEROES TO PAD, PADDING WITH SPACES */
 	else {
 		if (pc->justify == 1) {
+			size_t nz =
+			pc->precision > chars_gen ? pc->precision-chars_gen
+			: 0;
 
-			// Infinite loop caused by overflow in subtraction?
-			if (pc->padding_req != 0 && pc->padding_req > chars_gen)
+			if (pc->padding_req != 0 && pc->padding_req > chars_gen+nz) {
 				pc->dup(
 					pc,
 					' ',
-					pc->padding_req - chars_gen
+					pc->padding_req - chars_gen - nz
 				);
+			}
 
 			pc->dup(pc, pfxch, pfxch != 0);
-
+			pc->dup(pc, '0', nz);
 
 			pc->cmt(pc, pb, chars_gen);
 		}
@@ -366,15 +372,57 @@ void convert_int(printfctl *pc)
 	}
 }
 
-// There are limited options fro the sign. It will take up some amount
-// of space, but there is the possibility that there may be no need for space at
-// all.
-//
-//
-//
+/*
+	Prints a buffer with no sign prefix and accounts for zero padding if
+	needed. Zero padding makes no sense for a string but does no harm.
 
+	Works for %u,x,s.
+*/
+// __attribute__((noinline))
+static void print_pad_nopfx_buff(
+	printfctl *pc, size_t chars_gen, const char *pb)
+{
+	if (unlikely(pc->leading_zero_pad)) {
+		if (chars_gen >= pc->padding_req) {
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			pc->dup(
+				pc,
+				'0',
+				pc->padding_req - chars_gen
+			);
+			pc->cmt(pc, pb, chars_gen);
+		}
+	}
+	else {
+		if (pc->justify == 1) {
+			size_t nz =
+			pc->precision > chars_gen ? pc->precision-chars_gen
+			: 0;
 
-static void convert_uint(printfctl *pc)
+			if (pc->padding_req != 0 && pc->padding_req > chars_gen+nz) {
+				pc->dup(
+					pc,
+					' ',
+					pc->padding_req - chars_gen - nz
+				);
+			}
+
+			pc->dup(pc, '0', nz);
+			pc->cmt(pc, pb, chars_gen);
+		}
+		else {
+			pc->cmt(pc, pb, chars_gen);
+			pc->dup(
+				pc, ' ',
+				max(chars_gen, pc->padding_req)-chars_gen
+			);
+		}
+	}
+}
+
+void convert_uint(printfctl *pc)
 {
 	unsigned iters = uint_iters_tab[pc->length_mod];
 
@@ -382,17 +430,17 @@ static void convert_uint(printfctl *pc)
 
 	memset(pc->buff, '0', sizeof(pc->buff));
 
-	if (iters <= ndc_uint) {
-		unsigned a=va_arg(*pc->v, unsigned);
+	if (iters <= ndc_int) {
+		unsigned a = va_arg(*pc->v, unsigned);
 
 		for (unsigned i = 0; i < iters; i++) {
 			pb--;
-			*pb = (a % 10) + '0';
-			a /= 10;
+			*pb = (a % 10U) + '0';
+			a /= 10U;
 		}
 	}
 	else {
-		unsigned long long a=va_arg(*pc->v, unsigned long long);
+		unsigned long long a = va_arg(*pc->v, unsigned long long);
 
 		for (unsigned i = 0; i < iters; i++) {
 			pb--;
@@ -401,78 +449,28 @@ static void convert_uint(printfctl *pc)
 		}
 	}
 
-	// Find first non-zero character in the sequence
-	// pb is at the last character generated, regardless of the type
-	// so redundant iterations can be avoided.
-	for (unsigned i = 0; i < sizeof pc->buff - 1; i++) {
+	for (unsigned i = 0; i < sizeof(pc->buff); i++) { /*-1?*/
 		if (*pb != '0')
 			break;
-		else
-			pb++;
+		pb++;
 	}
 
 	unsigned chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
 
-	/*
-	Zero padding excludes all other options except the pad count.
-	We assume this is highly unlikely, as this option is rarely used.
-	*/
-	if (unlikely(pc->leading_zero_pad)) {
-		// Is this correct?
-		pc->dup(pc, '0', max(pc->padding_req - (pb - pc->buff), 0) );
-		pc->cmt(pc, pb, chars_gen);
-	}
-	else {
-		if (pc->justify == 1) {
-			pc->dup(pc,
-				' ',
-				max(chars_gen, pc->padding_req)
-				- chars_gen
-			);
-			pc->cmt(pc, pb, chars_gen);
-		}
-		else {
-			pc->cmt(pc, pb, chars_gen);
-			pc->dup(pc, ' ', max(chars_gen, pc->padding_req)
-					- chars_gen
-			);
-		}
-	}
+	if (chars_gen == 0) chars_gen = 1;
+
+	print_pad_nopfx_buff(pc, chars_gen - 2, pb);
 }
-
-/*
-	if (unlikely(pc->leading_zero_pad)) {
-		pc->dup(pc, '-', (unsigned)N);
-
-		// Is this correct?
-		pc->dup(pc, '0', (pb - pc->buff) - (unsigned)N);
-		pc->cmt(pc, pb, chars_gen);
-	}
-
-	else {
-		if (pc->justify == 1) {
-			pc->dup(pc, ' ', max(chars_gen, pc->padding_req) - chars_gen - (unsigned)N);
-			pc->cmt(pc, pb, chars_gen);
-		}
-		else {
-			pc->dup(pc, '-', 1);
-			pc->cmt(pc, pb, chars_gen);
-			pc->dup(
-				pc, ' ',
-				max(chars_gen, pc->padding_req)-chars_gen-(unsigned)N
-			);
-		}
-	}
-*/
 
 static unsigned itox
 (
-	unsigned long long	value,
+	uintmax_t		value,
 	unsigned		cap,
 	unsigned 		maxdigits,
 	char *			buff
 )
 {
+	// Pack these together and align to cache boundary?
 	static const char lookup1[16] =
 	{'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
 	static const char lookup2[16] =
@@ -480,21 +478,81 @@ static unsigned itox
 
 	const char * const lookup = cap ? lookup2 : lookup1;
 
-	unsigned int nonzero_encountered = 0, ret = 0;
+	unsigned int nze = 0, ret = 0;
 
 	for (int i = (signed)maxdigits-1; i >= 0; i--)
 	{
 		char digit = lookup[ (value >> ((unsigned)i*4)) & 0xF ];
 
-		if (!nonzero_encountered && digit != '0')
-		    nonzero_encountered=1;
+		if (!nze && digit != '0')
+		nze=1;
 
-		if (nonzero_encountered) {
+		if (nze) {
 			buff[ret] = digit;
 			ret++;
 		}
 	}
 	return ret;
+}
+
+static void convert_hex(printfctl *pc)
+{
+	/* size_t is actually better, based on compiler output. */
+	static const size_t digits[] = {
+		[l_hh]  = 2*sizeof(unsigned char),
+		[l_h]   = 2*sizeof(unsigned short),
+		[l_NONE]= 2*sizeof(unsigned int),
+		[l_l]   = 2*sizeof(unsigned long),
+		[l_ll]  = 2*sizeof(unsigned long long),
+		[l_j]   = 2*sizeof(uintmax_t),
+		[l_z]   = 2*sizeof(size_t)
+	};
+
+	// Handle %p here too!
+	// Also the # modifier puts 0x
+
+	char b[sizeof(uintmax_t)*2 + 2];
+
+	uintmax_t val = 0;
+
+	switch (pc->length_mod)
+	{
+		case l_hh:
+		case l_h:
+		case l_NONE:
+			val = (uintmax_t)va_arg(*pc->v, unsigned);
+		break;
+		case l_l:val= (uintmax_t)va_arg(*pc->v, unsigned long);
+		break;
+		case l_ll:val=(uintmax_t)va_arg(*pc->v, unsigned long long);
+		break;
+		case l_j:val =(uintmax_t)va_arg(*pc->v, uintmax_t);
+		break;
+		case l_z:val =(uintmax_t)va_arg(*pc->v, size_t);
+		break;
+		default: val =(uintmax_t)va_arg(*pc->v, uintptr_t);
+	}
+
+	/*
+		If alt is specified, we need a 0x in the buffer, but only
+		when it is not used with a leading zero pad, which would
+		instead require outputting before everything else.
+	*/
+	if (!pc->leading_zero_pad && pc->alternate) {
+		b[0] = '0';
+		b[1] = pc->req_fmt;
+	}
+	else if (pc->leading_zero_pad && pc->alternate) {
+		pc->dup(pc, '0', 1);
+		pc->dup(pc, pc->req_fmt, 1);
+		pc->padding_req -= 2;
+	}
+	// This is not correct. Zero pad will NOT work without a prefix.
+
+	unsigned chars_gen =
+	itox(val, pc->req_fmt=='X', digits[pc->length_mod], b);
+
+	print_pad_nopfx_buff(pc, chars_gen, b);
 }
 
 /*
@@ -525,7 +583,7 @@ static unsigned int itoo_fw
 }
 
 // Still untested.
-unsigned int custom_atou(const char *s)
+static unsigned int custom_atou(const char *s)
 {
 	unsigned int final = 0;
 	unsigned int multiplier = 1;
@@ -544,9 +602,6 @@ unsigned int custom_atou(const char *s)
 	return final;
 }
 
-static inline unsigned umax(unsigned x, unsigned y) { return x > y ? x : y; }
-static inline unsigned umin(unsigned x, unsigned y) { return x < y ? x : y; }
-
 static int atou_substring(      const char *	str,
 				unsigned int *	index_inc
 				)
@@ -564,37 +619,38 @@ static int atou_substring(      const char *	str,
 
 // printfctl *ctl
 // CHECK THE SIZE SPEC!!!
-static void fmt_i(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_i(printfctl *ctl)
 {
 	convert_int(ctl);
 }
 
-static void fmt_u(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_u(printfctl *ctl)
 {
 	convert_uint(ctl);
 }
 
-static void fmt_x(printfctl *ctl, commit_buffer_f cmt,va_list *va)
+static void fmt_x(printfctl *ctl)
 {
+	convert_hex(ctl);
 }
 
-static void fmt_s(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_s(printfctl *ctl)
 {
 }
 
 #if defined(SHARED_PRINTF_ENABLE_FLOAT)
-static void fmt_g(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_g(printfctl *ctl)
 {
 }
-static void fmt_G(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_G(printfctl *ctl)
 {
 }
 #endif
 
-static void fmt_o(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_o(printfctl *ctl)
 {
 }
-static void fmt_p(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_p(printfctl *ctl)
 {
 	// Implementation-defined pointer format. Normally is print a hex
 	// string with a 0x prefix and lowercase letters.
@@ -602,27 +658,29 @@ static void fmt_p(printfctl *ctl, commit_buffer_f cmt, va_list *va)
 	// lower cases.
 	// Most modifiers for it are invalid.
 }
-static void fmt_a(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_a(printfctl *ctl)
 {
 }
-static void fmt_A(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_A(printfctl *ctl)
 {
 }
-static void fmt_e(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_e(printfctl *ctl)
 {
 }
-static void fmt_E(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_E(printfctl *ctl)
 {
 }
-static void fmt_n(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_n(printfctl *ctl)
 {
 }
 
-static void fmt_percent(printfctl *ctl, commit_buffer_f cmt, va_list *va)
+static void fmt_percent(printfctl *ctl)
 {
-	cmt(ctl, NULL, '%');
+	ctl->dup(ctl, '%', 1);
 }
 
+// Find a simpler way to do this, it's inefficient.
+// A valid format is always alphabetical, by the way.
 static const fmt_handler fmt_lookup[127] = {
 	['i'] = fmt_i,
 	['u'] = fmt_u,
@@ -883,7 +941,7 @@ int _printf_core
 			set_fmt_params_defaults(ctl);
 			set_fmt_params(ctl, f);
 
-			fmt_lookup[(unsigned)ctl->req_fmt](ctl, cmt, &v);
+			fmt_lookup[(unsigned)ctl->req_fmt](ctl);
 		}
 		else {
 			cmt(ctl, NULL, (size_t)f[ctl->inx]);

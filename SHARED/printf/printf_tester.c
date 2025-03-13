@@ -118,7 +118,6 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 	}
 }
 
-
 // Note: streams require callbacks to accept reads and writes. This allows
 // for a correctly working stdin/stdout. I saw this in the
 // standard header myself. However, it may need to be a
@@ -128,7 +127,7 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 
 int main(void)
 {
-	#define TEST "[%-2i]\n", 1
+	#define TEST "%#020X\n", 1
 	_printf(TEST);
 	fprintf(stderr, TEST);
 }
