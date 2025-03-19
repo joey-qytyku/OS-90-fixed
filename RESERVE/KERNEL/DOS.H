@@ -344,6 +344,9 @@ typedef _Packed struct {
 	// DOS also keeps a table of the path that each drive is currently at.
 	// This must be simulated. 1,664 bytes are used.
 	//
+
+
+	// THIS IS WRONG!!!. The path length is about 128 in reality.
 	BYTE    path[64][26];
 
 	// I shoudl REALLY reduce that. 64-byte path can easily be malloc'd.

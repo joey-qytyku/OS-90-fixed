@@ -227,4 +227,10 @@ __asm__ volatile ( \
 	}else rep_movsb((d),(s),(c));\
 }
 
+// __attribute__((force_inline))
+// static inline peek32(unsigned *p)
+// {
+// 	__asm__ volatile (:::"memory");
+// }
+
 #endif /* TYPE_H */

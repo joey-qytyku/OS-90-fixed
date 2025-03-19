@@ -4,6 +4,8 @@
 
 JQ-LIBC is the C library of OS/90. It is custom-designed for the OS and is original code unless stated otherwise in the source.
 
+The LIBC is a standard part of OS/90 that is dynamically linked to all command line and graphical programs.
+
 OS/90 LIBC does not advertise to be 100% compatible with any ISO standard, but it intends to be close enough to port most common programs. It is also not meant to be compatible with programs written for DJGPP, but some efforts may be made in the future.
 
 It is not intended to be a replacement for the DJGPP library or newlib, it is designed for OS/90 in particular.
@@ -28,5 +30,4 @@ C99 is the target.
 
 * All wide character functions (djgpp does not have them too)
 * Most GNU or POSIX extensions
-
-
+* Locales except for the C/ascii locale

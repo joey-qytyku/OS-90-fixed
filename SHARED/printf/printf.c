@@ -37,10 +37,13 @@ This module implements a function called _printf_core. The source package should
 include examples of how to implement some of the derivatives.
 
 _printf_core is used to implement every other variant of the printf family.
-It works like vsnprintf but with a buffer write callback.
+It works like vsnprintf but with buffer write callbacks.
 
 Copy printf.c into your source tree and use another file to implement the
-functions needed with the desired function signature.
+functions needed with the desired function signature. Include printf.c into the
+file that implements the interfaces.
+
+See readme in the SHARED folder (if available) to view all macro options.
 
 *******************************************************************************/
 
@@ -51,17 +54,10 @@ functions needed with the desired function signature.
 	#include <stdlib.h>
 #endif
 
-#ifdef __MEDIUM__
-/*
-	Compiling for 16-bit DOS with ia16-gcc. Float is automatically
-	disabled.
-*/
-#endif
-
 // These ones are always going to exist, even if freestanding.
 #include <stdarg.h>		/* variadic arguments*/
 #include <stddef.h>		/* size_t */
-#include <sys/types.h>		/* ssize_t */
+#include <sys/types.h>		/* ssize_t. But its not standard? */
 #include <stdint.h>		/* type sizes */
 #include <limits.h>		/* bit widths */
 
@@ -455,7 +451,7 @@ void convert_uint(printfctl *pc)
 		pb++;
 	}
 
-	unsigned chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
+	size_t chars_gen = (unsigned)((pc->buff + sizeof pc->buff) - pb);
 
 	if (chars_gen == 0) chars_gen = 1;
 
@@ -511,6 +507,7 @@ static void convert_hex(printfctl *pc)
 	// Handle %p here too!
 	// Also the # modifier puts 0x
 
+	/* Should I just use the common buffer? */
 	char b[sizeof(uintmax_t)*2 + 2];
 
 	uintmax_t val = 0;
@@ -533,26 +530,48 @@ static void convert_hex(printfctl *pc)
 		default: val =(uintmax_t)va_arg(*pc->v, uintptr_t);
 	}
 
-	/*
-		If alt is specified, we need a 0x in the buffer, but only
-		when it is not used with a leading zero pad, which would
-		instead require outputting before everything else.
-	*/
-	if (!pc->leading_zero_pad && pc->alternate) {
-		b[0] = '0';
-		b[1] = pc->req_fmt;
-	}
-	else if (pc->leading_zero_pad && pc->alternate) {
-		pc->dup(pc, '0', 1);
-		pc->dup(pc, pc->req_fmt, 1);
-		pc->padding_req -= 2;
-	}
-	// This is not correct. Zero pad will NOT work without a prefix.
+	unsigned chars_gen = itox(
+		val,
+		pc->req_fmt == 'X',
+		digits[pc->length_mod],
+		b
+	);
+	if (pc->alternate) {
+		if (pc->leading_zero_pad) {
+			pc->dup(pc, '0', 1);
+			pc->dup(pc, pc->req_fmt, 1);
 
-	unsigned chars_gen =
-	itox(val, pc->req_fmt=='X', digits[pc->length_mod], b);
+			// The 0x is considered part of the padding
+			// If the number fits in the region, the output will
+			// be equal to the padding in length.
+			// This means that the padding must be set to -2 of the
+			// requested amount.
 
-	print_pad_nopfx_buff(pc, chars_gen, b);
+			pc->padding_req=pc->padding_req<2 ? 2:pc->padding_req-2;
+
+			print_pad_nopfx_buff(pc, chars_gen, b);
+		}
+		else {
+			int spaces = (int)pc->padding_req - (int)chars_gen - 2;
+			if (spaces <= 0) {
+				goto JustPrint;
+			}
+
+			pc->dup(
+				pc,
+				' ',
+				pc->padding_req - chars_gen - 2
+			);
+			goto JustPrint;
+		}
+	}
+	return ;
+
+	JustPrint:
+	pc->dup(pc, '0', 1);
+	pc->dup(pc, pc->req_fmt, 1);
+	pc->cmt(pc, b, chars_gen);
+
 }
 
 /*
@@ -634,8 +653,22 @@ static void fmt_x(printfctl *ctl)
 	convert_hex(ctl);
 }
 
-static void fmt_s(printfctl *ctl)
+static void fmt_s(printfctl *pc)
 {
+	// Wide strings are not supported btw.
+
+	const char * s = va_arg(*pc->v, const char *__restrict);
+
+	const size_t len = strlen(s);
+
+	const size_t actual = len >= pc->precision ? pc->precision : len;
+
+	// I do not want to have the helper act on the precision or it will
+	// insert pointless zero characters like for a number.
+	// All we use precision for is to get the appropriate length.
+	pc->precision = 0;
+
+	print_pad_nopfx_buff(pc, actual, s);
 }
 
 #if defined(SHARED_PRINTF_ENABLE_FLOAT)
@@ -650,6 +683,7 @@ static void fmt_G(printfctl *ctl)
 static void fmt_o(printfctl *ctl)
 {
 }
+
 static void fmt_p(printfctl *ctl)
 {
 	// Implementation-defined pointer format. Normally is print a hex

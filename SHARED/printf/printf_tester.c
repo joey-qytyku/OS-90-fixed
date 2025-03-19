@@ -127,7 +127,7 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 
 int main(void)
 {
-	#define TEST "%#020X\n", 1
+	#define TEST "[%40.4s]\n", "Hello world!"
 	_printf(TEST);
 	fprintf(stderr, TEST);
 }

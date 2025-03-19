@@ -10,11 +10,11 @@ In OS/90, NULL is actually 0xFFFFFFFF because 0 is a valid address. 0xFFFFFFFF i
 
 This MUST be taken into consideration. E.g. structures like linked lists with NULL pointers cannot just be zeroed unless the zero is given special meaning by checking it. Otherwise, a NULL dereference cannot be an error.
 
-The C standard does not define NULL whatsoever. True portable code should not assume its value.
+The C standard defines NULL as the pointer version of the integer zero. It can be compared using if statements. If the pointer is in a boolean expression, it is false if NULL. But OS/90 does not use NULL the same way.
+
+NULL is still but it is non-standard and aliases OSNULL. It may need to be casted for double pointer types.
 
 Attempting to dereference an OSNULL pointer is a critical error that must never occur under normal circumstances. Because drivers are really just kernel extensions, they cannot be terminated.
-
-NULL is not defined, but there is `OSNULL`, which indicates the environment difference in the name.
 
 This has no noticable impact on code density. Even comparisons are abbreviated in x86 for long operands, along with signed immediate push operations.
 
@@ -22,32 +22,11 @@ This has no noticable impact on code density. Even comparisons are abbreviated i
 	C99 and SysV i386 Compliance
 --------------------------------------------------------------------------------
 
-OS/90 is written to be compatible with the GNU dialect of C99. This is not advertise, but is a general principle.
+OS/90 is written to be compatible with the GNU dialect of C99. This is not advertised, but is a general principle.
 
-C99 introduced the strict aliasing rule, by which it is potentially dangerous to cast a pointer of one type to another and assume they do not alias.
+C99 introduced the strict aliasing rule, by which it is potentially dangerous to cast a pointer of one type to another and access overlapping data.
 
 The SysV ABI is generally used. Structure layouts and most calling conventions conform to the rules found in this specification because GCC already adheres to it internally.
-
---------------------------------------------------------------------------------
-	Kernel Types
---------------------------------------------------------------------------------
-
-The OS/90 kernel is intended to follow more strict design protocols and standards of quality compared to userspace. One aspect of this is a more explicit and readable type system.
-
-The following are the fundamental integer types:
-
-Unsigned        Signed
-------------------------
-BYTE            S_BYTE
-WORD            S_WORD
-DWORD           S_DWORD
-QWORD           S_QWORD
-
-
-There are also modifiers for pointers implemented as macros. The protocol is:
-- First part describes the pointer (CPTR = constant pointer, PTR is just pointer)
-- Underscore plus second part describes the data pointed to it (R=restrict,CD=const data)
-- CD comes before R if the former is present.
 
 Some examples:
 ................................................................................
@@ -88,7 +67,9 @@ Never use volatile. Ever. Some people use it to access framebuffers because the 
 
 GCC will not generate the most optimal code for volatile. It tends to load before changes.
 
-Compilers do not reorder function calls, even if they are inline, if there are side effects.
+Compilers do not reorder function calls, even if they are inline, if there are side effects, such as if the memory clobber is specified, which is correct.
+
+Use proper utilities for this. All are in "type.h".
 
 --------------------------------------------------------------------------------
 	Configuration File

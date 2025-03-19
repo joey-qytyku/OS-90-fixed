@@ -9080,3 +9080,785 @@ Also, it appears the compiler is not doing a good job with optimizing the bit fi
 The function is inlined within the printf_core function.
 
 This can in theory be optimized away by a single write.
+
+# March 14, 2025
+
+## Floating Point Conversions
+
+x86 has an instruction called fprem which performs a modulus. This is potentially useful for digit extraction. It can be the inline implementation of fmod.
+
+The number of digits can be computed by looking at the exponent part.
+
+Some interesting instructions (C equivalent that can inline?)
+- FRNDINT
+- FXTRACT
+
+## Next Things to Do
+
+I will not do any of that now. I need printf for the kernel. Float conversions will be done later.
+
+Currently, the # modifier does not fully work when space padding.
+
+## printf seems to be working
+
+One more thing to do. Print strings with %s. Fairly easy and I already have code for it to reference.
+
+That is done now. I can move on to the kernel.
+
+## String Instructions
+
+The whole set needs to be supported. I do wonder how they will be added to drivers.
+
+The best solution may be to have some sort of support library. The compiler may call an actual function and that needs to be linked in.
+
+This library can contain a bunch of object files for relevant string instructions linked together, or anything that stdlib provides which is needed in the kernel and may be inlinable.
+
+This makes the library a build prerequisite to anything that uses it.
+
+The size increase is basically negligible.
+
+# March 15
+
+## Why Not Watcom?
+
+Watcom has limited C99 support. Maybe if I really want to simulate running the OS on old hardware or allow old toolchains to build it, then using Watcom or something like that is the way to go.
+
+Of course a modern compiler will beat whatever existed back then.
+
+Watcom had support for 32-bit mode since 1989. MSVC was 32-bit since about 1993. Borland C++ supported 32-bit code since 1993 too.
+
+## Make It Portable to All Compilers?
+
+I like the idea of being able to boostrap OS/90 on any old computer with any compiler. Even a modern one like GCC could work too.
+
+NASM was first introduced in 1995 and is currently a hard dependency. It was not fully capable until later, but still 90s-era.
+
+While the idea of being able to fully compile OS/90 on an old computer from as early as 1989 is very interesting, I wonder if that is really what I should do.
+
+The vibe of compiling the OS from DOS, with the black and grey text flowing, and then running everything like that, it is something I like to think about.
+
+But I am writing this OS from a 2024 MacBook, and I have new tools that don't do any new magic, but provide useful features that I can use to get more performance and efficiency.
+
+First I must understand the plausibility:
+- printf would have to be mostly rewritten, with some parts reused, and retarget C89 (which would be a simplification)
+- Using the restrict keyword comes with challenges, as not all compilers supported it before C99. Watcom is able to, but with underscores.
+- The C library may miss opportunities to be more efficient
+
+There are advantages. I can avoid adding the newer features. There is no long long type at all in C89. printf is also simplified although with most of the basic features.
+
+## Features Currently Used
+
+- VLA's, compound expression, type-safe min/max macros, and a number of other features are currently used.
+- Inline keyword
+- Slash comments
+- stdint.h
+
+stdint actually does not exist in C89 whatsoever. It may be supported as an extension. That explains why Linux uses __u8, __u16, __u32 and other types like that.
+
+This makes a portable printf impossible, although my existing one is already very non-portable.
+
+## The Idea
+
+The main difficulty is:
+- Testing to make sure all compilers work
+- Inline assembly code
+- Linking the final executables
+- Build scripts
+- Executable formats for the target
+- File names must be DOS compatible
+
+DJGPP inherently is incapable of creating OBJ files. I suppose OBJ is to different from ELF and COFF. It has to do the linking and the final build.
+
+This makes COFF difficult to use as an executable format or DLL. DJGPP cannot link for anything else either.
+
+Watcom can handle COFF and I believe most win32-capable compilers handle COFF too. The 32-bit OMF format was mainly used for DOS.
+
+MSVC also may use COFF as well.
+
+The idea of supporting old toolchains is strange because I do not have access to any of them right now. The nuances of versions and supported features are difficult to ascertain. How far back do I have to go? What needs to be supported?
+
+Consider using a configuration script. But also I need some automatic portability.
+
+Using some preprocessing to make everything work is all fine, but when it comes to actually linking executable programs, there is no consistency.
+
+A tool to convert to/from coff and omf DOES exist and is part of the DMC toolchain and there are other tools for the same purpose.
+
+I do not know if such a tool existed back then.
+
+I need a real format. A DOS 32-bit executable will not have the necessary relocations.
+
+It does not really matter of an OBJ/COFF converter every existed. I could write my own if I cared that much. OS/90 never existed in the 90's.
+
+coff2omf is available from the DMC toolchain. I can include it for distributions if it is open source.
+
+The problem is that Microsoft COFF is not the same as DJGPP COFF.
+
+## Note About Environment Block
+
+The environment block is local to each program. This means that when COMMAND.COM is reclaimed by the kernel, its environment block should be copyied to extended memory and reclaimed.
+
+DOS has other internal structures that are best left alone.
+
+I have a document bookmarked that details the contents of the environment.
+
+## The Decision
+
+Compiling the kernel for different toolchains can be supported. I can add that in at any time with a bit more effort later if I don't do it now.
+
+So I must use only one single compiler over all others.
+
+However, I think that my previous characterization of Open Watcom was unfair, as I was not able to compile printf.
+
+My newer Watcom compiler build should be capable of C99. This means I can compile my own printf, but...
+
+It needs a proper build system, perhaps a program that outputs the number of digits as macros or constants. Macro is probably better for watcom.
+
+First I should judge the binary size. Then I should consider the performance.
+
+But DJGPP is known for its slow IO. So the only way I can be sure of performance is to manually call INT 10h or INT 21h.
+
+DOSBox is not the best emulator for accuracy. Size optimization usually improves the performance in ways it would not in a real CPU.
+
+The only way to benchmark the two legitimately is to use a cycle-accurate emulator. I have 86Box installed and it provides this.
+
+## Methodology
+
+> Next entry.
+
+# March 16
+
+A DOOM benchmark I saw using DOSBox showed DJGPP as being ahead of other compilers. But DOSBox treats each instruction as a single cycle.
+
+I will test printf with several calls and complex format options. This will be done in a separate module to inhibit optimizations that could effect results.
+
+Measuring time in DOS is difficult.
+
+## The Actual Watcom Advantage
+
+Watcom supports complex register calling conventions. It allows for return value nomination and selecting the exact register for each argument, all using the #pragma aux feature.
+
+This is very powerful, but obviously sacrifices portability.
+
+For example, memcpy, memcmp, etc. can all be implemented to use the proper registers with no pushing whatsoever.
+
+It is also possible to declare calling conventions and define attributes to be added to functions.
+
+The problem is that GCC is what I am familliar with and I do not really care anymore.
+
+## C89 or C99
+
+If I want to compile the OS with an old toolchain, this requires adherence to C89 instead of C99, or at least I can use C99 as an extension and not make it required.
+
+The C library can support both since C99 is just an extension. Things like restrict and C99 library calls can simply be omitted when C89 compatibility is required.
+
+The kernel would have to be written to comply with C89 but support restrict since it is a major performance enhancer.
+
+## Decision
+
+I still do not want to start over again. It would not be a total restart, but is still quite a major slowdown.
+
+I want to play a bit with Watcom and see what kind of code that it generates.
+
+C89 however is a very limited standard. If I want it at all, and there are benefits, mainly avoiding implementing some library features, Watcom is more reasonable.
+
+The final decision is between Watcom and GCC, not some version of a standard. I will not worry about boostrapping the OS on old toolchains because that is just for a flex nobody cares about. Getting a working operating system out is more important, since OS/90 is not the only thing I want to do, as much as I like it.
+
+Advantages of GCC:
+- More actively developed
+- Optimization
+- I am familiar with it
+- Powerful builtins and inline assembler
+- Allows the use of IDE autocomplete
+- Superior dead code and branch elimination for portable code
+- Dont have to redo anything
+
+Advantages of Watcom:
+- Control over register parameters and return for functions
+- Inline assembler is different but also quite powerful
+- Optimization is tuned for older CPU's
+- Far pointer support
+- Forces C89, which makes the stdlib simpler
+- Generates small binaries even with speed optimization
+
+## Investigation: Phase 1
+
+I just realized that Watcom is able to optimize jumps by reusing parts of other procedures. It does this when there is an empty main to instantly return without encoding it separately.
+
+GCC actually does not do this. Quite suprising. This reduces the complexity significantly.
+
+Also, the compiler appears to use register parameters by default. The memcmp function I tested does not reference the stack at all.
+
+With control over register parameters, I could make every function optimized. Something to think about.
+
+# March 17, 2025
+
+I got this off the internet. The compiler will usually inline it. In fact, there is no reason why it should not do so.
+
+```
+__attribute__((regparm(3))) /* For GCC to match watcom's auto-regparm*/
+int memcmp_(const void* buf1,
+           const void* buf2,
+           unsigned count)
+{
+    if(!count)
+        return(0);
+
+    while(--count && *(char*)buf1 == *(char*)buf2 ) {
+        buf1 = (char*)buf1 + 1;
+        buf2 = (char*)buf2 + 1;
+    }
+
+    return(*((unsigned char*)buf1) - *((unsigned char*)buf2));
+}
+```
+
+I am using DJGPP hosted under Mac OS. It is version 12.2.
+
+For some reason it generates inferior code compared to a Linux hosted compiler. No idea why. The compiler core should be the same. DJGPP is mainly just a library, hence the PP=Porting platform.
+
+Despite that, the code generated by the Linux-based compiler is still larger. I don't know if it is faster. Some of the sequences are actually quite similar
+
+The main improvement is the avoidance of slow movzx instructions. It costs 6 clocks on a 386. On Pentium and 486 its only 3, so not a big deal.
+
+I will find another kernel to test.
+
+## Convert Integer With Backward Generation
+
+
+
+Watcom does this:
+```
+Open Watcom build environment ( version=0)
+Module: main
+GROUP: 'DGROUP' CONST,CONST2,_DATA
+
+Segment: _TEXT PARA USE32 00000058 bytes
+0000				convert_:
+0000  53				        push	ebx
+0001  51				        push	ecx
+0002  56				        push	esi
+0003  57				        push	edi
+0004  55				        push	ebp
+0005  89 C3				        mov     ebx,eax
+0007  85 D2				        test	edx,edx
+0009  7C 47				        jl		L$3
+000B  89 D1				        mov		ecx,edx
+000D				L$1:
+000D  85 D2				        test		edx,edx
+000F  0F 9C C2				    setl		dl
+0012  BD 0A 00 00 00			mov		ebp,0x0000000a
+0017  89 D7				        mov		edi,edx
+0019  31 F6				        xor		esi,esi
+001B  81 E7 FF 00 00 00			and		edi,0x000000ff
+0021  8D 80 00 00 00 00			lea		eax,[eax]
+0027  8D 92 00 00 00 00			lea		edx,[edx]
+002D  8D 40 00				    lea		eax,[eax]
+0030				L$2:
+0030  89 C8				        mov		eax,ecx
+0032  31 D2				        xor		edx,edx
+0034  F7 F5				        div		ebp
+0036  83 C2 30				    add		edx,0x00000030
+0039  89 C8				        mov		eax,ecx
+003B  88 53 FF				    mov		-0x1[ebx],dl
+003E  31 D2				        xor		edx,edx
+0040  F7 F5				        div		ebp
+0042  4B				        dec		ebx
+0043  46				        inc		esi
+0044  89 C1				        mov		ecx,eax
+0046  39 EE				        cmp		esi,ebp
+0048  72 E6				        jb		L$2
+004A  89 F8				        mov		eax,edi
+004C  5D				        pop		ebp
+004D  5F				        pop		edi
+004E  5E				        pop		esi
+004F  59				        pop		ecx
+0050  5B				        pop		ebx
+0051  C3				        ret
+0052				L$3:
+0052  89 D1				        mov		ecx,edx
+0054  F7 D9				        neg		ecx
+0056  EB B5				        jmp		L$1
+
+Routine Size: 88 bytes,    Routine Base: _TEXT + 0000
+```
+
+And GCC:
+```
+convert:
+        push    ebp
+        push    edi
+        push    esi
+        push    ebx
+        push    ecx
+        mov     ebx, DWORD PTR [esp+24]
+        mov     eax, DWORD PTR [esp+28]
+        mov     ecx, eax
+        test    eax, eax
+        jns     .L2
+        neg     ecx
+.L2:
+        shr     eax, 31
+        mov     DWORD PTR [esp], eax
+        lea     ebp, [ebx-10]
+        mov     esi, 10
+        mov     edi, -858993459
+.L3:
+        dec     ebx
+        mov     eax, ecx
+        xor     edx, edx
+        div     esi
+        add     edx, 48
+        mov     BYTE PTR [ebx], dl
+        mov     eax, ecx
+        mul     edi
+        mov     ecx, edx
+        shr     ecx, 3
+        cmp     ebx, ebp
+        jne     .L3
+        movzx   eax, BYTE PTR [esp]
+        pop     edx
+        pop     ebx
+        pop     esi
+        pop     edi
+        pop     ebp
+        ret
+; 74 bytes
+```
+
+Watcom and GCC both had a hard time, but Watcom tried to align a branch even though it had little to gain from doing so.
+
+Both have an inner loop:
+
+Watcom's loop
+```
+L$2:
+    mov		eax,ecx
+    xor		edx,edx
+    div		ebp
+    add		edx,0x00000030
+    mov		eax,ecx
+    mov		-0x1[ebx],dl
+    xor		edx,edx
+    div		ebp
+    dec		ebx
+    inc		esi
+    mov		ecx,eax
+    cmp		esi,ebp
+    jb		L$2
+```
+
+It looks like a level of unrolling took place here because it is running DIV twice. The number of iterations is even so that is probably why.
+
+Now GCC's loop:
+```
+.L3:
+        dec     ebx
+        mov     eax, ecx
+        xor     edx, edx
+        div     esi
+        add     edx, 48
+        mov     BYTE PTR [ebx], dl
+        mov     eax, ecx
+        mul     edi
+        mov     ecx, edx
+        shr     ecx, 3
+        cmp     ebx, ebp
+        jne     .L3
+```
+
+For some reason, it is adding a MUL instruction. Note that I used -O2.
+
+On -O3, the compiler totally unrolls the loop.
+
+```
+convert:
+        push    ebp
+        push    edi
+        push    esi
+        push    ebx
+        mov     ecx, DWORD PTR [esp+20]
+        mov     ebx, DWORD PTR [esp+24]
+        mov     esi, ebx
+        test    ebx, ebx
+        jns     .L2
+        neg     esi
+.L2:
+        mov     edi, 10
+        mov     eax, esi
+        xor     edx, edx
+        div     edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-1], dl
+        mov     ebp, -858993459
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-2], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-3], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-4], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-5], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-6], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-7], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-8], dl
+        mov     eax, esi
+        mul     ebp
+        mov     esi, edx
+        shr     esi, 3
+        mov     eax, esi
+        cdq
+        idiv    edi
+        add     edx, 48
+        mov     BYTE PTR [ecx-9], dl
+        mov     eax, esi
+        mul     ebp
+        shr     edx, 3
+        add     edx, 48
+        mov     BYTE PTR [ecx-10], dl
+        mov     eax, ebx
+        shr     eax, 31
+        pop     ebx
+        pop     esi
+        pop     edi
+        pop     ebp
+        ret
+```
+
+Yikes. It would run much faster than what I previously generated, but this is 224 bytes. An old CPU would suffer from major cache polution, especially with the fact that many did not have separate icache.
+
+If I change the tuning to 486, I get this:
+```
+convert:
+        push    ebp
+        push    edi
+        push    esi
+        push    ebx
+        mov     ebx, DWORD PTR [esp+20]
+        mov     edi, DWORD PTR [esp+24]
+        mov     esi, edi
+        test    edi, edi
+        jns     .L2
+        neg     esi
+.L2:
+        mov     ecx, -858993459
+        mov     eax, esi
+        mul     ecx
+        shr     edx, 3
+        mov     ebp, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-1], al
+        mov     eax, edx
+        mul     ecx
+        shr     edx, 3
+        mov     esi, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     ebp, eax
+        lea     eax, [ebp+48]
+        mov     BYTE PTR [ebx-2], al
+        mov     eax, edx
+        mul     ecx
+        shr     edx, 3
+        mov     ebp, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-3], al
+        mov     eax, edx
+        mul     ecx
+        shr     edx, 3
+        mov     esi, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     ebp, eax
+        lea     eax, [ebp+48]
+        mov     BYTE PTR [ebx-4], al
+        mov     eax, edx
+        mul     ecx
+        shr     edx, 3
+        mov     ebp, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-5], al
+        mov     eax, edx
+        mul     ecx
+        mov     esi, edx
+        shr     esi, 3
+        lea     eax, [esi+esi*4]
+        add     eax, eax
+        sub     ebp, eax
+        lea     eax, [ebp+48]
+        mov     BYTE PTR [ebx-6], al
+        mov     eax, esi
+        mul     ecx
+        shr     edx, 3
+        mov     ebp, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-7], al
+        mov     eax, edx
+        mul     ecx
+        mov     esi, edx
+        shr     esi, 3
+        lea     eax, [esi+esi*4]
+        add     eax, eax
+        sub     ebp, eax
+        lea     eax, [ebp+48]
+        mov     BYTE PTR [ebx-8], al
+        mov     eax, esi
+        mul     ecx
+        mov     ecx, edx
+        shr     ecx, 3
+        lea     eax, [ecx+ecx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-9], al
+        add     ecx, 48
+        mov     BYTE PTR [ebx-10], cl
+        mov     eax, edi
+        shr     eax, 31
+        pop     ebx
+        pop     esi
+        pop     edi
+        pop     ebp
+        ret
+```
+
+This becomes the new loop:
+```
+        shr     edx, 3
+        mov     ebp, edx
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     esi, eax
+        lea     eax, [esi+48]
+        mov     BYTE PTR [ebx-1], al
+        mov     eax, edx
+        mul     ecx
+```
+
+Not exactly super fast, but maybe a few clocks less. MUL has the potential to be faster given certain inputs. The code still looks very pipeline-hostile.
+
+With fastest code on Watcom (what I will globally use anyway) and O2 on GCC with mtune=i486, GCC generates the smaller code.
+
+## Testing GCC Again
+
+I passed some other options to GCC now. I added "--param l1-cache-size=8192 --param l1-cache-line-size=16" which fits the average i486.
+
+```
+convert:
+        push    ebp
+        push    edi
+        push    esi
+        push    ebx
+        mov     ebx, DWORD PTR [esp+20]
+        mov     ebp, DWORD PTR [esp+24]
+        mov     ecx, ebp
+        test    ebp, ebp
+        jns     .L2
+        neg     ecx
+.L2:
+        shr     ebp, 31
+        lea     edi, [ebx-10]
+        mov     esi, -858993459
+.L3:
+        dec     ebx
+        mov     eax, ecx
+        mul     esi
+        shr     edx, 3
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     ecx, eax
+        add     ecx, 48
+        mov     BYTE PTR [ebx], cl
+        mov     ecx, edx
+        cmp     ebx, edi
+        jne     .L3
+        mov     eax, ebp
+        and     eax, 255
+        pop     ebx
+        pop     esi
+        pop     edi
+        pop     ebp
+        ret
+```
+
+45 bytes and way smaller that Watcom's 88 bytes. Watcom lost 15 because of the branch alignment, and if it was not there, Watcom would havee 73.
+
+The alignment takes place at the loop, which is good, but maybe excessive, which is what GCC decided.
+
+The inner loop became this:
+```
+.L3:
+        dec     ebx
+        mov     eax, ecx
+        mul     esi
+        shr     edx, 3
+        lea     eax, [edx+edx*4]
+        add     eax, eax
+        sub     ecx, eax
+        add     ecx, 48
+        mov     BYTE PTR [ebx], cl
+        mov     ecx, edx
+        cmp     ebx, edi
+        jne     .L3
+```
+
+So far, GCC absolutely obliterated Watcom in size and the code generated looks fast enough.
+
+I added some other options and it basically did nothing.
+
+Another attempt, this time using ox instead of a bunch of other options.
+
+I got results ranging from 58 bytes to 72.
+
+I will try to play with the Watcom pragma aux and see how simple I can make it. So far though, GCC is winning by a lot.
+
+## The Code was Wrong
+
+I made a mistake with the assignment of the negative flag.
+
+Still no changes. GCC completely wins at size.
+
+The main issue is that Watcom is not doing a good job with optimizing the absolute value.
+
+## Note
+
+GCC has better inline assembly. It allows arbitrary registers to be used as inputs, although return values are a challenge by comparison.
+
+As for the procedure I was testing, that can be written in 100% assembly that beats both, although GCC does a nice job.
+
+For some reason, DJGPP generates very poor code with the current build I am using. I have a better cross compiler already in my PATH which I will use for the kernel.
+
+For the userspace I have no choice but to use DJGPP because it supports the proper executable format.
+
+The worse inline assembly options, especially when not using the intrinsics is a major issue.
+
+Something like invlpg would require two operations, and an _asm block would require a spill to the stack.
+
+Controlling the input and output registers is a bonus for Watcom, but not allocating them automatically is a problem.
+
+GCC can also specify return registers by returning a variable in a static function that is assigned by an asm block.
+
+## Other Note
+
+I used this code for the testing. Maybe use for an itoa call.
+// int convert(char *pb, int v)
+// {
+//     unsigned i;
+// 		unsigned a = _abs(v);
+//         unsigned N =
+// 		N = v < 0;
+
+// 		for (i = 0; i < 10; i++) {
+// 			pb--;
+// 			*pb = (a % 10U) + '0';
+// 			a /= 10U;
+// 		}
+//         return N;
+// }
+
+## Decision
+
+GCC wins. I still like Watcom, but I cannot use it for many reasons.
+
+## String Library
+
+Things like memcpy/memcmp/etc can easily be inlined. In fact, I don't think they should ever NOT be inlined. The price is minimal in most cases.
+
+memcpy should be called only if the count is unknown, and the same goes for memcmp. The compiler knows how to inline memcmp when it does not use the sign of the return value for example (i.e. checks zero and thats it) or something like that.
+
+I may need to do some experiments.
+
+memchr can also be inlined using the scas instruction. strlen also can be, although the compiler usually refuses to.
+
+Yes, GCC is really bad it seems. I tried the builtin and the library call, even on O3, and it does not inline.
+
+This is what strlen actually is:
+```
+__attribute__((cdecl, regparm(0)))
+__SIZE_TYPE__ strlen(const char *__s)
+{
+	__SIZE_TYPE__ s;
+	__asm__ volatile (
+		"mov %1,%%edi\n\t"
+		"mov    $0xFFFFFFFF,%%ecx\n\t"
+		"xor     %%eax,%%eax\n\t"
+		"repnz   scasb\n\t"
+
+		"leal    1(%%ecx),%0\n\t"
+		"not     %0\n\t"
+		:"=rm"(s)
+		:"edi"(__s)
+		:"memory","edi","ecx"
+	);
+	return s;
+}
+```
+
+I could use regparm for the inline version, as it can recieve the argument directly in the register when it inlines.
+
+But this is essentialy the code. 22 bytes total for stack conventions. The same code can be used for the inline header version and it is 15 bytes.
+
+By comparison, calling is 5+5+2=12 bytes.

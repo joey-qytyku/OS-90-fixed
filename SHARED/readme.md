@@ -1,25 +1,44 @@
-This folder contains implementation files and headers for C-library functions that can run in kernel mode and user mode using certain defines.
+# Shared Modules
 
-Some are more portable than others. printf can be used on arm/x64/i386 while malloc is architecturally optimized.
-
-The implementation is simply included into a C file.
-
-```
-// printf.c in any module that needs it does this
-
-#define DISABLE_FLOAT
-#include "../SHARED/printf/printf.c"
-```
-
-There are also no include guards in the headers. They must be inserted separately.
-
-The headers are also ONLY for exporting, not for importing.
+This folder contains implementation files for C-library functions that can run in kernel mode and user mode using certain defines.
 
 ## printf
 
-This module is highly portable. It can run under many operating systems and only depends on the C library if required. Currently 64-bit and 32-bit targets are supported.
+This module is highly portable. It can run under many operating systems and only depends on the C library if required.
 
-- DISABLE_FLOAT: If defined, floating point is turned off and float conversions are an error
-- PUTCHAR_COMMIT: name of the function to call for printing characters. Comes with a default one if not defined that using fwrite and fputc.
+### DISABLE_FLOAT
 
-_printf_core is non-compliant and is used to implement the entire family of formatting calls. It is like vsnprintf but with a buffer commit callback.
+If defined, floating point is turned off and float conversions are UNDEFINED.
+
+### Interface
+
+_printf_core is used to implement the entire family of formatting calls. It is like vsnprintf but with a buffer commit callback.
+
+There are two callback types:
+
+commit_buffer_f: Write a character array into the buffer
+dupch_f:	 Duplicate a number of characters into the output destination
+
+### Required Declarations
+
+- strlen
+- memcpy
+- memset
+
+These should be declared with the C standard signatures or anything functionally equivalent in the target architecture.
+
+## String
+
+This module has implementations of string instructions in assembly and C.
+
+"string" is a library that must be linked. Several of the procedures cannot be inlined and must be called.
+
+## chclass
+
+Character classification functions are not included in the kernel for performance reasons and because there is little use for them.
+
+This has data overhead of about 512 bytes. Functions are also not all required and use separate translation units, plus are always inlined unless the header file is not included.
+
+The inlining should amount to nothing more than a simple test instruction.
+
+
