@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////////
-//                     Copyright (C) 2022-2024, Joey Qytyku                //
+//                     Copyright (C) 2022-2025, Joey Qytyku                //
 //                                                                         //
 // This file is part of OS/90.                                             //
 //                                                                         //
@@ -17,6 +17,7 @@
 
 typedef VOID (*KTHREAD_PROC)(PVOID);
 
+// I will probably remove these
 typedef BOOL (*T0_TASK_PREHOOK)(PREGS);
 typedef VOID (*T0_TASK_POSTHOOK)(PREGS);
 
@@ -48,10 +49,10 @@ typedef struct  Task_ {
 
 #define TFLAG_MASK 0b111
 
-static inline PTASK GET_CURRENT_TASK(VOID)
+static inline TASK *GET_CURRENT_TASK(VOID)
 {
 	register unsigned _ESP __asm__("esp");
-	return (PTASK)(_ESP & (~4095));
+	return (TASK*)(_ESP & (~4095));
 }
 
 VOID CreateTestTask(    TASK *	t,

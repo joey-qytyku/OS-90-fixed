@@ -9862,3 +9862,110 @@ I could use regparm for the inline version, as it can recieve the argument direc
 But this is essentialy the code. 22 bytes total for stack conventions. The same code can be used for the inline header version and it is 15 bytes.
 
 By comparison, calling is 5+5+2=12 bytes.
+
+# March 19, 2025
+
+## Quick Update To File Hierearchy
+
+```
+OS90\
+    DRV
+    EXE
+        USER.EXE
+        TERMINAL.EXE
+        EDIT.EXE
+    DLL\
+        OS90.DLL
+        LIBC.DLL
+        LIBM.DLL
+        ATM.DLL
+    KERNEL.BIN
+    OS90.COM
+```
+
+## User Environment
+
+OS/90 will need some concept of a system call. Loading libraries and things like that have to be done this way.
+
+I do not yet know what the system calls need to be and I want the interface to be minimal and complement DOS and DPMI.
+
+The programs for userspace should run in an isolated environment. They will use the DOS interface for file IO and other things, but the context will be shared.
+
+Other programs must run inside separate instances. Managing virtual machines will require a kernel interface. I can do something like NTDLL and make a library for it.
+
+## Executing DOS Programs In Userspace
+
+```
+int CreateSpecialRedirHandle(int for, REDIR_RECV rdp, REDIR_SEND rdp);
+```
+
+Creates a handle that is used to redirect standard IO. A callback is used to send and recieve buffers.
+
+The terminal program creates one of these for each DOS window. Without this, the DOS program will discard or cancel all IO to standard handles.
+
+```
+int ExecDos
+(
+    const char *path,
+    const char *env,
+    const char *cmdline,
+    ...
+);
+```
+This will exist in the kernel and userspace library.
+
+To make the interface extensible and simple to use, it uses a list of arguments.
+
+Concept:
+```
+int vm_id;
+
+vm_id = ExecDos(
+    "C:\COMMAND.COM",
+    OSNULL,
+    EXTENDED_PERCENT_MAX(100),
+    CONVENTIONAL_KB(128),
+    SWAP_PERCENT_MAX(20),
+    MAX_XMS_HANDLES(32),
+    SET_DPMI(1),
+    STDIO_HANDLES(in, out, err, prn),
+    STDIO_ENABLE_COOKED_IFNOMODESET,
+    USERSPACE_RM_HOOKS(...),
+    USERSPACE_PM_HOOKS(...),
+    FRAMEBUFFER_SHARE_PTR(&fbptr),
+    INITIAL_VIDEO_MODE(3),
+    ALLOW_80x50_MODE(1),
+    END_OF_EXEC_REQUEST
+);
+```
+This will also use a sentinel warning attribute.
+
+The parameters can be written to a file in binary. Maybe I should convert them to something else though. Perhaps use an array instead and cast values to integers internally.
+
+## Executable Format Changes and Abandon DJGPP?
+
+My DJGPP cross compiler generates truly inferior code compared to its corresponding Linux hosted version.
+
+I may have to use the cross compiler that I have installed. This means the executable format must change.
+
+## ESS Returns?
+
+The relocations, symbols, and other things are all stored inside sections, so it is possible to use linker script hacks to make it all work.
+
+I can give sections headers in the script, although it may be problematic for file alignment. The linker allows the insertion of data items. I can use this to put in the appropriate information per-section.
+
+Sections are important to have because I can allow read only data and code.
+
+## Freestanding disables memcpy inlining
+
+The idea is to decouple the compiled code from any C library. This reduces the performance because memcpy or any other function is called with no optimization.
+
+It appears that builtins do just fine.
+
+Technically I can disable freestanding for userspace because there will be a standard library.
+
+When using i386 tuning, GCC generates quite poor code for inline memcpy. When I use i486 tuning, it generates much more optimal code and uses rep movsd instead of rep movsb. It even unrolls part of the loop for tail copies.
+
+I think I will use march=i386 and mtune=i486 by default.
+
+Either way, I will be able to use builtin for the memory operations. They will work in user and kernel.

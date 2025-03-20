@@ -1,7 +1,13 @@
-global memcpy
+%ifdef TESTING
+%define NAME my_memcmp
+%endif
+
+global NAME
+
+	section .text
 
 	align	32
-memcpy:
+NAME :
 	push	esi
 	push	edi
 

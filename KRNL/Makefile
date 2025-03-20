@@ -12,20 +12,15 @@
 ## If not, it can be found at <https:##www.gnu.org/licenses/>              ##
 #############################################################################
 
-include "../.env"
+include "../make.cfg"
 
-ifndef CPU
-CPU=i386
-endif
-
-# Flags for assembly and C.
 COMMON_FLAGS := -D EXCEPTIONS_SUPPORTED=20 -D__KRNL__ -D CPU="$(CPU)"
 
 CFLAGS += -mgeneral-regs-only -O2 -ffreestanding -nostdlib -nodefaultlibs -nostartfiles
 
 # GCC supports the T option for linking. We HAVE to use this in the event
 # of a libgcc call even in a freestanding environment. BTW libgcc is not
-# that big. Most features are not used, e.g. 64-bit division and are excluded.
+# that big. Most features are not used very often and are not linked.
 
 all: clean
 	$(CC) $(CFLAGS) *.c

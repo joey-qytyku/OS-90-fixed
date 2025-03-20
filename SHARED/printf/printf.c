@@ -47,7 +47,6 @@ See readme in the SHARED folder (if available) to view all macro options.
 
 *******************************************************************************/
 
-
 #if defined(SHARED_PRINTF_TESTING_NATIVE)
 	#define SHARED_PRINTF_ENABLE_FLOAT
 	#include <stdio.h>
@@ -62,10 +61,6 @@ See readme in the SHARED folder (if available) to view all macro options.
 #include <limits.h>		/* bit widths */
 
 #include <stdbool.h>
-
-#include <string.h>		/* What to do about this? */
-
-#include <stdlib.h> /* WILL REMOVE ONCE NEW ATOI IS FINISHED */
 
 /* A freestanding environment may want float. An OS would not. */
 #ifdef ENABLE_FOAT
@@ -633,7 +628,7 @@ static int atou_substring(      const char *	str,
 		buff[j] = str[j];
 	buff[j] = 0;
 
-	return atoi(buff);
+	return atoi_simple(buff);
 }
 
 // printfctl *ctl

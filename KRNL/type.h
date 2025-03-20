@@ -233,4 +233,6 @@ __asm__ volatile ( \
 // 	__asm__ volatile (:::"memory");
 // }
 
+#include "../SHARED/string/string.h"
+
 #endif /* TYPE_H */

@@ -6,17 +6,23 @@
 	NULL Is Not Zero!
 --------------------------------------------------------------------------------
 
-In OS/90, NULL is actually 0xFFFFFFFF because 0 is a valid address. 0xFFFFFFFF is an unmapped.
+In OS/90, there are two NULL pointer values, all bits zero or all bits one.
 
-This MUST be taken into consideration. E.g. structures like linked lists with NULL pointers cannot just be zeroed unless the zero is given special meaning by checking it. Otherwise, a NULL dereference cannot be an error.
+OSNULL is the 0xFFFFFFFF variant. It is returned by any function in the kernel API. A NULL dereference is NOT a runtime error and zero is a valid mapped address. It points to the divide by zero exception vector in real mode.
 
-The C standard defines NULL as the pointer version of the integer zero. It can be compared using if statements. If the pointer is in a boolean expression, it is false if NULL. But OS/90 does not use NULL the same way.
+This MUST be taken into consideration. E.g. structures like linked lists with NULL pointers cannot just be zeroed unless the zero is given special meaning by checking it. Otherwise, a NULL dereference can occur silently.
 
-NULL is still but it is non-standard and aliases OSNULL. It may need to be casted for double pointer types.
+Any function from the C library, which includes the kernel versions, will understand NULL because the standard defines NULL as an integer zero or a zero casted to a pointer. OSNULL is not recognized by C library functions as NULL.
 
-Attempting to dereference an OSNULL pointer is a critical error that must never occur under normal circumstances. Because drivers are really just kernel extensions, they cannot be terminated.
+Portable code is actually not meant to directly access the storage bytes of a pointer. It is an abstract type that can be implemented in many ways, and NULL is just an integer that becomes a pointer. That means portable C code should not memset a structure with pointers to zero, in the same way that it should not memset floats to zero.
 
-This has no noticable impact on code density. Even comparisons are abbreviated in x86 for long operands, along with signed immediate push operations.
+The reason NULL and OSNULL are separate is for making certain assembly functions simpler and because some code depends on the compiler's automatic zeroing of uninitialized array members.
+
+Attempting to dereference an OSNULL pointer is a critical error that must never occur under normal circumstances. Because drivers are really just kernel extensions, they cannot be terminated. It is suggested that OSNULL is used wherever possible. All pointers should be set to OSNULL after use.
+
+There is also OSNULL_N(n) where n is between 0 and 4095, and OSNULL_N(4096)=OSNULL. This allows a null pointer to be runtime checked and provide extra information.
+
+This has no noticable impact on code density.
 
 --------------------------------------------------------------------------------
 	C99 and SysV i386 Compliance
@@ -28,30 +34,11 @@ C99 introduced the strict aliasing rule, by which it is potentially dangerous to
 
 The SysV ABI is generally used. Structure layouts and most calling conventions conform to the rules found in this specification because GCC already adheres to it internally.
 
-Some examples:
-................................................................................
-DWORD PTR p1;
-DWORD CTR p2;
-
-WORD CPTR_CDR p3; // Constant pointer to constant data + restrict
-................................................................................
-
-This is easier than writing const once or twice, or restrict.
-
-DWORD const*const __restrict => 28 chars
-DWORD CPTR_CDR               => 14 chars
-
-Use restrict to relax alias checking for same-type arguments or in structures with the same thing.
-
-In the context of a function, restrict means that the pointers are expected to not overlap. If there is only one argument of a specific type,
-
 --------------------------------------------------------------------------------
 	Strict Aliasing in Detail
 --------------------------------------------------------------------------------
 
 Pointers of different types should never alias. The compiler gives some warnings.
-
-The following link is an article that summarizes the issue in greater detail:
 
 TLDR:
 * It cannot always be assumed that integer types do not alias if a stdint type is used with an integral one. `int8_t*` could be the same as `char*` and the compiler will consider that to be an alias.

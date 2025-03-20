@@ -15,8 +15,8 @@ This file implements the DPMI call interface.
 
 *******************************************************************************/
 
-#define SET_CARRY(regs) {regs->EFLAGS |= 1;}
-#define CLR_CARRY(regs) {regs->EFLAGS & (~1)}
+#define STC(regs) {regs->EFLAGS |= 1;}
+#define CLC(regs) {regs->EFLAGS & (~1)}
 #define TOFUNC(enum) enum##_impl
 
 typedef VOID (FUNC_GROUP)(PEMU_CONTEXT, PTASK, PSTDREGS);
@@ -74,10 +74,6 @@ static FUNC_GROUP func_groups[DPMI_NUM_GROUPS] = {
 
 static PVOID Handle21h(PSTDREGS r)
 {
-	switch (r->AH)
-	{
-		case :
-	}
 }
 
 VOID D_Init()

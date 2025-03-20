@@ -1,9 +1,11 @@
-; int memcmp( const void* lhs, const void* rhs, size_t count );
-global _my_memcmp
-extern _printf
+%ifdef TESTING
+%define NAME _my_memcmp
+%endif
+
 
 section .text
-_my_memcmp:
+global _my_memcmp
+_my_memcmp :
 	push	esi
 	push	edi
 
@@ -66,4 +68,4 @@ _my_memcmp:
 
 ; Maybe I should use JECXZ?
 
-msg: DB "Value = %x:%x",10,0
+; msg: DB "Value = %x:%x",10,0

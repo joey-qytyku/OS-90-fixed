@@ -20,11 +20,6 @@
 
 static const PLONG pdir_ptr = ((PLONG)0x100000);
 
-typedef struct {
-	LONG    prev;
-	LONG    next;
-}MTE,*PMTE;
-
 // First few entries correspond with the output of M_GetInfo.
 struct mmctrl {
 	LONG    emf; // Extended memory free
@@ -53,7 +48,7 @@ VOID M_Init(VOID)
 	// There are two.
 }
 
-PVOID API M_XMAlloc(    PVOID   force_addr,
+PVOID API M_XAlloc(     PVOID   force_addr,
 			LONG    commit,
 			LONG    uncommit,
 			LONG    bits)
@@ -67,7 +62,7 @@ LONG API M_GetInfo(BYTE class)
 
 PVOID API M_CMAlloc(LONG bytes)
 {
-	// Disable preemption here
+	// Disable preemption here?
 }
 
 VOID API M_CMFree(PVOID addr)
