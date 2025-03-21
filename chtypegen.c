@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <ctype.h>
 
 #define min(a,b) \
   ({ typeof (a) _a = (a); \
@@ -25,8 +25,8 @@ The compiler can use TEST and check if both are true or both are false.
 
 
 */
-
-unsigned short __ctype_lut[257] = {
+__attribute__((aligned(64)))
+const unsigned short __ctype_lut[257] = {
 	[0x0] =0,
 	[1+0x0] =0x10,
 	[1+0x1] =0x10,
@@ -312,9 +312,3 @@ int _isblank(int c)	{ return !!((__ctype_lut[c+1]) & 128) ;}
 int _isprint(int c)	{ return !!((__ctype_lut[c+1]) & 256) ;}
 int _ispunct(int c)	{ return !!((__ctype_lut[c+1]) & 512) ;}
 #define DEF(x) x
-
-int main()
-{
-	char c = 'A';
-	return (isupper(c) == _isupper(c));
-}

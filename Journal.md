@@ -9969,3 +9969,44 @@ When using i386 tuning, GCC generates quite poor code for inline memcpy. When I 
 I think I will use march=i386 and mtune=i486 by default.
 
 Either way, I will be able to use builtin for the memory operations. They will work in user and kernel.
+
+# March 20
+
+## ESS In Detail
+
+Some sections must be merged. They may have data with different alignments and things like that but aside from that for constant strings, rodata will merge all subsections.
+
+Section headers will exist. The name of the section is omitted and the section is described numerically.
+
+For executables, the format has one header and several section, and relocations.
+
+Relocations are placed in rel.X and rela.X sections for each section that needs them.
+
+Emitting the relocations like any other section is difficult because it is a special section. They must also match each section because they do not have a section marker.
+
+The first stage is to flatten the entire file into one section. Alignments are applied at this stage into the binary data. The relocations are automatically merged.
+
+A new section with the header is created that contains the offsets and sizes of the sections, because they still exist.
+
+The types of sections are limited to:
+- text
+- data
+- rodata
+- bss
+
+For executables, there are no symbols but there ARE relocations. They are required for loading programs into any location.
+
+The symbol table of ELF is like other executable formats. The entries have section markers and reference the string table.
+
+Wait, why no just emit the relocations as they are? Merging sections is problematic. The relocations must be updated the match the changes.
+
+So a two-pass linkage system is needed. Headers can be added last.
+
+## ATM Ideas
+
+Clip rectangle can be stored per window. It is rare that it needs to change that often. Usually we clip to the bounds of the window anyway.
+
+int W90_SetClip(HAWIN w, RECT* r);
+int W90_ClrClip(HAWIN w, RECT* r);
+
+>>> Capsule control idea for VF

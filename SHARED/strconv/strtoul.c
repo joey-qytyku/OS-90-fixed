@@ -1,3 +1,8 @@
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 union out {
 	unsigned long long u64;
 	long long i64;
@@ -92,12 +97,12 @@ union out _strtoxll(int is_signed, const char *str, char **end_str, int base)
 {
 	// ADD ERNO CONDITIONS, including base if 1
 
-	__builtin_assume(base > 0 && base <= 36);
+	// __builtin_assume(base > 0 && base <= 36);
 
 	int do_unary_minus = 0;
 
 	// Find the first non-space character.
-	for (; *str != '\0' && isspace(str[i]); str++)
+	for (; *str != '\0' && isspace(*str); str++);
 
 	// If a nul is found right away, return zero.
 	if (str[0] == '\0') {
@@ -124,20 +129,23 @@ union out _strtoxll(int is_signed, const char *str, char **end_str, int base)
 				// Output is zero!!<<<<<
 			}
 		}
-		else if (str[0] == '-') {
-			// The minus sign is valid for unsigned conversions.
-			// Value is essentially encoded the same as if it was
-			// printed by printf with unsigned format.
-			// This has to be done after.
-			do_unary_minus = 1;
-			// This is valid for signed and unsigned conversions.
-			// Even for hex this still works.
-		}
 		else {
 			// Otherwise we started with a regular integer character
 			// and will assume base 10.
 			base = 10;
 		}
+	}
+
+	// The minus sign is valid for unsigned conversions.
+	// Value is essentially encoded the same as if it was
+	// printed by printf with unsigned format.
+	// This has to be done after.
+	// This is valid for signed and unsigned conversions.
+	// Even for hex this still works.
+
+	if (*str == '-') {
+		do_unary_minus = 1;
+		str++;
 	}
 
 	//
@@ -146,28 +154,47 @@ union out _strtoxll(int is_signed, const char *str, char **end_str, int base)
 	//
 
 	// Scan the characters and check if it is valid, count the number.
-	char *p = str;
+	const char *p = str;
 
-	unsigned i;
-	for (i=0; str[i]!=0; p += (digit_char_num_lut[str[i]] < base); i++);
+	// Note: optimizations could mess this up and cause the lookup to fail.
+	// Maybe restructure.
+	for (
+		unsigned i=0;
+		str[i]!=0;
+		p += (isalnum(str[i]) && (digit_char_num_lut[str[i]-'0'] < base)), i++
+	);
 
 	unsigned long long acc = 0LL;
-	unsigned long long mult = 1;
-
-	while (p >= str) {
-		acc += mult * digit_char_num_lut[*p];
-		mult *= (unsigned)base;
-		p--;
-	}
-
+	unsigned long long mul = 1;
 	union out out;
 
-	if (do_unary_minus && !is_signed) {
+	// It is scanning the minus sign! Not sure now.
+
+	// Why not multiply the accumulator directly?
+	while (p > str) {
+		p--;
+		printf("Digit char: %c\n", *p);
+		acc += mul * digit_char_num_lut[*p-'0'];
+		mul *= base;
+	}
+	printf("Accumulator=%llu\n", acc);
+
+	// ABS may be excessive. Does this work the way it seems?
+
+	if (do_unary_minus) {
 		out.u64 = -acc;
 	}
-	else if (do_unary_minus && signed) {
-		out.i64 = __builtin_llabs((long long)acc);
+	else {
+		out.u64 = acc;
 	}
 
 	return out;
+}
+
+int main()
+{
+	char *end; // Negative works and positive does not???
+	printf ("%lli\n", _strtoxll(1, "   -1", &end, 10).i64 );
+	printf ("%lli\n", strtoll("   -1", &end, 10) );
+	return 0;
 }
