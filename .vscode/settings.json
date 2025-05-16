@@ -98,7 +98,7 @@
         "FAT.H": "cpp",
         "STDREGS.H": "cpp"
     },
-"files.encoding": "cp437",
+"files.encoding": "utf8",
 "editor.wordWrap": "wordWrapColumn",
 "workbench.editor.wrapTabs": true,
 "editor.wordWrapColumn": 80,
