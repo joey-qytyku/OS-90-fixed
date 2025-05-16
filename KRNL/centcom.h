@@ -6,9 +6,9 @@
 // PSTDREGS is passed in EDX for assembly handlers.
 // May want to change.
 
-typedef void (*EXC_HANDLER)(PREGS);
+typedef void (*EXC_HANDLER)(REGS*);
 
-extern EXC_HANDLER handler_table[];
+extern EXC_HANDLER handler_table[EXCEPTIONS_SUPPORTED];
 
 void RemapPIC(void);
 

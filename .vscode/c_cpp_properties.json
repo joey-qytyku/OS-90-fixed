@@ -37,20 +37,20 @@
                 "-std=c99",
                 "-Wextra",
                 "-m32",
-                "-include",
-                "${workspaceFolder}/type.h"
-            ],
-            "forcedInclude": [
-                "${workspaceFolder}/KRNL/type.h"
+                "-include /Users/joeyqytyku/Desktop/OS-90-fixed/KRNL/type.h"
             ],
             "mergeConfigurations": false,
             "browse": {
-                "path": [
-                    "${workspaceFolder}/kernel/src/include/"
-                ],
                 "limitSymbolsToIncludedHeaders": true
             },
-            "compilerPath": "/opt/homebrew/bin/i686-elf-gcc"
+            "compilerPath": "/opt/homebrew/bin/i686-elf-gcc",
+            "compilerPathInCppPropertiesJson": "/opt/homebrew/bin/i686-elf-gcc",
+            "includePath": [
+                "${workspaceFolder}/KRNL"
+            ],
+            "forcedInclude": [
+                "/Users/joeyqytyku/Desktop/OS-90-fixed/KRNL/type.h"
+            ]
         },
         {
             "name": "Other Compiler",
@@ -91,6 +91,16 @@
             "compilerArgs": [
                 " -std=gnu99"
             ]
+        },
+        {
+            "name": "Mac",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c17",
+            "cppStandard": "c++14"
         }
     ],
     "version": 4

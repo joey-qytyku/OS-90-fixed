@@ -14,28 +14,28 @@
 
 #include "sv86.h"
 
-struct __ivt { WORD ip:16; WORD cs:16; };
+struct __ivt { unsigned short ip:16; unsigned short cs:16; };
 
-__auto_type IVT = (const struct __ivt * const)0;
+static struct __ivt *IVT = (struct __ivt *)0;
 
 static HV86 v86_handlers[256];
 
-static inline VOID Pushw(REGS PTR r, WORD v)
+static inline void Pushw(REGS *r, unsigned short v)
 {
 	r->SP -= 2;
-	*(WORD PTR)(r->SS * 16 + r->SP) = v;
+	*(unsigned short*)(r->SS * 16 + r->SP) = v;
 }
 
-static inline WORD Popw(REGS PTR r)
+static inline unsigned short Popw(REGS *r)
 {
-	WORD v = *(WORD PTR)(r->SS*16 + r->SP);
+	unsigned short v = *(unsigned short*)(r->SS*16 + r->SP);
 	r->SP += 2;
 	return v;
 }
 
-static inline VOID Intw(REGS PTR	r,
-			WORD  		new_cs,
-			WORD   		new_ip
+static inline void Intw(REGS *		r,
+			unsigned short  new_cs,
+			unsigned short	new_ip
 			)
 {
 	Pushw(r, r->FLAGS);
@@ -45,16 +45,16 @@ static inline VOID Intw(REGS PTR	r,
 	r->CS   = new_cs;
 }
 
-static inline VOID Iretw(REGS PTR r)
+static inline void Iretw(REGS *r)
 {
 	r->IP           = Popw(r);
 	r->CS           = Popw(r);
 	r->FLAGS        = Popw(r);
 }
 
-static BOOL Stub(REGS PTR r)
+static int Stub(REGS *r)
 {
-	(VOID)r;
+	(void)r;
 	return 1;
 }
 
@@ -62,11 +62,11 @@ static BOOL Stub(REGS PTR r)
 // software modifies it intentionally.
 
 // WARNING: goto
-DWORD V86xH(BYTE v, REGS PTR r)
+unsigned V86xH(unsigned v, REGS *r)
 {
-	DWORD int_caught = v;
-	DWORD rval;
-	DWORD level = 0;
+	unsigned int_caught = v;
+	unsigned rval;
+	unsigned level = 0;
 
 	r->ESP = 0x8FF0+16; // This needs to go.
 	r->SS  = 0xFFFF;
@@ -87,7 +87,7 @@ DWORD V86xH(BYTE v, REGS PTR r)
 	End:	return r->EAX & 0xFFFF;
 }
 
-VOID InitV86(VOID)
+void InitV86(void)
 {
 	for (int i = 0; i < 256; i++) {
 		v86_handlers[i] = Stub;

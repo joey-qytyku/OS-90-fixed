@@ -17,28 +17,28 @@
 
 typedef struct __attribute__((packed)) {
 
-	WORD	limit1;
-	WORD	s_base1;
-	BYTE    b_base2;
+	unsigned short	limit1;
+	unsigned short	s_base1;
+	unsigned char	b_base2;
 
-	BYTE    access_byte;
-	BYTE    extaccess_byte;
-	BYTE    b_base3;
+	unsigned char	access_byte;
+	unsigned char	extaccess_byte;
+	unsigned char	b_base3;
 
 }SEGMENT_DESCRIPTOR;
 
-API_DECL(VOID,  L_SegmentCreate,
-		WORD	selector,
-		DWORD	base_addr,
-		DWORD	limit,
-		DWORD	access,
-		DWORD	exaccess
-		);
+API_DECL(void,  L_SegmentCreate,
+	unsigned short	selector,
+	unsigned	base_addr,
+	unsigned	limit,
+	unsigned char	access,
+	unsigned char	exaccess
+);
 
-API_DECL(VOID,  L_SegmentSetLimit,
-		WORD   selector,
-		DWORD  limit
-		);
+API_DECL(void,  L_SegmentSetLimit,
+		unsigned short   selector,
+		unsigned  limit
+);
 
 
 #endif /* DESC_H */

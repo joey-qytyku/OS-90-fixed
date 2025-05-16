@@ -15,29 +15,35 @@
 #ifndef TASK_H
 #define TASK_H
 
-typedef VOID (*KTHREAD_PROC)(PVOID);
+typedef void (*KTHREAD_PROC)(void*);
 
 // I will probably remove these
-typedef BOOL (*T0_TASK_PREHOOK)(PREGS);
-typedef VOID (*T0_TASK_POSTHOOK)(PREGS);
+typedef int (*T0_TASK_PREHOOK)(REGS*);
+typedef void (*T0_TASK_POSTHOOK)(REGS*);
 
 // The task exit hook runs in T2, not T0.
-typedef VOID (*T2_TASK_EXITHOOK)(PREGS);
+typedef void (*T2_TASK_EXITHOOK)(REGS*);
 
-typedef VOID (*T2_TASK_HND_EXCEPTION)(LONG, LONG);
+typedef void (*T2_TASK_HND_EXCEPTION)(unsigned, unsigned);
 
 #pragma pack(1)
 
-typedef struct  Task_ {
-	REGS    regs;
-	PVOID   _next;
-	PVOID   _prev;
-	LONG    _switch_action;
-	SHORT   _time_slices;
-	SHORT   _counter;
+/*
+Consider the use of volatile here. What if the compiler thinks
+accesses are redundant.
+*/
 
-	PVOID   vm;
-	LONG    flags;
+typedef __attribute__((__aligned__(4096)))
+struct  Task_ {
+	REGS    regs;
+	void*   _next;
+	void*   _prev;
+	unsigned	_switch_action;
+	unsigned short	_time_slices;
+	unsigned short	_counter;
+
+	void* vm;
+	unsigned flags;
 
 	T0_TASK_PREHOOK pre;
 	T0_TASK_POSTHOOK post;
@@ -49,18 +55,22 @@ typedef struct  Task_ {
 
 #define TFLAG_MASK 0b111
 
-static inline TASK *GET_CURRENT_TASK(VOID)
+static inline TASK *GET_CURRENT_TASK(void)
 {
 	register unsigned _ESP __asm__("esp");
 	return (TASK*)(_ESP & (~4095));
 }
 
-VOID CreateTestTask(    TASK *	t,
+void CreateTestTask(    TASK *	t,
 			TASK *	next,
 			TASK *	prev,
-			VOID (*tp)(PVOID)
+			void (*tp)(void*)
 			);
 
-VOID RunTaskTests(VOID);
+void RunTaskTests(void);
+
+#ifndef DRIVER
+extern int preempt_count;
+#endif
 
 #endif /* TASK_H */

@@ -16,6 +16,8 @@ SECTIONS
     code = .;
     *(.init)
     *(.text)
+    *(.text.hot)
+    *(.text.unlikely)
     *(.rodata)
     *(.rodata.*)
     . = ALIGN(4096);
@@ -35,6 +37,11 @@ SECTIONS
   }
   end = .;
   BSS_SIZE = end - bss;
+
+  /DISCARD/ :
+  {
+    *(*)
+  }
 }
 
 /*

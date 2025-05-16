@@ -7,7 +7,8 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -47,16 +48,18 @@ See readme in the SHARED folder (if available) to view all macro options.
 
 *******************************************************************************/
 
+// If we are just testing on a hosted C compiler with a library, include the
+// C headers.
 #if defined(SHARED_PRINTF_TESTING_NATIVE)
 	#define SHARED_PRINTF_ENABLE_FLOAT
 	#include <stdio.h>
 	#include <stdlib.h>
+	#include <string.h>
 #endif
 
 // These ones are always going to exist, even if freestanding.
 #include <stdarg.h>		/* variadic arguments*/
 #include <stddef.h>		/* size_t */
-#include <sys/types.h>		/* ssize_t. But its not standard? */
 #include <stdint.h>		/* type sizes */
 #include <limits.h>		/* bit widths */
 
@@ -72,10 +75,6 @@ See readme in the SHARED folder (if available) to view all macro options.
 #define max(a,b) ({typeof(a) _a = (a), _b = (b); _a > _b ? _a : _b; })
 
 #define STR_(x) #x
-
-/*
-BTW ADD -Wstrict-aliasing=2 to kernel
-*/
 
 /*
 	Returns the number of characters needed to represent a base-10 integer value.
@@ -103,11 +102,11 @@ BTW ADD -Wstrict-aliasing=2 to kernel
 */
 #define OFIG(_TYPE) CIELDIV_U(sizeof(_TYPE)*CHAR_BIT, 3)
 
-#ifndef unlikely
+#ifndef unlikely(x)
 	#define unlikely(x) __builtin_expect((x),0)
 #endif
 
-#ifdef likely
+#ifdef likely(x)
 	#define likely(x)   __builtin_expect((x),1)
 #endif
 
@@ -628,7 +627,7 @@ static int atou_substring(      const char *	str,
 		buff[j] = str[j];
 	buff[j] = 0;
 
-	return atoi_simple(buff);
+	return atoi(buff);
 }
 
 // printfctl *ctl

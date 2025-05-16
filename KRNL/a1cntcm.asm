@@ -255,6 +255,7 @@ ISR_REST:
         ; trap frame pointer. ESP did not change, so pass it directly.
         ;--------------------------------------------------------------------
         mov     eax,esp
+        mov     edx,[stage2_isr_list+ebx*4]
         call    [stage2_isr_list+ebx*4]
 
         ; IRQ index is still in EBX

@@ -1,62 +1,50 @@
-================================================================================
-	Malloc Notes
-================================================================================
+# malloc
 
-I will write my own malloc rather than use an existing one.
+OS/90 uses the same malloc for user and kernel. It is C standards compliant.
 
-Conforming to the single address space of both OS/90, there is one memory arena shared by all programs that are clients to libc.
+## Bit Scan Optimzation
 
-It is designed for 32-bit computers only.
+A lookup table is used instead of running the x86 bit scan instruction or inline equivalent. A bit scan instruction can take up to 100 clocks on 386, 486, and 586.
 
-This malloc will be added to the kernel.
+This would be totally unthinkable on a modern CPU as a bit scan can be done in few clock cycles and a cache miss could make it pointless.
 
---------------------------------------------------------------------------------
-	Memory Model
---------------------------------------------------------------------------------
+This involves branching but is still much faster than bit scanning.
 
-There are two types of requests:
-- Small:	124 bytes or less	(32/frame)
-- Medium:	380 bytes or less	(10/frame)
-- Large:	1020 bytes or less	(4/frame)
-- Extra large	Page granular
+## Arenas
 
-Memory is allocated in pages. There is no resizable heap in OS/90. There is nothing wrong with this since sbrk has been obsolete for a very long time.
+Memory is allocated in arenas that are made of frames. Each arena has a header that maintains which chunks are allocated.
 
-Memory manager structures are stored in something called a "frame." Each type of request gets a different frame structure, or does not if it is page granular.
+The header contains two pointers for linked lists and some number of bytes for a bit map. It is always 16 bytes long. This implies 16-byte alignment for all allocations.
 
---------------------------------------------------------------------------------
-	Common Heap Header
---------------------------------------------------------------------------------
+The following are the properties of each arena:
+- 51 chunks of 80
+- 17 chunks of 240
+- 8  chunks of 510
+- 4  chunks of 1020
+- 2  chunks of 2040
 
-In order to allow allocations to be freed irresepective of what kind of allocation it is,
+4 bytes are excluded for sentinel words.
 
-We know it is an page granular allocation if the alignment of the pointer is to a page. That way we can immediately use a page free operation. OS/90 can free several pages using a single pointer.
+Anything too large for the highest granularity is allocated as pages. We can tell if the allocation is page granular by the fact that it is aligned to a page boundary. Otherwise, we are freeing something else.
 
-Otherwise, a header structure is used that makes the alignment 16-byte.
+## Implementation Layout
 
---------------------------------------------------------------------------------
-	Small
---------------------------------------------------------------------------------
+Single procedures are used to:
+- Construct a new frame
+- Allocate memory
 
---------------------------------------------------------------------------------
-	Medium Requests
---------------------------------------------------------------------------------
+The number of bytes to bit scan is also taken as an argument to the basic function.
 
-Medium requests do not fit inside the small buffers but it gets a location off the heap.
+void *malloc_base(, long long max_on_mask)
 
-The same heap structure handles these requests but they get a different arena.
+## Lazy Free
 
-> I can achieve a allocation size hierarchy by using a very similar page-based allocation model. I could have a "page pair" with a control block and allocatable memory after.
+Do I need this?
 
+## Garbage Collection
 
-## Notes
+This is highly critical to avoid running out of memory.
 
-Because I do not use a complex heap structure with regular headers, there is a slighly missed opportunity: tracking resizes.
+When a frame is fully free, it could be retained and used for reallcocations, but this will leak until the system crashes.
 
-Here, resizes have the potential to be slow if we do not keep track of the real size of the allocation before copying to a larger block.
-
-We will need a 32-bit size specifier, perhaps after the sentinel byte. It can be validated for correctness (i.e. fits inside the frame).
-
-I also need to have a way of knowing immediately what type of mframe ana allocation belongs to.
-
-Only the smallest one uses a bit field to find free blocks.
+When memory is freed, the frame is also freed if it has no entries.

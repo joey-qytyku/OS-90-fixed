@@ -9,7 +9,7 @@ The scheduler is percentage based. Time slices are 1 milisecond long. Time slice
 The reason why this is done is because the number of time slices given to a task in an isolated context is not an accurate way to ensure accurate scheduling. Percentage-based scheduling should not be construed as permitting real-time programming.
 
 --------------------------------------------------------------------------------
-	Context Types
+	Context Theory
 --------------------------------------------------------------------------------
 
 Understanding the OS/90 scheduler requires knowing the meaning of a context. In OS/90, a context is the machine state of a thread of execution which may be currently in execution, entered, exited, or switched to another. Contexts are described by types in OS/90 based on how the scheduler interacts with them.
@@ -147,7 +147,7 @@ The register save buffer in the task block is one of these:
 
 The RSB is ONLY used when switching tasks and is the image of the registers while the task was running before the IRQ#0 interrupt.
 
-For SV86 hooks, the STDREGS pointer is provided automatically. When accessing the registers of the current task for other situations, it is correct to access the register image on the stack frame.
+For SV86 hooks, the REGS pointer is provided automatically. When accessing the registers of the current task for other situations, it is correct to access the register image on the stack frame.
 
 The register save buffer very rarely has to be used. One situation would be providing some kind of service using one thread but for multiple tasks, or using a debugger.
 
@@ -160,6 +160,7 @@ Anyway, here are the calculations used to get both:
 GET_OTHERS_RSAVE /* Nothing, it already points to it */
 GET_MY_UREGS     ESP & (~4095) + (4096 - 80)
 ```
+>>>>> Wait WHAT????
 
 --------------------------------------------------------------------------------
 	Task API
@@ -168,10 +169,15 @@ GET_MY_UREGS     ESP & (~4095) + (4096 - 80)
 S_SelfTerminate()
 S_ExecKernelThread()
 S_Yield()
-S_Sched()
+S_Sched() // What is this???
 S_Deactivate()
 S_TaskInKernel()
 S_Terminate()
+
+................................................................................
+	S_NewTask();
+................................................................................
+Can I integrate the VM context with this?
 
 ................................................................................
 	VOID S_SelfTerminate(VOID);
@@ -184,7 +190,7 @@ Internally disables interrupts, so T0 is safe.
 About:
 - T0, T1, T2
 - Effectively reentrant
-- Disables interrupts internally
+- Disables interrupts internally (???)
 
 ................................................................................        VOID S_ExecKernelThread(KTHREAD_PROC    kp,
 				PVOID           pass_args);
@@ -217,7 +223,7 @@ About:
 - Turns off interrupts
 
 ................................................................................
-	VOID S_Deactivate(PTASK pt)
+	void S_Deactivate(TASK* pt)
 ................................................................................
 
 Prevents the task from running. Internally it chops out the task block from the linked list. __NEVER CALL ON THE CURRENT TASK__. Self-deactivation makes no sense because another task would have to reschedue it, which is pointless when that other task could also deal with deactivating it. Doing so would also make it impossible for the scheduler to know which task is next.
@@ -226,7 +232,7 @@ Prevents the task from running. Internally it chops out the task block from the 
 Safe in T2.
 
 ................................................................................
-	BOOL S_TaskInKernel(PTASK pt)
+	int S_TaskInKernel(TASK* pt)
 ................................................................................
 
 Returns 1 if the task is in kernel mode and active. Redundant for the current task because it obviously is in the kernel if it is calling this but does work.
@@ -234,7 +240,7 @@ Returns 1 if the task is in kernel mode and active. Redundant for the current ta
 - T1,2
 
 ................................................................................
-	VOID S_Terminate(PTASK pt);
+	VOID S_Terminate(TASK* pt);
 ................................................................................
 
 Terminates any task and deallocates the task block. Do not use on current kernel thread.
@@ -244,8 +250,8 @@ Terminates any task and deallocates the task block. Do not use on current kernel
 --------------------------------------------------------------------------------
 
 ................................................................................
-	VOID S_PreemptOff(VOID);
-	VOID S_PreemptOn(VOID);
+	void S_PreemptOff(void);
+	void S_PreemptOn(void);
 ................................................................................
 
 Enable or disable preemption while the current task remains current. Count is maintained.
@@ -253,7 +259,7 @@ Enable or disable preemption while the current task remains current. Count is ma
 Do not call anything that yields while inside.
 
 ................................................................................
-	VOID S_WaitForExitKernel(PTASK task);
+	VOID S_WaitForExitKernel(TASK* task);
 ................................................................................
 
 > Is this possible or necessary?
@@ -276,9 +282,10 @@ S_GetLoadAverage()
 S_HookIdle()
 
 ................................................................................
-	SHORT S_IssueTimeSlices(        PTASK to,
-					PTASK time_provider,
-					SHORT slices);
+	short S_IssueTimeSlices(        TASK*	to,
+					TASK*	time_provider,
+					short	slices
+					);
 ................................................................................
 
 Issues a time slice to a task by taking from another. Fails if there are none available.
@@ -296,17 +303,17 @@ Return:
 Revokes time slices and gives them to the idle task. Essentially the inverse of S_IssueTimeSlices.
 
 ................................................................................
-	LONG S_GetLoadAverage(VOID);
+	unsigned S_GetLoadAverage(void);
 ................................................................................
 
 Returns the total number of time slices granted divided by the total number of running tasks. Result should be considered approximate. This function does not iterate through tasks and is not slow.
 
 The load average is a value that represents how much CPU the average task is using.
 
-- T2
+- T0, T1, and T2 safe.
 
 ................................................................................
-	VOID S_HookIdle(IDLE newidle, PIDLE ptr_oldidle);
+	VOID S_HookIdle(IDLE newidle, IDLE* ptr_oldidle);
 ................................................................................
 
 This allows for adding extra things to the idle task. Idle handler takes no arguments and returns nothing.

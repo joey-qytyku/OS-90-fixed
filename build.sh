@@ -1,38 +1,21 @@
 #!/bin/bash
+set -e
 
-#
-# Dependencies:
-# - Open watcom 2.0
-# - GCC 32-bit cross compiler
-# - nasm
-# - xxd
-# - hexdump
-#
+export MTOOLSRC=$(realpath runconf/mtoolsrc)
+export PROJECT=$(realpath .)
 
-source runconf/vars
+cd BOOT
+make all
+make install-unix
+cd ..
 
-#
-# Find each directory in the root level and if it has an installation
-# description file, list it.
-#
-packages=()
+cd SHARED/string
+make lib
+cd ../../
 
-for x in */
-do
-	if [[ -f ${x}/1_pkg.sh ]]; then
-		packages+=($x)
-	fi
-done
+cd KRNL
+make all
+make install-unix
+cd ..
 
-echo Packages: "${packages[*]}"
-
-# Or just merge the source trees?
-
-for x in "${packages[@]}"
-do
-	cd ${PROJECT}/${x}
-	./1_pkg.sh Make
-	if [ $? -ne 0 ]; then
-		./1_pkg.sh Clean
-	fi
-done
+bochs -f runconf/bochsrc.bxrc

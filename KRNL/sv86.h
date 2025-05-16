@@ -17,7 +17,7 @@
 
 #include "sv86.h"
 
-typedef bool (*HV86)(REGS*);
+typedef int (*HV86)(REGS*);
 
 unsigned V86xH(unsigned int v, REGS *r);
 

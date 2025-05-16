@@ -28,7 +28,7 @@ void API L_SegmentSetBase(unsigned short selector, unsigned base_addr)
 	s->b_base3 = (base_addr>>24) & 0xFF;
 }
 
-void API L_SegmentSetLimit(unsigned short selector, unsigned limit)
+void API L_SegmentSetLimit(unsigned short selector, UINT limit)
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 
@@ -38,8 +38,7 @@ void API L_SegmentSetLimit(unsigned short selector, unsigned limit)
 
 unsigned API L_SegmentGetLimit(unsigned short selector)
 {
-	SEGMENT_DESCRIPTOR
-		*s = GET_DESC(selector);
+	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);
 
 	return s->limit1 | ((s->extaccess_byte & 0xF)<<16);
 }
@@ -47,10 +46,10 @@ unsigned API L_SegmentGetLimit(unsigned short selector)
 void API L_SegmentCreate
 (
 	unsigned short	selector,
-	unsigned	base_addr,
-	unsigned	limit,
-	unsigned	access,
-	unsigned	exaccess
+	unsigned		base_addr,
+	unsigned		limit,
+	unsigned char	access,
+	unsigned char	exaccess
 )
 {
 	SEGMENT_DESCRIPTOR *s = GET_DESC(selector);

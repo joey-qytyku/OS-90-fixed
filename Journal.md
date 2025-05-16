@@ -10010,3 +10010,528 @@ int W90_SetClip(HAWIN w, RECT* r);
 int W90_ClrClip(HAWIN w, RECT* r);
 
 >>> Capsule control idea for VF
+
+# March 21
+
+## Kernel
+
+Development on the kernel was slowed down by the fact that I did not yet implement the string library and printf.
+
+## printf as a library?
+
+I can make printf a static library. The only problem is that it expects certain definitions.
+
+printf is a shared module that depends on another. I can safely include the string library.
+
+Or just include the C code?
+
+## typeof on a function type
+
+GCC allows __typeof__ to be done on a function, and this can be used for a declaration.
+
+This means I can do the API declaration more easily.
+
+Instead of the full macro, I can use an export instead.
+
+```
+void API MyFunction()
+{}
+
+EXP(MyFunction)
+```
+
+This can additionally use attributes already applied to the function using the copy attribute.
+
+```
+#define EXP(NAME) typedef NAME##_type __attribute__((copy(NAME)));
+```
+
+Drivers should be able to call the function like in C.
+
+Unfortunately, this is not capable of that.
+
+I did some testing and apparently it is possible to declare function with a function typedef. Calling the "variable" calls the function by name.
+
+## Memory Management
+
+The idea of using a tree makes sense. The worst case can be be something logarithmic rather than linear. This makes it much more feasible for large memory systems.
+
+The problem is that the physical memory is not represented by contiguous chunks and should not be.
+
+The point is to somehow find out which regions are free quickly.
+
+# March 22
+
+The idea of using trees is based on NOT keeping track of what is actually in use, necessarily, but sectioning the memory off.
+
+If I have just one zone for simplicity, the first allocation would split the block representing the whole zone into two chunks, but not all of it has to be allocated of course.
+
+# March 24
+
+## Linker Options
+
+Currently the kernel does not execute properly. It starts with nonsense code and does not seem to put the entry point first.
+
+Anyway, I added data and function sections to the command line options and I managed to reduce the kernel binary size by 448. Because of page alignment, this is a mostly useless improvement that probably makes the kernel slower too due to cache locality.
+
+The 386 cache controller chip uses 4-byte cache lines so it is already bad for sequential and adjacent access, so this option does no harm. It also has barely any benefit, so I will avoid it.
+
+## Getting the Kernel To Work
+
+Whatever OS90.COM has is correct enough to boot the kernel. The kernel image is broken somehow because the linker does not put the correct instructions at the start.
+
+## Note
+
+LD has an overlay feature. This allows a certain section to share address spaces when they normally would not be allowed to.
+
+This allows support for dual-segmented address spaces. More importantly, this allows for overlay support!
+
+There are things that can be overlaid. Code that does initialization, which includes ALL init function calls, can be deleted after use?
+
+Not quite. Overlays are used and discarded. Plus init functions are not that big anyway.
+
+## Interesting Results
+
+I just added /DISCARD/ for all sections and the code size was dramatically decreased, just over 4K in size now.
+
+I am not sure how safe this is but I did do it at one point.
+
+## Actually
+
+Things are totally generated correctly. Even the XCHG BX,BX at the start is there.
+
+## Breakpoints Do Not Work
+
+I am not sure why. Maybe I have to build bochs myself. I would rather not.
+
+But anyway, breakpoints are not working and I tested it myself with a DOS program assembled with NASM.
+
+It is possible that an update ruined everything. Anyway, I will fix this.
+
+## Local binary installation location?
+
+If I add a single variable to my path that points to a local directory in my home, I can install all the software I need locally without having to install it directly.
+
+I am saying this because I will be building bochs to get around this current issue.
+
+Usually it is ~/opt/ or something like that. It can be anything really.
+
+I have a software directory already so I will use that.
+
+I will take a break and work on something else for now.
+
+# March 28
+
+## Bochs Working?
+
+I build bochs on macports with the debugger. Should be working now.
+
+I apparently have to add the macports binary paths to fish though.
+
+## Working
+
+A bit buggy but works.
+
+## About malloc
+
+The look up table idea was good. Performing the bit scan with the table improves performance, but can I use it for data larger than a byte?
+
+I can simply perform the lookup on each byte, with proper condition checks of course. This makes the code much simpler.
+
+# March 29
+
+## Problem Found?
+
+I think there is a problem with the linker script. The BSS section does not appear to be zeroed correctly, and that is why all the IDT and GDT entries are invalid.
+
+## Fixed
+
+The issue was improper handling of cold and hot functions which init uses.
+
+## Interrupts Not Working
+
+> It may be the gc sections flags btw
+
+It appears that interrupts are not working. They did previously. Only the keyboard and the timer could cause an interrupt.
+
+I put a breakpoint on the timer interrupt so it cannot be the problem.
+
+I will check for IDT correctness.
+
+It looks like my assembler code is not actually saving the changes. Makefile may be malformed.
+
+## Timer IRQ
+
+I am receiving the timer IRQ as expected, but the code obviously does not work. I will have to restructure the handling there.
+
+I was previously able to catch it and let the bios handle the IRQ, and for the keyboard.
+
+If I recall correctly, I was also able to call services that used keyboard input.
+
+# March 30
+
+## malloc
+
+I want to completely avoid branching in the initial decision. Doing chained if statements is far too slow and adds more overhead than I want.
+
+Right now I have a consistent 16-byte header and divisions of 4080 are the basis of the arena chunk sizes.
+
+If I artificially extend it to 32 bytes, I can get 127-byte entries, which obviously cannot be done due to alignment.
+
+If I use 254-byte chunks under this system I only have 4-byte alignment.
+
+Generally this is NOT a good solution.
+
+I would prefer to force powers of two even if I lose memory from rounding. Alignment of about 16 also matters a lot too.
+
+Maybe there is a misunderstanding. Powers of two CAN be used. With a 16-byte header I can use 64-byte chunks and have 63 entries, which fits in the header. 128 bytes allows 31. 256 permits 15. 512 to 7, and 1024 byte chunks permit 3.
+
+Making it branchless is difficult. The input is the raw size in bytes.
+
+We will first check if page granular allocation is needed and do that. Then a different method may be used.
+
+The smallest size is 128 bytes per allocation with the sentinel word. In practice, this means 124 bytes is the maximum size.
+
+If the bytes are added by 4 and shifted by 7, the range of options is reduced to 5, but there needs to be a number of useless table entries.
+
+I think chaining if statements and putting the more likely ones is better.
+
+# April 2
+
+## Directory Entry Caching
+
+Reading about Linux dcache inspired me to consider directory caching more.
+
+Apparently there are more FAT file names in the 13 character maximum than there are 32-bit numbers. This means hashing the file names cannot be done with a 32-bit number, even if only alphanumeric codes are used.
+
+This is fine, as long as collisions are properly detected.
+
+dcache is a good idea, but handling the complexity of the directory tree may not be extremely important. In the DOS days directory levels were not that deep and were restricted
+
+Reference counting and moving a cache entry up can be used to avoid collisions, as they will probably have the same count, right?
+
+Also paths are limited in DOS to 64 bytes minus one for a null terminator. The CWD system call does not allow any more, period.
+
+This is MOSTLY a hard restriction, but there are methods such as renaming a directory into another drive, which is done at the shell level, or so I think.
+
+Well I am not even sure if that would work either. And DOS has no concept of symlinks either.
+
+## Windows 95 Extensions
+
+I should use RBIL instead to get the up-to-date information.
+
+The SUBST command does have a call for that purpose. And the real path limit is system-defined and can be anything, although it is usually in the ballpark of 260 bytes.
+
+SUBST is implemented in Windows 95 using a special call. It in theory should be able to overcome the path length limitation.
+
+## More On SUBST
+
+SUBST and JOIN are actually not built into DOS whatsoever. They are implemented by hooking the DOS interface.
+
+Of course aside from the Windows 95 implementation. They should work per process, but virtual drives cannot be shared between processes.
+
+Oh and if SUBST or JOIN are used before loading OS/90, they will probably not work if a 32-bit IO driver is loaded.
+
+Unless I implement the Windows 95 interface which I may not have to.
+
+## Filesystem Support In General
+
+I will write the filesystem driver using DJGPP and I will run it under DOSBox or something. For performance testing, I will run it on 86Box for accurate performance testing using RDTSC.
+
+The problem with implementing FAT support in DJGPP is the default file caching that makes writing dangerous unless I hook the filesystem. I can also use HDPMI to get the extended interface, although the INT 13H extensions do not support LBA unfortunately. This makes it impossible to handle drives larger than 8 GB without doing it manually.
+
+Or instead, I can embed the filesystem in a file and skip all that stuff. I could even test this under DOS with no problems, but performance would not be that accurate.
+
+I mean the default caching cant be a major problem if you just dont use stdio on files. And read support will obviously come first.
+
+## SUBST Again
+
+This may read the drive parameter table, though I doubt it changes it. Wonder if it will work at all or if it needs replacement.
+
+# April 7
+
+## Random Note On Disk IO
+
+On Windows 95, a program must use an IOCTL command to lock a device before performing any INT 13H operations.
+
+This is a good idea since the interface is already defined and used by some programs, and allows the disk to be used after oeprations are done.
+
+FDISK is an example.
+
+Also, the IOCTL command requires cache flushing before doing something like formatting the disk, which requires the data to go to the disk immediately.
+
+## Userspace Interrupts And Win386
+
+Win386 originally had a strange way of handling interrupts. It would send them to ring-3 by default. It took some time before an API was added to send them to a ring-0 driver using bimodal interrupts.
+
+This was necessary because a driver was not always present to allow a device to be accessed by a DOS program.
+
+# May 3
+
+## I Return!
+
+Got bored of the other project, but I jotted a few ideas down that may be applicable here too.
+
+OS/90 is a project that has a finished goal in mind, but there are components that are not strictly required, such as the 32-bit filesystem and disk access.
+
+ATA disk access can be done with very high certainty but floppy disks are extremely unreliable and parts of the interface cannot be emulated.
+
+The core of the kernel is sort of a one-shot thing, but there are steps I can take to change that.
+
+I need an IRQ#0 handler. I need to be able to create processes.
+
+## Sitrep
+
+I have made genuine progress, but the core of the project remains incomplete. I have written optimized string operations (most of them) and printf, interrupt reflection code that works enough to recieve keystrokes, and the SV86 code can actually enter it and make calls.
+
+## Scheduler
+
+I will do round robin scheduling first, but there is one thing. I need to properly dispatch the whole switch table. The idea is interesting, and may have costs and benefits. Inherently it accesses memory less, but it also makes memory more sparse because of how it works, and it also enlarges the kernel binary when alignment is factored.
+
+It is kind of important to make task switching fast. It happens every 1 MS, which is very frequent for an old CPU. That means 1000 times.
+
+I will use what I have, but make the necessary changes so that it works. Debugging it will not be too hard, I hope.
+
+## SV86 For the User
+
+For DPMI to work we allow the program to change vectors. This interface is NOT meant for general purposes.
+
+Some calls to SV86 are initiated by userspace. There are some considerations:
+- How does a driver know if the call came from r3? If it did, there may be security implications and it may be an illegal operation.
+- How does the stack work?
+
+SV86 can ALWAYS end up causing an actual mode switch which requires a stack. For ring-3, we already have a stack.
+
+For ring-0, one is still needed. But the problem is that SV86 may then not be available without the scheduler.
+
+It is possible to implicitly allocate space per process for the real mode stack. That is fine.
+
+So most likely, the scheduler is the very first subsystem that must be ready.
+
+A single process is created so things work during initialization.
+
+## Why no process list
+
+Using a process list actually removes any need for memory allocation, plus it also negates any wasted space from process control blocks. Not to mention, it completely removes stack limitations.
+
+The stack part is another story.
+
+But anyway, there is no longer a "linked list" anymore.
+
+The process list needs some good theory behind it though.
+
+## Process List In Detail
+
+I should map it to a certain location in the address space.
+
+Also, how many entries will it need? I cannot think of it needing more than 128 TBH.
+
+Anyway, this changes a lot of things. Getting the current PID is done by accessing a variable and cannot be inlined for drivers. Unless if course I place the value somewhere global.
+
+Also to compensate for the performance loss, I can use FS or GS to be the sort of global `this` pointer that functions can reference if they operate on the current process.
+
+That means scheduler functions need a "this" variant for several of the calls.
+
+## No
+
+For the last time, I am NOT doing that.
+
+The first task will be allocated in the kernel memory, and it does not matter because it can always be reused.
+
+# May 5
+
+## Scheduler
+
+I make the guarantee that the first task does not need the memory manager, or I create a function that initializes a process inside a page.
+
+Also to prevent constant reallocation, we should provide the option to reuse an exist task block. This could be good for thread pools too.
+
+This is actually 100% what I should do. Allocation should never be required.
+
+In fact, for modularity, I might as well exclude allocation from the entire API. It will very rarely be used anyway, since another interface will handle actual process creation.
+
+Adding a process is actually so simple at its basic level that I could even inline the whole thing. It is just a circular linked list where every insertion is basically instant.
+
+## Task Hooks
+
+These are vestigial remnants of an older design. It was intended to implement per-process conventional memory. This is something to genuinely consider, since it increases the amount of memory available to DOS programs.
+
+A posthook makes little sense. I added it because I was writing a Payday 2 mod and the API had posthooks and prehooks.
+
+The first 4M can be remapped with a simple write to the page directory. The problem is that I do not want to allocate page tables for each process because I find it wasteful. This brings overhead to 12K per process.
+
+4 DOS programs could run and 36K would be used.
+
+But that may be the necessary cost.
+
+# May 9
+
+## Concept of a Task
+
+Because I will have a working malloc in the kernel, I can save a lot of space inside whatever is used to represent the DOS program and maybe merge it with the task block. This would make the system way faster and possibly allow separate conventional memory to be viable.
+
+I will probably not end up doing that though.
+
+Actually this 100% cannot be done. I need room for the stack. The IDT requires a huge amount of memory.
+
+As for conventional memory, this is a decision that needs to be made early on because everything needs to account for it.
+
+Honestly I am fine with reducing the amount of available memory if it makes the OS faster. Using 32-bit drivers combined with some memory reclaimation tactics should provide plenty of space.
+
+I have considered allocating a region of memory for multitasking purposes though. It is referred to as the DMR or DOS multitasking region.
+
+The DMR idea was that we bank switch a region of the address space, prefereably at the end of the conventional memory, and programs that don't fit go outside.
+
+But if they DO fit, such programs have their main segment reside in the DMR and not waste the memory of others by simply executing.
+
+The trick to making it work involves coaxing the memory allocator of DOS into allocating the very end of the DOS memory.
+
+The DMR size is a fixed constant that is either built-in or decided at boot time.
+
+I think a size of 180K is good. The only issue is having to copy 45 page table entries. In fact, this is a major problem.
+
+Programs that are not in real mode can still access data in the DMR at will ,so it always needs to be switched.
+
+OR, I can use a lazy approach and have the memory manager bank switch ONLY when the memory is accessed. It can do the whole thing because there is little benefit to smaller granularity.
+
+I am concerned that some programs are WAY to big to fit in non-conformant memory. The DMR size cannot possibly be changed at run time.
+
+However, such programs should know how to use XMS memory anyway.
+
+The problem is that if programs theoretically need to share data, it will definetely fail because the pointers are invalidated.
+
+However, this is very unlikely because DOS programs don't communicate with each other anyway. It is a single-tasking OS after all.
+
+Subprocesses may share memory though. A subprocess is currently a full program.
+
+To make compatibility, a program can simply be executed in non-conformant mode explicitly. Conformancy can be inherited then.
+
+The benefit to this is that I can run as many DOS programs as I want.
+
+Also, not all of the DMR must be used. It is just a region, not actual memory.
+
+# May 12, 2025
+
+## Object System
+
+I find GObject and COM interesting. I think OS/90 should have some kind of global object system to represent devices, UI controls, etc.
+
+Maybe it can enable high extensibility and flexibility.
+
+The idea is that files and folders can all be objects with a hierarchy.
+
+Files can be Readable and Writable. Directories can be EnumerableToStringList.
+
+Also interfaces could even by dynamically attachable. A file can be extended at runtime to automatically store metadata. The cosntructor can be overriden to track filesystem access, etc.
+
+Directories could also implement a sortable list interface, or something like that.
+
+I should probably write this in userspace first. It could have applications outside of OS/90 if it is good enough. If it is space efficient, I could apply this to embedded systems that benefit from code reuse.
+
+## Returning to OS/90?
+
+I am getting really bored of the other project again. Time to go back to OS/90.
+
+## Does the kernel compile?
+
+It does, actually.
+
+## Change in Tabs
+
+It appears that the tab size is changed now. I set it to 4 when I was writing printf because it was too large to read some of the code and fit in within 80 characters per line.
+
+## Kernel
+
+It does nothing right now. The IRQ#0 handler is currently incorrect.
+
+I still wonder if the current approach to task switching is a good idea.
+
+# May 13, 2025
+
+## Kernel Task Switching
+
+I will keep what I have actually. It does actually work, and is extensible enough to allow proper task scheduling later on.
+
+I just need to fix the broken entry mechanism.
+
+## Error Codes
+
+Errors need to be conveyed by functions. I will just use `int` and make anything below 0 an error.
+
+# May 14, 2025
+
+## Memory Allocation
+
+I can use a tree structure for allocation. I have mentioned this before.
+
+Allocations can be kept track of by having the nodes point to each other in a singly-linked list.
+
+Nodes no longer need to represent one single allocation unit, but instead a variable number of pages that can be contiguous and not require linked-list traversal.
+
+This may increase the amount of memory use in general because storing the structures takes more space.
+
+### The Idea
+
+A straight range of pages, turned to an even number as is allowed, is represented by one single tree structure. They are sort of sbrk'ed by the kernel into its address space like the current design.
+
+Allocation is based on dividing the address space by 2 and creating new nodes (or they can be pre-allocated) until creating a list of nodes to bridge with each other to form the allocation.
+
+So if we allocate 24K in a 1MB address space we split the size until we get 16384 which preferably should get one node (solution later) and then we take that away from 24K and get 8K to be allocated, and we try to find a free node somehow that has 8K or at least 2 4K.
+
+Needs more refinement, but I think it could work.
+
+# May 15
+
+## Binary Tree Allocation in Detail
+
+I need to think a bit more before writing the white paper.
+
+The tree is much larger than any array at its highest possible granularity. When we have 15M, the number of pages available is not divisible by 2 to the point of reaching one page, which is fine, but rounding will mean 8K allocations are the minimum.
+
+Also, it takes like 11 levels to reach this granularity. Representing each level is extremely expensive and pre-allocation pay not really be an option.
+
+Also the tree might need to be sorted so that we can find the smallest possible blocks.
+
+The idea is that allocation searches the tree for a physical range the satisfies it and adds it to the list of blocks to count as part of the allocation. Past that point, the allocation is a linked list with each node having a single link.
+
+Before that can be done, the number of pages to allocate must be allocated by finding a chunk on the tree that satisfies the whole request of just part of it with enough for another extra chunk.
+
+This is not really a sorted tree. It represents physical ranges.
+
+The benefit is faster reuse of allocated regions with some wasted memory.
+
+Keep in mind that the tree is not balanced and I have not yet considered how coallescing should work.
+
+// For malloc, why not just allocate an uncommitted heap at program startup like the Java VM and instantiate malloc for the whole thing? That way, we don't have to allocate anything.
+
+// There needs to be a way of trimming the heap though.
+
+## malloc with a fixed-size heap?
+
+OS/90 must have uncommitted memory. This is aside from the actual kernel page frame allocator.
+
+Instead of getting pages, I can allocate a heap and just use that. If it runs out, the program fails.
+
+So long as UCM is implemented efficiently, there are basically no problems with this. Java does this exact thing with the heap size, and most of the allocated memory is not automatically used because the OS is smart enough.
+
+Programs can even allocate as much memory as they want to since they will not use all of it at once. Or if I do not want to make it universal, I don't have to.
+
+A brkoid memory region can be implemented with the basic template of:
+- Header page table entr(y/ies) with basic information
+- Hard break entry to indicate end
+
+The allocation also can be fixed in size permanently if I want it to, although DOS of course requires this to not be the case.
+
+DPMI allocation however is slow and most programs allocate one block based on available memory and use their own malloc. Some DPMI clients have severe limitations on how many allocations are allowed.
+
+The issue is that virtual address space is limited and I am not sure how it is calculated either. One megabyte for example cannot just be handed out to any program. One page table has 4M to represent.
+
+Page table are currently just laid out flat and cannot be extended any further.
+
+Allocating brkoid heaps is only for userspace C/ASM programs that use the native interface, which is obviously DOS but extended. They will likely not need much, but malloc must have a heap available.
+
+Anyway, this simplifies malloc a lot. The heap is thread local, and it does not need to be reallocated and is not sparse either. The kernel handles allocation automatically upon access.
+
+Also, I would like to experiment with different data structures for malloc too.
+
+Previously I had the idea of using pool-style allocation for different sizes.

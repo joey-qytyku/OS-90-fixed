@@ -1,0 +1,13 @@
+I should remember that disabling interrupts to make a procedure safe to
+call within an interrupt handler is a good idea for some things.
+
+I can take advantage of this for ATM/90 to implement IO processing.
+
+Windows allows PostMessage to be called within an IRQ handler for example.
+This allows a keyboard or mouse IRQ to send a message or event.
+
+I should incorporate this into ATM. Getting and posting events should be done
+with IRQs off.
+
+Posting is not the same as handling though. We do not want to mess up the
+thread safety.

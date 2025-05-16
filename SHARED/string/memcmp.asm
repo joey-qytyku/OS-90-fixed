@@ -5,6 +5,7 @@
 
 section .text
 global _my_memcmp
+	align	CACHE_LINE_BOUNDARY
 _my_memcmp :
 	push	esi
 	push	edi

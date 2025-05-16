@@ -1,171 +1,147 @@
-#ifndef FAT_H
-#define FAT_H
+#pragma pack(1)
 
-// I used the following as a reference.
-// http://www.isdaman.com/alsos/protocols/fats/nowhere/FAT.HTM
+struct f1216 {
+	// Number to use for INT 13H. This is useless because the boot sector
+	// starts with CL=boot drive. Maybe useful for detecting if the disk is
+	// in the wrong drive.
+	unsigned char	BS_DrvNum;
+	unsigned char	BS_Reserved1; // Set to zero
 
-#include "TYPE.H"
+	// 0x29 if the next 3 fields are non-zero and valid.
+	unsigned char	BS_BootSig;
+	unsigned int	BS_VolID; // 32-bit value of current time of formatting
 
-typedef struct __attribute__((__packed__)) {
-	// Why this is 16-bit I do not understand. It is actually a shift value.
-	// 512-byte sectors means 1<<10, so a value of 10 or 0xA.
-	SHORT   bpbBytesPerSector;
+	// "volume label" is just a name for the user. It actually may
+	// be checked by some AV software for modification.
+	char		BS_VolLab[11];
 
-	// Self-explanitory.
-	BYTE    bpbSectorsPerCluster;
-
-	// Number of sectors including the boot sector that are supposed to be
-	// left out.
-	SHORT   bpbReservedSectors;
-
-	// The fats are simply copies. Usually there are two for redundancy
-	// reasons but there can be any number.
-	BYTE    bpbNumberOfFATs;
-
-	// Number of root directory entries. On FAT12 and FAT16, this number
-	// is fixed.
-	SHORT   bpbRootEntries;
-
-	// Number of sectors
-	SHORT   bpbTotalSectors;
-	BYTE    bpbMedia;
-	SHORT   bpbSectorsPerFAT;
-	SHORT   bpbSectorsPerTrack;
-	SHORT   bpbHeadsPerCylinder;
-
-	// Number of sectors that are ignored in order to find the filesystem
-	// contents. This is not really the partition base and is relative to it
-	// unless only one partition exists.
-	LONG    bpbHiddenSectors;
-
-	// If bpbTotalSectors is too large, this will be set to the actual
-	// number of sectors. Otherwise, zero.
-	LONG    bpbTotalSectorsBig;
-
-	LONG    bpb32SectorsPerFAT;
-	SHORT   bpb32Flags;
-	SHORT   bpb32Version;
-	LONG    bpb32RootCluster;
-	SHORT   bpb32InfoSector;
-	SHORT   bpb32BootBackupStart;
-	BYTE    bpb32Reserved;
-}BPB,*P_BPB;
-
-// FAT32 requires an extra sector to be used for information
-// The base is indicates by bpb32InfoSector.
-
-
-enum {
-	READ_ONLY=0x01,
-	HIDDEN=0x02,
-	SYSTEM=0x04,
-	VOLUME_ID=0x08,
-	DIRECTORY=0x10,
-	ARCHIVE=0x20    // Compressed file, not sure how to handle
+	// "FATxx   ". Not to be relied on and does not actually define the
+	// FAT type.
+	char		BS_FilSysType[8];
 };
-// LFN=READ_ONLY|HIDDEN|SYSTEM|VOLUME_ID
 
-// 16-bit value
-struct fat_time __attribute__((__packed__) {
-	struct __attribute__((__packed__){
-		BYTE    seconds:5; // /2 actually, only 2-sec precision
-		BYTE    minutes:6;
-		BYTE    hours:5;
+struct f32 {
+	//
+	//
+	//
+	unsigned	BPB_FATSz32;
+	unsigned short	BPB_ExtFlags;
+	unsigned short	BPB_FSVer; // BCD, usually set to zero anyway.
+	unsigned	BPB_RootClus;
+	unsigned short	BPB_FSInfo;
+	unsigned short	BPB_BkBootSec;
+	unsigned char	BPB_Reserved[12];
+	unsigned char	BS_DrvNum;
+	unsigned char	BS_Reserved1;
+	unsigned char	BS_BootSig;
+	unsigned int	BS_VolID;
+	char		BS_VolLab[11];
+	char		BS_FilSysType[8];
+};
+
+typedef struct
+{
+	char		BS_jmpBoot[3];
+	char		BS_OEMName[8];
+	unsigned short	BPB_BytsPerSec; // Can be 512, 1024, 2048, or 4096
+	char		BPB_SecPerClus;
+	char		BPB_RsvdSecCnt[2];
+	unsigned short	BPB_NumFATs;
+	unsigned short	BPB_RootEntCnt;
+	unsigned short	BPB_TotSec16;
+	char		BPB_Media;
+
+	// Zero on FAT32 and nonzero on FAT12 and FAT16
+	unsigned short	BPB_FATSz16;
+
+	// The following are not to be relied on because the BIOS gives this
+	// information. Sometimes the formatting tool does not even know the
+	// correct parameters. The FAT FS is basically LBA-based and has no
+	// other dependency on CHS.
+	unsigned short	BPB_SecPerTrk;
+	unsigned short	BPB_NumHeads;
+	unsigned int	BPB_HiddSec;
+	unsigned int	BPB_TotSec32;
+
+	// Past this point is the extended BPB
+	// Different structure between F32 and F16/F12
+
+	union {
+		struct f32 f32;
+		struct f1216 f1216;
 	};
-};
+}BPB;
 
-struct fat_date {
-	BYTE    day:5;
-	BYTE    month:4;
-	BYTE    year:7;
-}__attribute__((__packed__);
+// Determining the FAT type is done by counting the number of clusters in the
+// FAT. This is the only legal way to do it.
+//
+// FAT12 may not have more than 4084 sectors and FAT16 must have more.
+// FAT32 is simpler and requires only checking if the root dir entries are
+// zero, which they must be because it has a resizable root dir.
+//
 
-//
-// Each directory entry is 32-byte.
-//
-// Each directory except for the root one has a . entry that self-references
-// and a .. entry to go back. This makes it easy to get the CWD or go back.
-//
-typedef struct __attribute__((__packed__)){
-	BYTE    name[11];
-	BYTE    attr;
-	BYTE    _res;
-
-	BYTE    create_hundreths; // Added with VFAT, but still compatible.
-	//
-	// Next is the time it was created.
-	//
-	struct fat_time create_time;
-	struct fat_date create_date;
-	struct fat_date access_date;
-
-	SHORT           cluster_hiword;
-	struct fat_time update_time;
-	struct fat_date update_date;
-	SHORT           cluster_loword;
-	LONG            file_bytes;
-}DENT,*P_DENT;
-
-//
-// The FAT contains CHS values but we do not use them. Bochs and real BIOSes
-// can have all sorts of weird problems if we trust the entries.
-// Furthermore, the formatter program often does not even know these parameters,
-// such as any utility for UNIX (there is no INT13H in that case)
-//
-// 512-byte sectors are essentially assumed here because INT 13H can only use
-// 512. Most disks can emulate this, and the driver is required to do this
-// anyway.
-//
-// Large disk support may be added later but will require manual translation of
-// INT 13H on DOS.
-//
 typedef struct {
-	BYTE    fat_type; // 0: 12, 1: 16, 2: 32
-	BYTE    bios_drv; // INT 13H parameter
-	SHORT   bios_sectors_per_track;
-	SHORT   bios_tracks_per_cylinder;
-	LONG    root_sectors;
-	LONG    fat_sectors;
-	LONG    data_sectors;
-}FAT_FS_INFO;
+	#define ATTR_READ_ONLY	0x01
+	#define ATTR_HIDDEN	0x02
+	#define ATTR_SYSTEM	0x04
+	#define ATTR_VOLUME_ID	0x08
+	#define ATTR_DIRECTORY	0x10
+	#define ATTR_ARCHIVE	0x20
+	#define ATTR_LONG_NAME \
+	(ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID)
 
-#define BYTES_PER_SECTOR 512
+	char		DIR_Name[11];
+	unsigned char	DIR_Attr;
+	char		DIR_NTRes;
+	unsigned char	DIR_CrtTimeTenth;
+	unsigned short	DIR_CrtTime;
+	unsigned short	DIR_CrtDate;
+	unsigned short	DIR_LstAccDate;
 
-/*
-- About FAT -
+	unsigned short	DIR_FstClusHI;
+	unsigned short	DIR_WrtTime;
+	unsigned short	DIR_WrtDate;
+	unsigned short	DIR_FstClusLO;
+	unsigned int	DIR_FileSize;
+}DENT;
 
-It goes in this order:
-	BOOT | Reserved? | FAT(s) | Root Dir | .... |
+typedef struct {
+	BPB		pb;
+	DENT*		root_dir_tab;
+	unsigned 	root_dents;
+	unsigned	root_dents_max;
 
-Some calculations:
+	// Number free is calculated manually by scanning the FAT
+	unsigned	free_clusters;
+	unsigned	total_clusters;
 
-// Number of sectors in the root directory
-Root_Sectors = Root_Directory_Entries * 32 / Bytes_Per_Sector(or 512)
+	unsigned root_dir_sectors;
+	unsigned data_sectors;
+	unsigned fat_sectors;
 
-// Number of sectors in all FAT copies.
-FAT_Sectors = Number_Of_FATs * Sectors_Per_FAT
+	char		type;
 
-// Number of sectors in the data area
-Data_Sectors = Total_Sectors ? (Reserved_Sectors + FAT_Sectors + Root_Sectors)
-// On FAT32, the data area is always
+	// The FAT is entirely cached in memory.
+	union {
+		unsigned *	fat32;
+		short *		fat16;
+		unsigned char *	fat12;
+	};
+}*P_FAT_REPR;
 
-Total_Clusters = Data_Sectors / Sectors_Per_Cluster
+#define FAT32 2
+#define FAT16 1
+#define FAT12 0
 
-FAT_Base on FAT12/16
-	= bpbHiddenSectors + bpbReservedSectors
-*/
+int ReadSectorsLBA(void *b, unsigned drive, unsigned base, unsigned sectors);
 
-/*
-- Structure of the Driver -
+unsigned ClusterInxFromPath(const char * path);
 
-FS Layer:
+void ReadFileClusters(void *b, unsigned fat_cluster, unsigned nclusters);
 
-BOOL ReadClusterChain(LONG chain, PVOID buff);
+unsigned ClusterIndexFromAbsFSeekBytes(unsigned seek_abs);
 
-BOOL ParsePathToDent(   BYTE    letter,
-			PBYTE   full_path,
-			PLONG   dentindex_cluster);
+#define TIME(H, M, S)
+#define DATE()
 
-*/
-
-#endif /* FAT_H */
+#pragma pack()

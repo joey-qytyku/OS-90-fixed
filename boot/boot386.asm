@@ -145,7 +145,7 @@ HMA_OK:
         mov     es,ax
         mov     si,Reflect
         mov     di,3000h+10h
-        mov     ecx,Reflect.end/4
+        mov     ecx,Reflect_size
         rep     movsd
 
         ; - END -
@@ -382,6 +382,8 @@ Reflect:
         incbin "REFLECT.BIN"
         align   4
 Reflect.end:
+
+Reflect_size equ Reflect.end - Reflect - $$
 
 Path:   DB      "\OS90\KERNEL.BIN",0
 SavedProgBase: DW 0

@@ -91,7 +91,12 @@
         "DOS.C": "cpp",
         "SV86.H": "cpp",
         "SYNC.H": "cpp",
-        "climits": "cpp"
+        "climits": "cpp",
+        "Z_BITARR.C": "cpp",
+        "PCI.C": "cpp",
+        "PCI.H": "cpp",
+        "FAT.H": "cpp",
+        "STDREGS.H": "cpp"
     },
 "files.encoding": "cp437",
 "editor.wordWrap": "wordWrapColumn",

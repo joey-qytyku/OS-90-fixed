@@ -22,9 +22,13 @@ align 32
 sw:
 ;       To R0      To R3      To VM
 ;----------------------------------------;
-DW      r0_r0-sw,  r0_r3-sw,  r0_vm-sw,0 ; From R0
-DW      r3_r0-sw,  r3_r3-sw,  r3_vm-sw,0 ; From R3
-DW      vm_r0-sw,  vm_r3-sw,  vm_vm-sw,0 ; From VM
+DD      r0_r0,     r0_r3,     r0_vm,0 ; From R0
+DD      r3_r0,     r3_r3,     r3_vm,0 ; From R3
+DD      vm_r0,     vm_r3,     vm_vm,0 ; From VM
+
+; Changing things in the TB is potentially dangerous from C because
+; the compiler does not know that the variables may be used later by the IRQ,
+; especially when the pointer is not passed around.
 
 	align   32
 IRQ0:
@@ -36,18 +40,13 @@ IRQ0:
         mov     ebx,esp
         and     ebx,~4095
 
-        ; With the pointer to the current task RD in EBX, calculate the address
-        ; of the next task in ECX.
-        ;
-        ; Alternating between two registers could improve performance, but
-        ; I will not try that for now.
-
         mov     ecx,[ss:ebx+_next]
 
         ; We need the data segment to be set. This avoids copying a stack
         ; segment override over 7 times.
-        mov     [ss:ebx+_DS],ds
+        mov     [ss:ebx+_pm_DS],ds
 
+        ; Replace with a load?
         push    byte 8
         pop     ds
 
@@ -63,25 +62,12 @@ IRQ0:
         pop     dword [ebx+_ECX]
         pop     dword [ebx+_EAX]
 
-        ; All registers are now copied. EBX and ECX still the same.
         ; Get both of the switch actions.
-        mov     esi,[ebx+_switch]
-        mov     edi,[ecx+_switch]
+        mov     esi,[ebx+_switch_action]
+        mov     edi,[ecx+_switch_action]
 
-        ; Load SOME of the next task registers. EAX, EBX, and ECX must be done
-        ; manually.
-
-        ; Sure? This will pull a 32-bit value. I can use an override prefix
-        ; but that is segment relative.
-
-        ; Also, SW is not added to the address we jump to. It is the address
-        ; we get the target from.
-
-        ; This cannot work.
-        ; Also, if I want to, I can 100% use the *3 LEA trick and reduce the
-        ; size anyway. Or not?
-
-        jmp     [esi*2+edi+sw]
+        shl     edi,4
+        jmp     [esi*4+edi+sw]
 
         align   32
 r0_r0:
@@ -111,7 +97,7 @@ vm_r0:
 vm_r3:
 vm_vm:
 
-current_task:   DD 0
+current_task:   DD 0 ; Remove this?
 system_uptime:  DQ 0
 preempt_count:  DD 0
 

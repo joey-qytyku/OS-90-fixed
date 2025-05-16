@@ -18,7 +18,7 @@
 #define MB(x) ((x) * 1048576U)
 #define KB(x) ((x) * 1024U)
 
-#define ALIGN_VAL(V, A) ((V+(A-1)) & (-(A))
+#define ALIGNUP(V, A) ((V+(A-1)) & (-(A))
 
 #define PDE_SHIFT 22
 #define PTE_SHIFT 12

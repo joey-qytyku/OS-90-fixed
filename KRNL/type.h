@@ -1,36 +1,45 @@
-/////////////////////////////////////////////////////////////////////////////
-//	 Copyright (C) 2022-2024, Joey Qytyku	//
-//	 //
-// This file is part of OS/90.	 //
-//	 //
-// OS/90 is free software. You may distribute and/or modify it under	   //
-// the terms of the GNU General Public License as published by the	 //
-// Free Software Foundation, either version two of the license or a later  //
-// version if you chose.	   //
-//	 //
-// A copy of this license should be included with OS/90.	   //
-// If not, it can be found at <https://www.gnu.org/licenses/>	  //
-/////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+	Copyright (C) 2023 Joey Qytyku
+	Copyright (C) 2024 Joey Qytyku
+	Copyright (C) 2025 Joey Qytyku
+
+This file is part of OS/90.
+
+OS/90 is free software. You may distribute and/or modify it under
+the terms of the GNU General Public License as published by the
+Free Software Foundation, either version two of the license or a later
+version if you chose.
+
+A copy of this license should be included with OS/90.
+If not, it can be found at <https://www.gnu.org/licenses/>
+
+*******************************************************************************/
 
 #ifndef TYPE_H
 #define TYPE_H
 
-#define API __attribute__((cdecl, regparm(0)))
+#define CACHE_ALIGN __attribute__((aligned(CACHE_LINE_BOUNDARY)))
 
-#define API_DECL(rtype, name, ...)\
-	typedef rtype API (*_API_##name)(__VA_ARGS__);\
-	rtype API name(__VA_ARGS__)
+#define API __attribute__((cdecl, regparm(0)) )
+
+#if defined(OS90_DRIVER)
+	/* TODO, it has to reference the */
+	#define API_DECL(rtype, name, ...)
+#else
+	#define API_DECL(rtype, name, ...) \
+		typedef rtype API (*_API_##name)(__VA_ARGS__);\
+		rtype API name(__VA_ARGS__)
+#endif
 
 #define BIT(n) (1U<<(n))
 
-#define OSNULL ((PVOID)0xFFFFFFFFU)
+#define OSNULL ((void*)0xFFFFFFFFU)
+#define NULL ((void*)(0))
 
-#if defined(__OS90_WANT_NULL__)
-#define NULL OSNULL
-#endif
+#define unlikely(x) __builtin_expect(!!(x),0)
+#define likely(x)   __builtin_expect(!!(x),1)
 
-#define unlikely(x) __builtin_expect((x),0)
-#define likely(x)   __builtin_expect((x),1)
+#define UINT unsigned int
 
 // Rules about REGS:
 // - A pointer stored inside here must not point to a valid object in the given
@@ -95,51 +104,6 @@ typedef struct __attribute__((packed)) {
 	unsigned v86_GS;
 }REGS;
 
-
-static inline void rep_insb(void* mem, unsigned count, unsigned short port)
-{
-	__asm__ volatile(
-	"cld\n"
-	"rep insb"
-	: "=D"(mem), "=c"(count)
-	: "D"(mem), "c"(count), "d"(port)
-	: "memory"
-	);
-}
-
-static inline void rep_outsb(void *mem, unsigned count, unsigned short port)
-{
-	__asm__ volatile(
-	"cld\n"
-	"rep outsb"
-	:
-	: "S"(mem), "c"(count), "d"(port)
-	: "esi", "ecx", "edx", "memory"
-	);
-}
-
-static inline void rep_insw(void *mem, unsigned count, unsigned short port)
-{
-	__asm__ volatile(
-	"cld\n"
-	"rep insw"
-	:
-	: "D"(mem), "c"(count), "d"(port)
-	: "edi", "ecx", "edx", "memory"
-	);
-}
-
-static inline void rep_outsw(void *mem, unsigned count, unsigned short port)
-{
-	__asm__ volatile(
-	"cld\n"
-	"rep outsw;"
-	:
-	: "S"(mem), "c"(count), "d"(port)
-	: "esi", "ecx", "edx", "memory"
-	);
-}
-
 #define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\
 static inline _TYPE in##_ASM_TYPE_PREFIX(unsigned short port)\
 {\
@@ -177,61 +141,14 @@ static inline unsigned char delay_inb(unsigned short port)
 #undef _MAKE_PORT_OUT
 #undef _MAKE_PORT_IN
 
-#define rep_movsl(d,s,c)\
-__asm__ volatile ( \
-	"movl %0,%%edi\n\t"\
-	"movl %1,%%esi\n\t"\
-	"movl %2,%%ecx\n\t"\
-	"rep movsl"::"rmi"((d)), "rmi"((s)), "rmi"((c))\
-	:"memory", "edi", "esi", "ecx"\
-)\
+static inline void IncMemU32(void *m)
+{__asm__ volatile ("incl %0":"+m"(*(unsigned*)m)::"memory");}
 
-#define rep_movsw(d,s,c) \
-__asm__ volatile ( \
-	"movl %0,%%edi\n\t"\
-	"movl %1,%%esi\n\t"\
-	"movl %2,%%ecx\n\t"\
-	"rep movsw"::"rmi"((d)), "rmi"((s)), "rmi"((c))\
-	:"memory", "edi", "esi", "ecx"\
-)\
+static inline void DecMemU32(void *m)
+{__asm__ volatile ("decl %0":"+m"(*(unsigned*)m)::"memory");}
 
-#define rep_movsb(d,s,c) \
-__asm__ volatile ( \
-	"movl %0,%%edi\n\t"\
-	"movl %1,%%esi\n\t"\
-	"movl %2,%%ecx\n\t"\
-	"rep movsb"::"rmi"((d)), "rmi"((s)), "rmi"((c))\
-	:"memory", "edi", "esi", "ecx"\
-)\
-
-#define rep_movsd rep_movsl
-
-#define rep_stosd(d,v,c) \
-__asm__ volatile ( \
-	"movl %0,%%edi\n\t" \
-	"movl %1,%%eax\n\t" \
-	"movl %2,%%ecx\n\t" \
-	"rep stosl" \
-	::"rmi"((d)),"rmi"((v)),"rmi"((c)) \
-	:"memory","eax","ebx","ecx","edi" \
-)
-
-// Automatic version that checks for count size if it is constant.
-// Tested and working.
-#define rep_movs(d,s,c) \
-{ \
-	if (__builtin_constant_p(c)) {\
-		if ((c) % 4U == 0)	rep_movsl((d),(s),(c)/4U); \
-		else if ((c) % 2 == 0)	rep_movsw((d),(s),(c)/2U); \
-		else			rep_movsb((d),(s),(c)); \
-	}else rep_movsb((d),(s),(c));\
-}
-
-// __attribute__((force_inline))
-// static inline peek32(unsigned *p)
-// {
-// 	__asm__ volatile (:::"memory");
-// }
+static inline ExplicitStore()
+{}
 
 #include "../SHARED/string/string.h"
 

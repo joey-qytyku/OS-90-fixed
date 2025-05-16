@@ -1,31 +1,14 @@
-unsigned int atoi(const char *s)
-{
-	static const unsigned int lookup[] =
-	{1,10,100,1000,10000,100000,1000000,10000000,100000000,1000000000};
+// Here we will construct the implementation of printf
+// It cannot be included as a library currently.
 
-	unsigned int final = 0;
+// String functions are included by type.h
+// atoi need string.h and printf needs atoi
 
-	if (s == NULL)
-		return 0;
+#include "../SHARED/ctype/ctype.c"
+#include "../SHARED/ctype/ctype.h"
 
-	size_t len = strlen(s);
+#include "../SHARED/strconv/atoi.c"
 
-        unsigned int n = 0;
+#include "../SHARED/printf/printf.c"
 
-	for (size_t i = 0; i < len; i++) {
-		if (!isdigit(s[i])) {
-			goto leave;
-		}
-		else if (s[i] == '-') {
-			n=1;
-			continue;
-		}
-		else if (s[i] == ' ')
-			continue;
-		final += lookup[len-i-1] * (unsigned)(s[i]-'0');
-	}
-	leave:
-	return n ? -final : final;
-}
 
-#include "../SHARED/printf/"

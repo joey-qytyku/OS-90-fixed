@@ -2,7 +2,9 @@
 	Copright (C) 2025 Joey Qytyku, All Rights Reserved
 */
 
-// Restyle the defined in printf
+/*******************************************************************************
+*******************************************************************************/
+
 
 // All three must be defined.
 #if !defined(MALLOC_SYM) || !defined(CALLOC_SYM) || !defined(FREE_SYM)
@@ -11,71 +13,53 @@
 	#define FREE_SYM   _free
 #endif
 
-#define SIZE_TYPE unsigned
+#define SIZE __SIZE_TYPE__
 
 #ifndef GET_PAGES
 	#include <stdlib.h>
-	#define GET_PAGES(N) memalign((N)*4096U, 4096)
+	#define GET_PAGES(N) (memalign((N)*4096U, 4096U))
 #endif
 
-#define SENT 0xAA55
+#define SEN 0x2CDDF129
 
-typedef struct _hdr_self {
-	unsigned short		wSentinel;
-	unsigned short		wType;
-	unsigned		dAllocMask;
-	void*			pNext;
-	void*			pPrev;
+typedef struct {
+	void *next;
+	void *prev;
+	unsigned mask;
+	char arena_flag;
+	short pad;
 }hdr;
 
-// enum {S,M,L,XL,PG};
+static hdr *arenas[5];
 
-static void * ffptrtab[4] = {NULL, NULL, NULL, NULL};
+//
+// A lookupup table implements the bit scan instruction. It is MUCH faster than
+// a regular BSF instruction on 3/4/586.
+//
+// Larger scans are implemented by checking mutiple bytes.
+//
+#include "scanlut.h"
 
-static short stride_tab[4] = {128, 256, 512, 1024};
-
-static unsigned type_tab[5] = {[0] = 0, [2] = 1, [4] = 2, [8] = 3};
-
-static unsigned init_mask[4] = {0xFFFFFFFF, 0xFFFF, 0xFF, 0xF};
-
-void *MALLOC_SYM(SIZE_TYPE n)
+static unsigned bit_scan(unsigned char b)
 {
-	unsigned stride;
-	unsigned type;
-
-	// Points to the first entry in the frame at all times,
-	// or the previous one.
-	hdr *ch = NULL, ph = NULL;
-
-	if (n <= 1024-sizeof(hdr)) {
-		inx = type_tab[n>>7];
-		stride = stride_tab[type];
-		ch = ffprttab[type];
-	}
-	else {
-		return GET_PAGES((n + 4095) & (~4096));
-	}
-	while (1) {
-		if (ch == NULL) {
-			ch = GET_PAGES(1);
-
-			// Setup the first entry special fields.
-			ch->dAllocMask = init_mask[inx];
-			ch->pNext = NULL;
-			ch->pPrev = ph;
-
-			// Set each entry appropriately.
-			for (unsigned i = 0; i < 4096; i += stride) {
-				*((hdr*)((void*)ch+i)) = (hdr){SENT, type};
-			}
-		}
-
-		// Bit scan goes here.
-
-		ph = ch;
-		ch = ((void *)(ch->next))+stride;
-	}
+	return b > 0 ? lut[b] : -1;
 }
+
+static void malloc_base(SIZE s, int arena)
+{
+	hdr *h = arenas[arena];
+
+}
+
+void *MALLOC_SYM(SIZE s)
+{
+}
+
+void *_calloc(size_t n, size_t s)
+{}
+
+void _free(void *p)
+{}
 
 int InitMalloc()
 {
@@ -83,4 +67,5 @@ int InitMalloc()
 
 int main()
 {
+	InitMalloc();
 }
