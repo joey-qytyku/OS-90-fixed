@@ -4,4 +4,4 @@
 *.exe
 *.EXE
 *.COM
-
+.DS_Store
