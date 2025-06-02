@@ -10535,3 +10535,100 @@ Anyway, this simplifies malloc a lot. The heap is thread local, and it does not 
 Also, I would like to experiment with different data structures for malloc too.
 
 Previously I had the idea of using pool-style allocation for different sizes.
+
+# May 16, 2025
+
+I have the driving test tomorrow I think, so I will have to study the road signs and some other things.
+
+It seems I am finding every excuse not to work on the kernel directly.
+
+So long as I make progress, it is all fine. But the scheduler really needs to get done.
+
+We are KEEPING the current structure and correcting any possible errors.
+
+## Object System
+
+An idea for an interface is `Consumer` or an object which can "eat" other objects and destroy them but recieve their data and efficiently store it internally as a child object.
+
+Or instead override the child-related methods to hide the details if ordering is needed.
+
+# May 29
+
+## Idea for MM
+
+To improve the average MM allocation performance, I can maintain an ordered list of free regions of memory.
+
+The reason for ordering is because I can keep an average and if an allocation is bigger than the average it is better to iterate from the top rather than the bottom.
+
+Ordering means we have to use a proper std::set style structure, and it should be iterable.
+
+> Can averages be used for tree structures?
+
+# June 1
+
+## Possible Problem With ctype
+
+Signed chars are a bit of an issue. ctype functions take integers and the value can either be a promoted signed char (sign extended) or an unsigned char.
+
+This means a NEGATIVE index is possible.
+
+So far I have faced no issues, but this is important if I ever want to actually use the full extended ascii range.
+
+7-bit ascii really is as bad as Terry Davis said because it can be signed and convey the same characters either way.
+
+Basically, a few changes must be made to the lookup table and indices to it.
+
+128 more entries to handle -128 for signed char, which is just a reverse of the first 0,128.
+
+This 100% must be done for standards compliance and in case I break any programs like this.
+
+Also, indices will have to be offsetted by 128 after adding the new entries. 768 bytes is a lot to use up but in needs to be done.
+
+## printf problems
+
+I did some reviewing and found that my printf has a LOT of problems. Marked everything with "FLAG:"
+
+## TASK
+
+I HAVE to fix printf and make it more standards-compliant. Also, there should be a proper testing system in place.
+
+A few things I need to accomplish:
+- Unify argument-fetching totally.
+    - Because non-integer conversions do not apply to float, this can be done
+- Take absolute value of a signed char before using it as an index of any kind.
+    - Only if char is signed, which it probably is.
+- Use signed integer arguments and avoid pointless casting
+    - int is known to be at least 16-bit on compliant implementations.
+    - For most operations int will always be good enough
+- Replace some size_t's with int or short if there is no risk of overflow anyway.
+
+Note: there are actually many platforms with unsigned chars. It is good actually, but sysv does not do this.
+
+This will be tough but has to be done.
+
+### Revamped Argument Fetch
+
+We will output to a union and return the number of characters, preferably as an int.
+
+```
+//This is the naming style I want to do more of, since it describes the return value.
+
+union xintmax {
+    uintmax_t u;
+    intmax_t  i;
+};
+
+int b2represent_from_fetch_iarg(union xintmax *oval);
+```
+
+We cast whatever into uintmax_t and perform a unified conversion.
+
+It is admittedly not good for performance. GCC seems to optimize it well if we use 64-bit though, but it is a lot of instructions. On i386, we get 64-bit conversion speed for all integers.
+
+Eh, we can profile it later. I know how to do that.
+
+If I want to have some quick performance hack, I can do it in assembly and sneak it in instead of whatever I have now with repeating code.
+
+Also, this returns the minimum characters that must be in the buffer.
+
+My code uses buffer commit and char commit, by the way. I do not need to even deal with buffers.

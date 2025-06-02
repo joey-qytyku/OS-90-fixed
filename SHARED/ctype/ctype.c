@@ -277,6 +277,9 @@ unsigned short __ctype_lut[257] = {
 // Definitions for ctype calls for headerless declarations.
 // Identical to the inline versions.
 
+// Why is there a plus one? Is it to avoid null?
+// Yes I think it must return 0
+
 int isalpha(int c)	{ return !!((__ctype_lut[c+1]) & 1  ) ;}
 int islower(int c)	{ return !!((__ctype_lut[c+1]) & 2  ) ;}
 int isupper(int c)	{ return!!!((__ctype_lut[c+1]) & 2  ) ;}

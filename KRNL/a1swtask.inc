@@ -1,3 +1,4 @@
+global preempt_count
 
 ; A two-dimensional array is used to index the approprate task switch handler.
 ; I can use E9 to debug this.
@@ -6,13 +7,6 @@
 ; deal with time slices.
 
 section .text
-
-;
-; Switch to 16-bit offsets. The assembler can make this work and I tested it
-; for COFF output.
-;
-; goto [current.index+next.index*2 + next.index + table_base]
-;
 
 ;
 ; A matrix of possible switch actions to be taken.
@@ -40,14 +34,14 @@ IRQ0:
         mov     ebx,esp
         and     ebx,~4095
 
-        mov     ecx,[ss:ebx+_next]
+        mov     ecx,[ss:ebx+_next] ; THIS IS CURRENTLY NULL!
 
         ; We need the data segment to be set. This avoids copying a stack
         ; segment override over 7 times.
         mov     [ss:ebx+_pm_DS],ds
 
         ; Replace with a load?
-        push    byte 8
+        push    10h
         pop     ds
 
         ; Save all general purpose registers. This faster than pushing because
@@ -80,9 +74,17 @@ r0_r0:
         ; effective. No need for an IRET. There is also no code change to the
         ; code segment, and sreg loads are wasteful in this case.
 
+        push    dword[ecx+_EIP]
+        push    dword[ecx+_EFLAGS]
 
+        mov     eax,[ecx+_EAX]
+        mov     edx,[ecx+_EDX]
+        mov     esi,[ecx+_ESI]
+        mov     edi,[ecx+_EDI]
+        mov     ebp,[ecx+_EBP]
 
-        mov     esp,[ecx+_ESP]
+        popfd
+        ret
 
         align   32
 r0_r3:

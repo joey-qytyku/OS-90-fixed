@@ -148,21 +148,24 @@ static void ConfigurePIT(void)
 }
 
 __attribute__((noreturn))
+static void thread(void *p)
+{
+	while (1) {
+		outb(0xE9, '0' + (unsigned char)p);
+	}
+}
+
+__attribute__((noreturn))
 void KernelMain(void)
 {
 	// Zero BSS first, important.
 	// May want to add sanity check int the mm code.
 	memset((void*)&END_DATA, 0, (unsigned)&BSS_SIZE);
-	asm("xchg %bx,%bx");
 
 	SetupStructures	();
-	asm("xchg %bx,%bx");
 	ConfigurePIT	();
-	asm("xchg %bx,%bx");
 	RemapPIC	();
-	asm("xchg %bx,%bx");
 	InitV86		();
-	asm("xchg %bx,%bx");
 
 	__asm__ volatile(
 	"       mov %%cr0,%%eax;        "
@@ -177,7 +180,27 @@ void KernelMain(void)
 		:::"memory","eax"
 	);
 
+	// Switch the stack here.
+	// ESP will be in place anyway
+
+	__asm__ (
+		"movl $g_tasks+4096,%esp"
+	);
+
+	S_Init();
+
 	asm("xchg %bx,%bx");
+	TASK* t0 = S_NewKernelThread(thread, (void*)1);
+
+	asm("xchg %bx,%bx");
+	TASK* t1 = S_NewKernelThread(thread, (void*)2);
+
+	asm("xchg %bx,%bx");
+	TASK* t2 = S_NewKernelThread(thread, (void*)3);
+
+	// When the interrupt hits, ESP will be in position.
+	// So placing ESP after the task is correct.
+
 	asm("sti");
 
 	__asm__ volatile("jmp .":::"memory");

@@ -36,6 +36,9 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 #define OSNULL ((void*)0xFFFFFFFFU)
 #define NULL ((void*)(0))
 
+// Do this? Checks if both?
+#define SAFENULL(x)
+
 #define unlikely(x) __builtin_expect(!!(x),0)
 #define likely(x)   __builtin_expect(!!(x),1)
 
@@ -147,8 +150,8 @@ static inline void IncMemU32(void *m)
 static inline void DecMemU32(void *m)
 {__asm__ volatile ("decl %0":"+m"(*(unsigned*)m)::"memory");}
 
-static inline ExplicitStore()
-{}
+// static inline void StoreMem()
+// {}
 
 #include "../SHARED/string/string.h"
 

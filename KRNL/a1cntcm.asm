@@ -30,9 +30,10 @@ _v86_DS EQU 17  * 4
 _v86_FS EQU 18  * 4
 _v86_GS EQU 19  * 4
 _tb_size EQU 20  * 4
-_next EQU _tb_size
+_next EQU 21 * 4
+_prev EQU 22 * 4
 
-_switch_action equ 21 * 4
+_switch_action equ 23 * 4
 
 _tss_ESP0 EQU 4
 _tss_SS0 EQU 8

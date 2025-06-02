@@ -84,6 +84,8 @@ static unsigned digit_char_num_lut[] = {
 This implementation is quite horrible, but the standard is mostly to blame.
 
 NOTE: THIS MODIFIES ERRNO, MAY NEED TO CHANGE
+
+This converts a 64-bit value (long long).
 */
 static
 union out
@@ -144,6 +146,8 @@ _strtoxll(
 
 	char *p = str;
 
+	// While the character is alphanumeric and thus a possibly valid
+	// digit AND it is also in range
 	while (isalnum(*p) && digit_char_num_lut[toupper(*p)-'0'] < base)
 	{
 		if ((p - str) == 19) {
