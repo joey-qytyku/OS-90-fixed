@@ -1,15 +1,15 @@
 %ifdef TESTING
-%define NAME my_strchr
+	%define NAME my_strchr
 %else
-%define NAME strchr
+	%define NAME strchr
 %endif
 
+	section .text
 
-section .text
-global _my_strchr
+global NAME
 
 	align	32
-_my_strchr :
+NAME :
 	push	esi
 	mov	esi,[esp+8]
 	mov	edx,[esp+12]

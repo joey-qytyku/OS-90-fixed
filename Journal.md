@@ -5471,7 +5471,7 @@ I switched to the new version. It has not been changed in a long time and I test
 
 ## What Should I Do?
 
-I am getting quite bored with the OS project. I also would like to try the VF idea more. Need to migrate the files.
+I am getting quite bored with the OS project.
 
 # September 1
 
@@ -8648,7 +8648,7 @@ Here it is in GNU AS, but the pointer is AFTER the buffer, equal to its base plu
 
 ```
 /*
-    This code mogs anything that even the latest GCC outputs. If compiling for
+    This code beats anything that even the latest GCC outputs. If compiling for
     i386, this is used instead of the generic version. Could be changed to fit
     64-bit too.
 
@@ -10632,3 +10632,742 @@ If I want to have some quick performance hack, I can do it in assembly and sneak
 Also, this returns the minimum characters that must be in the buffer.
 
 My code uses buffer commit and char commit, by the way. I do not need to even deal with buffers.
+
+## Report on printf
+
+I added a lot more flags and I am simplifying the conversion code. It should have roughly the same speed as before without any extra condition checks.
+
+Will take a while but I am making progress.
+
+# June 3
+
+## Notes:
+
+- ctype may still have problems
+- still working on printf
+
+## Ideas
+
+Instead of macros, I can use inline functions instead! Or const variables.
+
+But const variables are only folded if their addresses are not taken, so there is a potential risk.
+
+I did read the JSF++ rules and macros for constants are prohibited. I should probably do something like that here.
+
+# June 4
+
+See previous entry.
+
+## static const instead of macros
+
+A modern enough compiler will inline a const variable. In fact, GCC will perform constant folding even with optimization off because the standard actually mandates it to do so.
+
+It is quite critical for a compiler to be able to for example, eliminate an if statement because it is known to be true, and it is a flaw if it generates some totally redundant check.
+
+Anyway, static const is the way to go. Even if I was theoretically using a very old compiler it would not matter because the cost is still minimal.
+
+## printf test suite
+
+I can write the test suite in such a way that compares the characters as they are printed.
+
+Or I can get snprintf to work and do memory compares. Buffer handling should be tested too.
+
+# June 5
+
+## The next things to do
+
+I think I will take a break and work on the other project.
+
+Actually, I am back. I got inspired to work on printf again.
+
+# June 7
+
+## Codepage 437 and printf
+
+I need 437 support. This could mean I have to use unsigned chars.
+
+Or not. At the end of the day, char is just 8 bits.
+
+So negatives are fine because it is treated later as an unsigned value (it has to be). Even printf converts chars to an unsigned value.
+
+CP437 however is meant for drawing more than actual console IO. snprintf and sprintf are used to generate text perhaps before outputting it, and it requires no additional processing for that.
+
+So char stays signed. It really does not matter that much, and I do not want to override the sysv abi.
+
+## Make printf unportable? (No)
+
+printf so far has been a portable implementation and I like the work I put into making this work. But the applications are quite limited and there are at least 100 other printf implementations for different platforms that all do their jobs just fine.
+
+So there really is no point in making it portable. It is more of a proof of concept. If it can run natively using generic code, it can run anywhere.
+
+However, I know the size of everything in the sysv ABI and printf can be rewritten to just assume how large things and how many digits numbers have.
+
+But like I said, it is a PoC. If the same code runs under multiple platforms, it shows that it is correct to an especially high degree.
+
+Plus plently of people in the OSDev community can use it and have it up and running in a few minutes.
+
+In the end, the performance lost is minimal or non-existent with the right optimization.
+
+## Macro Problems
+
+I am getting a lot of warnings and errors because of macros, so I am looking for a way to reduce all of that, maybe with a set of easily foldable pure functions.
+
+I can just use a lookup table. It will not even result in any extra code.
+
+Consider:
+```
+int digits = digits_to_represent(UINT_MAX);
+```
+
+The implementation can be like this:
+```
+__attribute__((const))
+static
+int digits_to_represent(uintmax_t v)
+{
+    int rt[] = {
+        []
+    }
+}
+```
+
+No, I was thinking of a table using the size of the value.
+
+__attribute__((const))
+static
+int digits_to_represent_sigint(size_t size)
+{
+    const int rt[] = {
+        [2] = 5,
+        [4] = 10,
+        [8] = 19,
+        [16]= 39,
+        [32]= 76
+    }
+}
+
+ChatGPT gave me this:
+// Decimal digit count for maximum unsigned integer values by byte size
+const unsigned char unsigned_decimal_digits[17] = {
+    [1]  = 3,   // 255
+    [2]  = 5,   // 65535
+    [3]  = 8,   // 16777215
+    [4]  = 10,  // 4294967295
+    [5]  = 12,  // 1099511627775
+    [6]  = 15,  // 281474976710655
+    [7]  = 17,  // 72057594037927935
+    [8]  = 20,  // 18446744073709551615
+    [9]  = 23,  // 4722366482869645213695
+    [10] = 25,  // 1208925819614629174706175
+    [11] = 28,  // 309485009821345068724781055
+    [12] = 30,  // 79228162514264337593543950335
+    [13] = 33,  // 20282409603651670423947251286015
+    [14] = 35,  // 5192296858534827628530496329220095
+    [15] = 38,  // 1329227995784915872903807060280344575
+    [16] = 39,  // 340282366920938463463374607431768211455
+};
+
+// Decimal digit count for maximum signed integer values by byte size (excluding '-' sign)
+const unsigned char signed_decimal_digits[17] = {
+    [1]  = 3,   // 127
+    [2]  = 5,   // 32767
+    [3]  = 7,   // 8388607
+    [4]  = 10,  // 2147483647
+    [5]  = 12,  // 549755813887
+    [6]  = 15,  // 140737488355327
+    [7]  = 17,  // 36028797018963967
+    [8]  = 19,  // 9223372036854775807
+    [9]  = 22,  // 2361183241434822606847
+    [10] = 25,  // 604462909807314587353087
+    [11] = 27,  // 154742504910672534362390527
+    [12] = 30,  // 39614081257132168796771975167
+    [13] = 32,  // 10141204801825835211973625643007
+    [14] = 35,  // 2596148429267413814265248164610047
+    [15] = 37,  // 664613997892457936451903530140172287
+    [16] = 39,  // 170141183460469231731687303715884105727
+};
+
+Should do the trick. But I should also consider the signedness and the other representations.
+
+Well actually those are based on bits which makes it way easier. They can be separate functions.
+
+Conversions now can be separated such that we have one method of getting the value and another method of finding the right conversion without any extra data.
+
+All this does actually is simplify the problem of how many characters represent the largest of a certain type. That is all.
+
+We still need to handle the conversion.
+
+But yeah, we will do this.
+
+The function can be `int digits_to_repr(uintmax_t value)` and I actually do need the signs, unless I make it so one being zero uses the other, which is non-obvious.
+
+The code can be condensed to keep the meaning clear.
+
+## TODO for printf
+
+Add the new implementation for the number of figures.
+
+Also, if I REALLY need it to be a compile-time constant I can actually index the array with no problems, since the compiler knows what is inside it.
+
+Currently, XFIGS and all the other ones are used in the ndc etc stuff, and I do not see a way to avoid all that yet.
+
+Getting arguments from the stack currently uses insane macros which obscure the meaning.
+
+# June 8
+
+## printf
+
+I have that function which returns a struct with all the information.
+
+## Notes on character promotion
+
+Positional arguments do not do this.
+
+Promotion means the value of the character is made to fit an int. The sign of char actually does not matter and MUST not matter because it can be anything.
+
+Sign extending simply makes no sense because we do not actually know if char is signed.
+
+Again, it is just made to fit an int, so it is basically zero extended.
+
+Codepage 437 works fine.
+
+## What to change
+
+The part responsible for getting the value is acting on the format flag, and so is the part that returns the information. That is why there is one function.
+
+I will only change what currently exists. The point is to remove the macros.
+
+Also, XFIG was a very bad idea that existed only for the purpose of consistency. It is totally unnecessary and the calculation can be done with the type alone. It will be henceforth removed.
+
+OFIG is more complicated because it requires a cieling and a division.
+
+It can of course also be made into an array.
+
+By the way, XFIG is literally just sizeof(T)*2 assuming 8-bit bytes. For other sizes: `sizeof(T)*(CHAR_BIT/4)`
+
+Also, OFIG using only the type is done with `(sizeof(T)*CHAR_BIT+2)/3`
+
+## Reading the C standard
+
+The standard is probably a better reference. It says in 7.19.6.1.9 that if the format flags are malformed, the behavior is undefined.
+
+Also, GNU C apparently cannot handle something like:
+```
+"%10#x"
+```
+
+The standard however says flags can occur in any order, so this is valid in the C standard.
+
+Does this mean GCC is not compliant?
+
+I tried it in Turbo C and it did not work.
+
+But clang gives a warning yet it gives the same output as "%#10x"
+
+Although it may not matter much, I should aim to be more compliant.
+
+It is interesting to see that libstdc is more compliant, despite the false warning. I should actually report this as a bug for clang because of the false positive, and maybe report it to glibc for the non-compliant behavior.
+
+Even something like this could in theory work:
+```
+10l#x
+```
+
+Under clang, this does work.
+
+I tried this under clang:
+```
+20l#lx
+```
+
+This actually works. I suppose 'l' check if it was already specified and using long long if needed.
+
+That would be very extreme and it actually is more than what the standard requires. It describes ll as being a flag on its own.
+
+So technically what I have is partially incorrect. It does not handle any ordinary number correctly if it occurs after another flag which does not require its own number.
+
+I will move the code to the default case. It might not matter much though.
+
+## Different way of handling type flags?
+
+I can make the flags work by incrementing a number.
+
+Consider this:
+```
+hh = -2
+h  = -1
+.  = 0
+l  = 1
+ll = 1
+```
+L can be made to have the same meaning, since C99 accepts it for float. I suppose it was a common source of mistakes.
+
+This means I can have a compliant implementation fo the flags system.
+
+Not really necessary. But it avoids the additional condition check.
+
+GCC optimizes negative switch cases in a table. It mostly just offsets the number based on the most negative in series.
+
+This eliminates one extra branch, leaving only the loop. It might be faster.
+
+Also, the enum values can be optimized to make the lookup tables smaller. We do not actually need to encode any entries for size_t or ptrdiff_t because those are just aliases for some other type.
+
+Actually, this is not a great idea, aside from aliasing some of the indices. Incrementing does NOT save any branches. We check for another l or h and skip an iteration, so it balances.
+
+The switch/case table can actually be made smaller in theory, if the compiler decides to emit a condition check.
+
+The number characters are handled in the default case and the asterick (soon the hash) are beneath the alphabetical characters.
+
+I think I should do aliasing but keep the switch labels. Let the compiler handle that. It knows how to reduce the ranges and make an optimal table.
+
+This also means I have to REMOVE the l_z, l_L and other things. They no longer mean anything.
+
+It appears there is no assume in GCC. It can be simulated with this:
+```
+#define __assume(cond) do { if (!(cond)) __builtin_unreachable(); } while (0)
+```
+
+This does work too. This reduces the code size by omitting extra checks for conditions that are never true (such as integers for sizes being zero).
+
+# June 9, 2025
+
+I am not doing any of that btw.
+
+## Forward declared arguments in GCC
+
+It is possible to do this:
+
+```
+int A(int c; int array[c], int c)
+```
+
+It is also okay to specify the size of the array.
+
+
+## printf code generation
+
+It appears that the code generated from the redesigned printf is EXTREMELY bloated. The condition checking and other things is not a major problem.
+
+The switch/case for getting the arguments is HORRIBLE and compiles to up to 8 instructions!
+
+This is massively inefficient for IA-32.
+
+Things like variadic arguments can be simplified in the sysv ABI.
+
+In the end, it is just a pointer. It can point to 32-bit elements or 64-bit ones represented as pairs on the stack. Although very unsafe, it may be faster to do it that way, although most code in practice will not do such a thing.
+
+I will test that first.
+
+Also, consider that intmax_t is the same as long long, so there is no point in all that extra excess code. If I make all the assumptions, the code can be simpler and faster for what I intend it for.
+
+I will test the va_args idea.
+
+Okay, I tried it and this seems to work:
+```
+#include <stdio.h>
+
+__attribute__((noinline, cdecl, regparm(0)))
+int add_ints(int n, ...)
+{
+    int *v = &n + 1;
+    int sum = 0;
+
+    // printf("n = %i", n);
+
+    for (int i = 0; i < n; i++) {
+        printf("Adding %x\n", *v);
+        sum += *v;
+        v++;
+    }
+    return sum;
+}
+
+int main()
+{
+    printf("%i", add_ints(4, 5,5, 2,1));
+}
+```
+
+Not sure how, but I'll take it.
+
+Also, since portability is no longer a concern, I can apply proper optimizations, which may include inline assembly.
+
+It will still be in C. I do not want to worry about inlining and simplifying expressions that way.
+
+printf2 will be the new one and it will be a rewrite with some shared code. I will test it in DJGPP.
+
+I am NOT deleting the old one, only switching to a much more efficient version. That is all.
+
+## va_args solution
+
+All I need is a `char*` that is incremented as needed. `char*` is an exception to pointer aliasing.
+
+## Rewrite
+
+Consuming arguments from the stack is simple enough. It is just an inline function that can take the printf context, or it can take a double pointer.
+
+The compiler will probably do a better job with direct access to the member. It does not need to write results immediately.
+
+# June 10
+
+## Changes to be made
+
+The most notable change is fetching the argument using memcpy, which is correct in C99 and overrides pointer aliasing problems.
+
+Also, because of how endianness works, unions are a viable way to do this.
+
+A union like this:
+```
+union {
+    long long i64;
+    unsigned long long u64;
+    unsigned u32;
+    int i32;
+    short i16;
+    unsigned short u16;
+    unsigned char u8;
+    signed char i8;
+};
+```
+
+It is possible to copy into the union using memcpy too, as long as the amount is correct.
+
+Conversions will either operate on 32-bit values of 64-bit ones. I will also still be doing the backward conversion because it is theoretically faster.
+
+I have this for integer conversions with backward generation:
+```
+asm_v:
+    push %edi
+
+    movl 12(%esp),%ecx  ; ECX = iterations
+    movl 8(%esp),%edx   ; EDI = buffer, we need it for later
+    movl 4(%esp),%eax   ; EAX = value
+
+    ; If the number is under 65535, reduce iterations to 5 for ~-200 clocks
+    cmpl $0xFFFF,%eax
+    jae 0f
+    shl $1,%ecx
+
+    .align  16
+0:
+    subl $1,%edi        ; Decrement down
+    subl $1,%ecx        ; Decrement loop counter
+    xorl %edx,%edx      ; Clear EDX for division
+    divl %ecx           ; EDX now equal to the digit
+    add $'0',%dl        ; Convert to character
+    movb %dl,(%edi)     ; Copy to the buffer
+    jecxz 1f            ; If zero, leave
+    jmp 0b
+    .align 16
+1:
+
+    mov $'0',%eax
+    repe scasb
+    mov %edi,%eax
+
+    subl %edi,8(%esp)
+    mov %edi,%eax
+
+    pop %edi
+    ret
+```
+
+The issue is with things like padding, which I think are already handled fine in existing code.
+
+What I have basically does the exact same thing. Also, the above code is NOT working. I have to change that. It should use extended assembly.
+
+## Fixed
+
+The 32-bit conversion code now works.
+
+I need to think about how arguments are fetched.
+
+# June 11
+
+## Progress on printf
+
+```
+__attribute__((cdecl, regparm(0), noinline))
+int sum(int c, ...)
+{
+    int r = 0;
+    int *v = &c+1;
+    for (int i = 0; i < c; i++)
+    {
+        int param = 0;
+        memcpy(&param, v, sizeof(int));
+        r += param;
+        v++;
+    }
+    return r;
+}
+
+int main()
+{
+    printf("%i\n", sum(4, 12,32,10,9));
+}
+```
+
+This works as expected.
+
+So progress is good so far.
+
+BTW 64-bit values are passed by pushing two values. But in what order?
+
+I checked the push order and the data is stored in little endian 64-bit format SIMD can be available on 32-bit processors and 64-bit arithmetic requires the correct format, so the ABI does this.
+
+So yes, 64-bit values are fetched as expected.
+
+## Argument Fetching based on length mods
+
+First of all, every argument goes to the stack, especially for variadics which are integral types. long double also is pushed using three writes to the stack.
+
+This means all accesses to arguments are either 32-bit, 64-bit, or 80-bit.
+
+%lf is a valid long double conversion in C99, so it needs to be taken into account, although the code path for %Lf can be simplified such that it does not need to perform any additional checks to read 80 bits.
+
+The code is simplified to the point that arguments can be fetched as we decode flags, which makes everything easier.
+
+The arguments will probably go in a union. We then act on the value that matches the size conversion.
+
+Technically this is not correct. %n takes only a pointer to a different integer type. This is probably so that the number of characters outputted can be obtained without relying on int.
+
+So no, we cannot just access the stack based on a length mod.
+
+But before dispatching to a converter, we should read the value. This makes everything more orthogonal and not dependent on a "fetch" function which we would have to call or inline.
+
+The length mods can be converted to a size of bytes.
+
+Also, length mods do not always follow the type, although GNU printf certainly requires this.
+
+I intend to follow the standards though.
+
+## %lf is actualy double
+
+According to the standard, 'l' has no effect of %f. So l can be surmized to represent a 32-bit value because long is 32-bit.
+
+Incidentally, a wide character in SysV/UNIX is actually 32-bit, so it really works, although I have no plans to support wide characters.
+
+I probably can though, with not much difficulty since they are 32-bit, but it would be of very little use. djgpp has no such functionality.
+
+So with the exception of the %n flag, all flags represent bits pulled from the stack. L always represents 80-bit because it is only for float.
+
+ptrdiff_t, size_t, and the theoretical ssize_t are all 32-bit too.
+
+Altogether, we can easily get values from the stack in exact byte quantities with no problems with only the exception of the %n modifier.
+
+## Decode process
+
+Specifying a length mod abrogates the default size. This means if we have just %i or %u we need to keep state to represent the actual length mod.
+
+Plus, when I go to convert the integer, there will be no knowing of its actual size because convert_int is universal.
+
+Unless I choose to decouple conversion from the buffer handling, or output code.
+
+This may be a good idea. Have two: convert_int and format_int.
+
+## Faster Conversion
+
+With an oversized lookup table of 512 bytes, it is possible to convert two characters at a time.
+
+Instead of dividing by 10, we divide by 100 and take the remainder of that.
+
+This theoretically reduces iterations by half, but bloats the binary substantially and may not be that fast sometimes.
+
+It however does not waste as much time with the division, so it may be worth it.
+
+On a modern system, I would not even think about doing this.
+
+Anyway, I can write a proof of concept in C.
+
+## The Exact Workflow
+
+### _printf_core
+
+Print characters. If a format is found, call helper.
+
+### void handle_format(context *p, const char *__restrict f, unsigned index)
+
+Combined into one function now. It also calls the format handler to avoid having to relay the data through the structure.
+
+Index is no longer part of the context. Analysis of the old code shows it was only used in _printf_core and the old set_fmt_params, so modular separation is improved.
+
+The string itself is also passed because decode is 100% self-contained and should never be accessed again. fmt_char is still okay, although it can be turned into a boolean because only capitalization matters for g/G or x/X, and only take one bit of space.
+
+> The value fetched from the stack is copied into a union.
+> The size of the
+
+## Proof-of-concept converter
+
+```
+#include <stdio.h>
+#include <string.h>
+
+char twochars_tab[100][2];
+
+void converter_poc(unsigned v)
+{
+    for (int i = 0; i < 10; i++) {
+        printf("%.2s", twochars_tab[v % 100]);
+        v /= 100;
+    }
+}
+
+int main()
+{
+    for (int i = 0; i < 100; i++) {
+        char b[3];
+        snprintf(b, 3, "%i", i);
+        memcpy(twochars_tab[i], b, 2);
+    }
+
+    converter_poc(1234);
+
+    return 0;
+}
+```
+
+This does NOT work correctly, but it outputs the right generated characters. If written in assembly, it will take up significant space, BUT it will be able to theoretically generate characters at half the cost, at least on older systems.
+
+BTW we should try to keep the table as close to the executable code as possible so that it stays in the TLB entry for one page.
+
+The table is actually 200 bytes, which is not bad at all. It is worth the cost if it speeds up conversions.
+
+All in all, the worst case complexity is cut in half. Instead of 10 iterations, it is five.
+
+Also the compiler has a clever way of performing the mod 100. GCC optimizes MUL and DIV using shifts and LEA. I should look into that although the purpose was originally to make division less expensive.
+
+32-bit division is not the fastest thing though. It will be 38 clocks on a 386 and 40 on a 486.
+
+But there will be only 5 total divisions for a full 32-bit number. That is 200 clocks to convert one number MINIMUM.
+
+So it is still not fast or anything.
+
+I just looked at the 80386 manual and it appears that the multiplication by a factor of 1374389535 which is required as part of the compiler hack is actually really bad. It requires 31 clocks to complete, which is actually slower.
+
+Actually it is 37.
+
+Combined with the other instructions, this is significantly slower than one division, which is 38.
+
+I am not sure why the compiler does this even with older CPU tuning. On a newer CPU, multiplication is way faster and less data-dependent, so it makes sense.
+
+It is still much faster to do a 16-bit division. In such an event, it is better to defer to a 16-bit integer converter, which can be unrolled since it only needs 5 iterations, and no early exit.
+
+A 16-bit converter will only need 110 clocks rather than 190 assuming iterations are reduced.
+
+So I will have to make some modifications.
+
+Also, the idea of using the lookup table is GOOD and I will end up doing it. It works for the 16-bit conversion, although it can be fully unrolled since only 3 operations need to be done, with no constraint on iterations needed.
+
+# June 12, 2025
+
+There is a compiler option called -fno-tree-divide which avoids what it called "strength reduction." This is only fast on modern CPUs.
+
+
+## Changes to Converter
+
+First of all, one less division is actually needed because EAX will have the final digit.
+
+Also, the number of iterations will be constant now.
+
+There is unfortunately no fast way to get a reasonable iteration count from the number itself and dispatch it fast.
+
+I asked ChatGPT and it does not have many good ideas given the constraints.
+
+But there are not 5 iterations!
+
+It is 4 to get 8 digits and the divident works for the rest.
+
+The only part I dislike is that we have to use several clocks to find out how many leading zeroes exist.
+
+However, this can be sped up. I already know that there is pair-generation. We can just scan against "00" sequences and check if the non-match has a single leading zero in it.
+
+So the strchr we have to do will amount to very little. The condition check must happen anyway as part of scasw.
+
+scas is 7 clocks, so better to not waste them on bytes instead of words.
+
+Remember, 4 iterations. That can be unrolled and avoid any extra arithmetic. Also, I am removing the iteration count.
+
+I really do not want to spend any more time on this.
+
+## Octal conversion
+
+While shifting and offsetting works fine, octal can be optimized with a LUT too.
+
+Two characters can be converted by shift/and'ing 6 bits. The problem is that the LUT that we have is not quite sufficient.
+
+Octal, however, is not frequently used, so it is justified to be slower. It also can be implemented using 64-bit operations.
+
+## TODO for converter
+
+- Remove the iterations argument.
+- Unroll all loops
+- Avoid extra iteration by using the divisor at final
+
+I just found out something interesting. 8-bit conversions actually divide a 16-bit value by an 8-bit operand and store the result in AH:AL.
+
+So things are slighly wrong here, or not optimal.
+
+16-bit division divides DX:AX with a 16-bit value, but the operand is 32-bit.
+
+So the 43-clock operation is totally avoidable. I will do some more calculations, but at least 38 clocks are used for a 16-bit conversion and 108 for a 32-bit conversion.
+
+The problem with 8-bit conversions is that the actual result is not 16-bit and destroys the original value.
+
+So unfortunately, I cannot do this optimization.
+
+Well partially, I can, by mixing them together. Unrolling allows this.
+
+After doing enough divisions, we can be sure that the accumulator of the operation is representable in a smaller type, and them move to that.
+
+It is easy to transition from 32-bit division to 16-bit because the same registers are used.
+
+> The nasm source code has a good CRC-32 and CRC64 implementation. It also has a red-black tree. Keep in mind the copyright notice. Just in case I need to implement hash tables or ordered sets in the OS.
+> TBH I can probably use a different hash algorithm for strings.
+
+Another idea: if I know I will get a 16-bit result, I can perform a 16-bit division on an even larger number because it takes a 32-bit input.
+
+6291456 is one such number. The result is 16-bit and equal to 62914. So it is perfectly reasonable to use that as the 16-bit division threshold. The only problem is that it requires 6 iterations instead of 3, and despite the common case being much lower.
+
+> Even bigger LUT? Three chars is difficult, and 4 for alignment means 4000 bytes! Conversion should be very fast though, but lookup tables should really be used more sparingly.
+
+Encoding 000-999 is not very efficient and takes up 4000 bytes. However, it makes %hh conversions O(1) and %u need only two actual divisions, and we use the quotient once we are done.
+
+This does make printf extremely large though. The code will be 6-8K. I think size optimization is more practical, since the speed critical part will be written in ASM.
+
+Also, printf will use plenty of lookup tables too.
+
+## Plan for integer conversion
+
+For maximum speed, the highest divisor allowed for 16-bit conversion should be doable in one actual division with one finishing operation. That is a true 16-bit number.
+
+The rest can use the 32-bit one, but remember it will be unrolled to use faster operations once we know the result will be 16-bit.
+
+32-bit only needs two divisions by 100 and the rest can be used to finalize.
+
+The only difference is that we use the faster operation if it causes no data loss.
+
+# June 13, 2025
+
+I made a slight mistake.
+
+The modulus operation is only capable of getting 3 digits at a time.
+
+Unless I use a 10,000 byte lookup table, which is not happening.
+
+The table goes up to 999. This means things are a little different.
+
+int has 10 digits and requires 3 divisions. It definatively needs three before the quotient can be used. Also, the quotient will be no greater than 4, which means we can just '0' to it instead of using the table.
+
+unsigned short has 5 digits. 65535 can be divided by 1000 to get 65, which can be looked up after, so only one division is needed.
+
+Not much changed, but the assumption that we can use 32-bit access and get 4 characters out of it is wrong now.
+
+32-bit access can be used (given there is a padding byte) for 16-bit conversions because we can just overwrite the next 2 bytes over the extraneous one.
+
+For unsigned int, this is unfortunately not possible. It is necessary to copy a word and a byte.
+
+## integer conversion
+
+I got the short path to work now. I need to work on the 32-bit conversion and start working on the actual printf.
+

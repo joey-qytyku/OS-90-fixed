@@ -1,4 +1,5 @@
 // NON-PORTABLE
+// Requires strlen
 
 int atoi(const char *s)
 {

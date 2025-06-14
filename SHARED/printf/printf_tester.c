@@ -1,6 +1,8 @@
 #define SHARED_PRINTF_TESTING_NATIVE
 #define SHARED_PRINTF_LLONG 1
 
+#include <ctype.h>
+
 #include "printf.c"
 
 static void _putchar_commit(
@@ -127,7 +129,7 @@ int _snprintf(char *s, size_t n, const char *__restrict f, ...)
 
 int main(void)
 {
-	#define TEST "[%40.4s]\n", "Hello world!"
+	#define TEST "[%i]\n", 100
 	_printf(TEST);
 	fprintf(stderr, TEST);
 }

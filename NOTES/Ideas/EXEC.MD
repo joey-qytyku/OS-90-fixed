@@ -174,7 +174,7 @@ The kernel automatically imports all necessary symbols for drivers. Importing sy
 
 It is easy enough to simply read the code section right to memory. The boundary that is (totally not) the standard sector size improves the load time. Relocations are applied in essentially the same way as in ELF on i386.
 
-Symbol pasting is a bit more complicated and requires multiple lookups, but it ultimately much faster due to the alphabetical sorting. The process for inserting a DLL into another module is to lookup the symbol on the exporter and find out of the importer has that same symbol. Symbols are looked up by encountering a relocation that references it and finding the base address of the string using the SRT to get the string. Because of space padding, the strings can be compared with a simply `REP CMPSD`.
+Symbol pasting is a bit more complicated and requires multiple lookups, but it much faster due to the alphabetical sorting. The process for inserting a DLL into another module is to lookup the symbol on the exporter and find out of the importer has that same symbol. Symbols are looked up by encountering a relocation that references it and finding the base address of the string using the SRT to get the string. Because of space padding, the strings can be compared with a simply `REP CMPSD`.
 
 # Toolchain Guidelines
 

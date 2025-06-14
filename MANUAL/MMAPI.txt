@@ -109,7 +109,7 @@ A buffer overflow detector page is allocated after it.
 	Notes
 	~~~~~
 
-This is NOT a general purpose malloc function. Is is quite slow and will take maybe 500 to thousands of clock cycles to run, and although probably faster than the average malloc, it is not memory efficient at all.
+This is NOT a general purpose malloc function. Is is quite slow and will take maybe 500 to thousands of clock cycles to run.
 
 Uncommitted pages are also not fast and require physical memory to be allocated, but may end up being disk-backed if there is none. Furthermore, uncommitted memory also requires iteration to find the allocation in need of extension.
 

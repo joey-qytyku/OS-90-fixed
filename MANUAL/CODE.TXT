@@ -6,6 +6,8 @@
         C Style Rules
 --------------------------------------------------------------------------------
 
+In the case of userspace programming, use the style that is appropriate, but try to adhere generally.
+
         Tabs or Spaces
         ~~~~~~~~~~~~~~
 
@@ -111,8 +113,6 @@ The following options should be used for GCC. Resolving warnings takes precenden
 -Wconversion
 -Wrestrict
 
-This is very strict.
-
         Static Limits
         ~~~~~~~~~~~~~
 
@@ -132,7 +132,7 @@ Dynamic structures should have this sort of hierarchy. Ask if one is sufficient 
         Goto
         ~~~~
 
-`goto` is good as long as it is not jumping backward. In general, C is meant to be more logical than assembly, but if the opposite is true, by all means use `goto`.
+`goto` is good as long as it is not jumping backward. In general, C is meant to be more comprehensible without comments than assembly, but if the opposite is true, by all means use `goto`.
 
         Robustness
         ~~~~~~~~~~

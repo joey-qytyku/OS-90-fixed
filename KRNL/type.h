@@ -31,13 +31,16 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 		rtype API name(__VA_ARGS__)
 #endif
 
+// This should be phased out
 #define BIT(n) (1U<<(n))
 
 #define OSNULL ((void*)0xFFFFFFFFU)
-#define NULL ((void*)(0))
 
-// Do this? Checks if both?
-#define SAFENULL(x)
+#ifdef NULL
+#warning "The use of NULL in the OS/90 kernel as a null pointer is"
+#warning "almost certainly wrong. Please use zero or OSNULL.
+#undef NULL
+#endif
 
 #define unlikely(x) __builtin_expect(!!(x),0)
 #define likely(x)   __builtin_expect(!!(x),1)
@@ -60,7 +63,7 @@ typedef struct __attribute__((packed)) {
 	#define I86_IF		0x0200U
 	#define I86_DF		0x0400U
 	#define I86_OF		0x0800U
-	#define I86_IOPL	0x3000U
+	#define I86_IOPL	0x3000U /* The heck even is this? */
 	#define I86_NT		0x4000U
 	#define I86_VM		0x00020000U
 	#define I86_AC		0x00040000U
@@ -144,9 +147,11 @@ static inline unsigned char delay_inb(unsigned short port)
 #undef _MAKE_PORT_OUT
 #undef _MAKE_PORT_IN
 
+__attribute__((force_inline))
 static inline void IncMemU32(void *m)
 {__asm__ volatile ("incl %0":"+m"(*(unsigned*)m)::"memory");}
 
+__attribute__((force_inline))
 static inline void DecMemU32(void *m)
 {__asm__ volatile ("decl %0":"+m"(*(unsigned*)m)::"memory");}
 

@@ -58,7 +58,7 @@ enum {
 	GE_USER_INTERV_RQ
 };
 
-typedef struct VOID (DRIVER_ENTRY*)(PSTR cmdline);
-typedef struct STAT (GENERAL_DISPATCH*)(LONG code, LONG arg);
+typedef struct void (DRIVER_ENTRY*)(PSTR cmdline);
+typedef struct int (GENERAL_DISPATCH*)(LONG code, LONG arg);
 
 #endif /* DRIVERS_H */

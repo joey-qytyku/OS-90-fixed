@@ -21,8 +21,6 @@ NAME:
 	pop	edi
 	ret
 
-;
 ; The IMUL will take 9 clocks in all cases because the multiplier can only be
 ; 0 or 1.
 ; The clocks used are: max(ceiling(log{2}(m)), 3) + 6
-;

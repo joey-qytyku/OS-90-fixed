@@ -1,10 +1,16 @@
+> Needs updating
+
 # Shared Modules
 
 This folder contains implementation files for C-library functions that can run in kernel mode and user mode using certain defines.
 
 ## printf
 
-This module is highly portable. It can run under many operating systems and only depends on the C library if required.
+> This will link as a library.
+
+A standard printf is provided.
+
+This module has been changed to not be portable. It can only work within the i386 ABI.
 
 ### DISABLE_FLOAT
 

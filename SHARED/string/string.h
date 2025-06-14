@@ -23,6 +23,8 @@
 // #define strerror	__builtin_strerror
 // #define strxfrm		__builtin_strxfrm
 
+#error This header is malformed. Also reconsider inlining strlen.
+
 // GCC goes not inline strlen, even on new versions. We do it here manually.
 // The size is not that big, only 12 bytes.
 //

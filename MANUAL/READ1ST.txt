@@ -9,36 +9,50 @@
 The documentation is not complete and currently may contain outdated information as things change.
 
 --------------------------------------------------------------------------------
-	NULL Is Not Zero!
+	There are two NULL's
 --------------------------------------------------------------------------------
 
-In OS/90, there are two NULL pointer values, all bits zero or all bits one.
+In OS/90, there are two NULL pointer values. It can be set to zero or OSNULL.
 
-OSNULL is the 0xFFFFFFFF variant. It is returned by any function in the kernel API. A NULL dereference is NOT a runtime error and zero is a valid mapped address. It points to the divide by zero exception vector in real mode.
+OSNULL is the 0xFFFFFFFF variant. It is returned by any function in the kernel API. A NULL dereference is NOT a runtime error and zero is a valid mapped address. It points to the divide by zero exception vector in real mode. This is no departure from DOS programming where zero as a segment, offset, or both is valid and sometimes necessary.
 
 This MUST be taken into consideration. E.g. structures like linked lists with NULL pointers cannot just be zeroed unless the zero is given special meaning by checking it. Otherwise, a NULL dereference can occur silently.
 
 Any function from the C library, which includes the kernel versions, will understand NULL because the standard defines NULL as an integer zero or a zero casted to a pointer. OSNULL is not recognized by C library functions as NULL.
 
-Portable code is actually not meant to directly access the storage bytes of a pointer. It is an abstract type that can be implemented in many ways, and NULL is just an integer that becomes a pointer. That means portable C code should not memset a structure with pointers to zero, in the same way that it should not memset floats to zero.
+But the important thing to note is that NULL is not actually defined in the kernel headers because of the extremely high chance that it can be misused. Instead, just set the pointer to zero, because this behavior is legal and defined, but most importantly it is compatible with however C will define NULL.
+
+Portable code is actually not meant to directly access the storage bytes of a pointer. It is an abstract type that can be implemented in many ways, and NULL is just an integer that becomes a pointer. That means portable C code should not memset a structure with pointers to zero, in the same way that it should not memset floats to zero, although this is generally safe and cannot always be obeyed in practice
 
 The reason NULL and OSNULL are separate is for making certain assembly functions simpler and because some code depends on the compiler's automatic zeroing of uninitialized array members.
 
 Attempting to dereference an OSNULL pointer is a critical error that must never occur under normal circumstances. Because drivers are really just kernel extensions, they cannot be terminated. It is suggested that OSNULL is used wherever possible. All pointers should be set to OSNULL after use.
 
+Also note that boolean operators do not work if a pointer can be OSNULL.
+
 There is also OSNULL_N(n) where n is between 0 and 4095, and OSNULL_N(4096)=OSNULL. This allows a null pointer to be runtime checked and provide extra information.
 
 This has no noticable impact on code density.
+
+TLDR: NULL does not exist. Set pointers to zero if you really want them to be. Otherwise use OSNULL or OSNULL_N() to indicate that a pointer should not be dereferenced.
 
 --------------------------------------------------------------------------------
 	C99 and SysV i386 Compliance
 --------------------------------------------------------------------------------
 
-OS/90 is written to be compatible with the GNU dialect of C99. This is not advertised, but is a general principle.
+OS/90 is written to be compatible with the GNU dialect of C99. This is not advertised, but is a general principle, and applies to the C library too.
 
 C99 introduced the strict aliasing rule, by which it is potentially dangerous to cast a pointer of one type to another and access overlapping data.
 
 The SysV ABI is generally used. Structure layouts and most calling conventions conform to the rules found in this specification because GCC already adheres to it internally.
+
+--------------------------------------------------------------------------------
+	Data Types
+--------------------------------------------------------------------------------
+
+Because of SysV i386 compliance, data types have predictable sizes. int and long are 4 bytes. long long is 8 bytes. short is 16-bit and char is 8-bit and signed by default.
+
+
 
 --------------------------------------------------------------------------------
 	Strict Aliasing in Detail
@@ -63,9 +77,3 @@ GCC will not generate the most optimal code for volatile. It tends to load befor
 Compilers do not reorder function calls, even if they are inline, if there are side effects, such as if the memory clobber is specified, which is correct.
 
 Use proper utilities for this. All are in "type.h".
-
---------------------------------------------------------------------------------
-	Configuration File
---------------------------------------------------------------------------------
-
-The configuration follows the same general format as the one used by DOS. Only KEY=OPTION is supported and only CRLF should be used.
