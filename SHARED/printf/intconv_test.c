@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <assert.h>
 
-extern char *asm_v(unsigned val, char *end);
+extern char * asm_v(unsigned val, char *end);
 
 int main()
 {
@@ -13,14 +14,12 @@ int main()
 		b[i] = '=';
 	}
 
-	char *r = asm_v(UINT_MAX, b + sizeof(b)-1);
-	printf("%16u\n", UINT_MAX);
+	char *c = asm_v( 0, b+sizeof(b)-1);
+
 	for (int i = 0; i < sizeof b; i++)
 	{
-		// putchar('[');
 		putchar(b[i]);
-		// putchar(']');
 	}
-
-	// printf("\n[%c]", *r);
+	putchar('\n');
+	putchar(*c);
 }

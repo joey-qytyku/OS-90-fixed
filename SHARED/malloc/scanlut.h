@@ -1,3 +1,6 @@
+// 8-bit bit scan forward result table
+// For backward, use the end of array as base.
+// This is massively faster than using bit scan instructions.
 unsigned char lut[256] = {
 	[1] = 0,
 	[2] = 1,

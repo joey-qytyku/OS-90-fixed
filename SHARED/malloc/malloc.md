@@ -1,5 +1,7 @@
 # malloc
 
+> This document is out of date.
+
 OS/90 uses the same malloc for user and kernel. It is C standards compliant.
 
 ## Bit Scan Optimzation
@@ -8,7 +10,7 @@ A lookup table is used instead of running the x86 bit scan instruction or inline
 
 This would be totally unthinkable on a modern CPU as a bit scan can be done in few clock cycles and a cache miss could make it pointless.
 
-This involves branching but is still much faster than bit scanning.
+This involves branching but is still much faster than bit scanning and reduces the average complexity.
 
 ## Arenas
 

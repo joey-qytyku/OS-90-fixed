@@ -11371,3 +11371,81 @@ For unsigned int, this is unfortunately not possible. It is necessary to copy a 
 
 I got the short path to work now. I need to work on the 32-bit conversion and start working on the actual printf.
 
+# July 14, 2025
+
+## integer converter
+
+64-bit conversion is not done yet. It will use very similar code and MAYBE it will also chain to conversions and can even be done in C. It does not need to be fast because it is rarely used on 32-bit systems.
+
+So far, conversion seems to work flawlessly. I just need to implement the strchr mechanism at the end of it.
+
+The highest number of leading zeroes can be determined. Because 32-bit conversions are only for numbers greater than 999999, I can be sure that there will only be a certain number at most.
+
+Specifically: 0001000000
+
+There can be no more than three leading zeroes.
+
+I may come up with some kind of trick.
+
+I can use setCC instructions and a final LEA to capture the exact number.
+
+```
+cmp byte [edi+0],'0'
+sete al
+cmp byte [edi+1],'0'
+sete bl
+cmp byte [edi+2],'0'
+sete cl
+lea eax,[ebx+ecx]
+```
+
+Not super fast, but on a 386, scasb takes 29 clocks in the worst case. This is less, so it's better.
+
+Technically this is not correct. It checks THREE zeroes, not regarding if one is a trapped zero.
+
+I can insert branches. Or I can have a condition check for TWO zeroes.
+
+Because CMP is just a subtraction, I can do it in a packed manner even when I know there can only be 3 digits. Nah, probably not.
+
+```
+cmp word [edi+0],'00'
+
+```
+
+Additive methods don't really work because of trapped zeroes. There also is not common case here either.
+
+I may be able to compress the values into a lookup table or use some kind of boolean logic.
+
+The lea trick is interesting. I think, given a b c are the three characters in question, b can be given priority by multiplying the truthy value so that trapped zeroes are eliminated somehow.
+
+Or some xor or and operation can take place.
+
+b xor c means if b is LZ and b is also LZ, the result is not LZ, so no.
+
+I think AND should be the correct method.
+
+Okay, so this is a one-way function from a b c to 0 1 2 3.
+
+But {abc} is just a number, right? We have no way of converting it to one though.
+
+Better to think of this as bits.
+
+Then a smaller lookup table can be used, perhaps no larger than 8 bytes.
+
+What I had before can have a shifts involved, which lea can do.
+
+```
+cmp byte [edi+0],'0'
+sete al
+cmp byte [edi+1],'0'
+sete bl
+cmp byte [edi+2],'0'
+sete cl
+lea eax,[ebx*2]
+lea eax,[eax+ecx*4]
+movzx eax,[table2+eax+edi]
+```
+
+Maybe used EBX instead to accumulate and save an extra byte, or use mov instead of movzx.
+
+Also note that this only applies to full 32-bit conversions.

@@ -1,3 +1,5 @@
+; Copright (C) 2025 Joey Qytyku, All Rights Reserved
+
 ; This is a optimized integer conversion function.
 ; It is supposed to be really fast on 386/486/586.
 ; Not sure if it is any good on a modern CPU.
@@ -71,16 +73,14 @@ _asm_v:
 	; Only three of the characters I get are actually valid.
 	; A 32-bit read is used for speed.
 	mov	ecx,[edx*4+table]
-	mov	[edi-2],ecx
+	mov	[edi-3],ecx
 
 	mov	ecx,[eax*4+table]
-	mov	word [edi-5],cx
+	mov	dword [edi-6],ecx
 
-	shr	ecx,16
-	mov	byte [edi-3],cl
+	mov	ecx,6
+	sub	edi,6
 
-	; Make sure EDI points to the right character.
-	sub	edi,8
 	jmp	.done
 
 	align	4
@@ -95,9 +95,6 @@ _asm_v:
 	; Immediate values have a penalty on i486, also this makes encoding
 	; take less bytes.
 	mov	ebp,table
-
-	;!!! I changed the order of the table a bit.
-	; Copying is a bit different now. Remember that.
 
 	xor	edx,edx
 	div	ebx
@@ -140,17 +137,16 @@ _asm_v:
 	add	eax,'0'
 	mov	byte[edi-9],al
 
-	; One of the characters is zero and shouldn't be.
+	mov	ecx,3
+	sub	edi,9
 
 .done:
-	; Remember the 386 branch target penalty. 1 clock per component.
+	mov	eax,'0'
+	repe	scasb
 
-	; Probably better to look for groups of '00' instead of 4.
-	; It is too wasteful to try several due to startup costs.
+	lea	eax,[edi-1]
 
 	pop	ebx
 	pop	edi
 	pop	ebp
 	ret
-
-_asm_convert64:
