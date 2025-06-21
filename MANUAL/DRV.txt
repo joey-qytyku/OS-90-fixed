@@ -20,13 +20,16 @@ OS/90 uses the SysV i386 calling conventions.
 
 Some functions may deviate and use regparm instead, but the rest is true.
 
+Please refer to
+"SYSTEM V APPLICATION BINARY INTERFACE - Intel386(TM) Architecture Processor Supplement Fourth Edition" by SCO.
+
 # Events
 
 Drivers use a global event system. Any driver can post an event and all drivers must respond. This is done IN ORDER unless otherwise specified.
 
 For example, GE_LOAD. This is called when a new driver is loaded. All other drivers are informed when a new driver is loaded, or at least the kernel tries to inform them. This can allow drivers to automatically detect incompatibilities with others if this is done on both ends, or to automatically unload if a dependency is removed.
 
-Drivers are identified by name in all interfaces exposed to them that permit communication with or knowledge of other drivers. The name MUST be 8 characters long to conform with FAT case, and may later be extended to support the tilde notation.
+Drivers are identified by name in all interfaces exposed to them that permit communication with or knowledge of other drivers. The name MUST be 8 characters long at most to conform with FAT case, and may later be extended to support the tilde notation.
 
 Most of the events are not required for ordinary system operation and are there to allow for drivers to behave more optimally using certain features too complex to develop an entire API for. For example, we can handle APM or PnP events related to laptop lids or low-power states. Some are purely advisory and have no specific condition to be sent.
 
@@ -36,7 +39,7 @@ Most of the events are not required for ordinary system operation and are there 
 
 All pages allocated for code and data are writable, ring-0, and locked. Allowing swapping must be done manually with linker script tricks, but is permissible.
 
-It should be assumed that accessing a read-only page from kernel generates an exception.
+It should be assumed that writing to a read-only page from kernel generates an exception.
 
 --------------------------------------------------------------------------------
 	Required Events
@@ -79,3 +82,5 @@ Cancellation prevents any other driver from receiving this event. This only work
 INTxH must be used, however, ensure the VM bit is disabled (it should be by default anyway) and a capture handler will detect it as a protected mode request, permitting the use of 32-bit file operations.
 
 A 32-bit code descriptor must be allocated for this purpose and put into the CS field.
+
+> I might want to make a new API call for this purpose.

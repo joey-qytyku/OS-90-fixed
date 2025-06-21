@@ -1,0 +1,43 @@
+================================================================================
+	Userspace
+================================================================================
+
+--------------------------------------------------------------------------------
+	An Overview
+--------------------------------------------------------------------------------
+
+The directory structure is like this:
+
+OS90\
+	LIB\
+		LIBC.001
+		ATM.002
+	APPS\
+		USER.EXE
+	KERNEL.BIN
+	OS90.COM
+	CONFIG.INI
+
+Libraries are numbered by version using the extension, but the extension follows the base36 format. It can be 000-ZZZ. This is not meant to be human-readable but can be decoded with a tool.
+
+Newer versions of a library are supposed to increment the version number. Exactly how is undefined, as long as newer versions use monotonous numbers. This does not have to relate to how the program itself is versioned and is only relevant for installation checks and updates.
+
+> base36 encoding is good for turning numbers into valid characters when the character set to represent them is limitted.
+
+
+--------------------------------------------------------------------------------
+	Programs
+--------------------------------------------------------------------------------
+
+Native OS/90 programs run as threads of a single DOS VM, an can create their own threads too.
+
+Processes have a context defined partially in the C library, and the rest is implemented as the other basic information that is not related to libc.
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+	System Library
+--------------------------------------------------------------------------------
+

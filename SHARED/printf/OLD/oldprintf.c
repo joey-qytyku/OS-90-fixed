@@ -493,6 +493,7 @@ static void print_pad_nopfx_buff( // FLAG: chars_gen to int
 }
 
 // FLAG: TODO This
+// NOTE: This probably works, it just does not fetch arguments
 void convert_uint(printfctl *pc)
 {
 	// unsigned iters = uint_iters_tab[pc->length_mod];

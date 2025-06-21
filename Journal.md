@@ -11449,3 +11449,283 @@ movzx eax,[table2+eax+edi]
 Maybe used EBX instead to accumulate and save an extra byte, or use mov instead of movzx.
 
 Also note that this only applies to full 32-bit conversions.
+
+# June 16
+
+> \# notification when a keyword matches a newly added \#?
+
+## Moving printf to PC
+
+I am going to move printf to my PC to work on it. Because WSL supports the SysV ABI I can test my printf against GCC.
+
+I have greater confidence in the compliance of glib printf than DJGPP.
+
+## printf structure
+
+Fetching the data based on the flags can be done, but the "n" flag does not make it easy. %n cannot take any other flags.
+
+I really need argument fetching to be unified, but %n completely ruins it.
+
+However, unification is still possible, although not in the preferred manner.
+
+Anyway, argument fetching is supposed to happen at decode stage (makes sense given the FDE analogy), and it saves space that could be wasted with branch tables and other things if done per conversion.
+
+A switch table can do the argument copying by the way.
+
+It actually does not need to be copied. A pointer is enough.
+
+The converter needs to know what size to operate on.
+
+This is where simplifications can take place because of the architecture. The types are basically i{8,16,32,64} or unsigned version of that.
+
+The %n handler will probably jump out to something else that handles it.
+
+But fetching it means copying it somewhere, and we still need to know the size of it before converting.
+
+Everything goes into memory anyway, but I am talking about removing the intermediate step.
+
+Getting the correct data type is the requirement of each converter. It has to cast it if the type is narrow too.
+
+Just use va_args anyway. No need to think about all this.
+
+Also, it is possible to cram everything into a switch/case, or at least partially. It still gives less control over the storage used for table though.
+
+It is possible to avoid switch/case by the way. Computer goto is used a lot by emulators.
+
+It probably won't be an issue.
+
+## Hex conversion
+
+This is another "compute kernel", so I need to write this one too.
+
+A lookup table is kind of unthinkable at this point. 4000 bytes is already insane for integers.
+
+The current hex converter is backward generating too, I think.
+
+I think I will reuse that. Same with octal.
+
+Also, I will not be using my PC actually. That screen is not good for my eyes.
+
+# June 17
+
+## Printf buffers
+
+In most cases I will want to write characters to a buffer in memory and then transfer it somewhere. Making system calls constantly is very slow and is something that should be avoided.
+
+It appears that stderr does not output each character individually
+
+Something like:
+```
+    fprintf(stderr, ">Hello World %n", NULL);
+```
+
+This is not safe for standard C but some libraries accept it. Changing NULL to NULL+1 (also undefined) ensures it fails.
+
+In that case, nothing seems to be outputted. Same results when I change shell.
+
+So it appears that having a segfault even when printing to stderr does not mean the generated characters are outputting right away.
+
+This makes sense because fwrite is what actually writes to the buffer, not printf. Formatted printing is the method of generation.
+
+What this means is that printf should be designed only to generate the characters. There is no need to use fwrite or fputc in the actual implementation of each printf function. This would be way slower.
+
+So vsnprintf is the core function used in all formatted printing. Something more fundamental is not required, and there is nothing that the existing "printf core" can do.
+
+So only one buffer commit is required. The only thing to consider is that the final output buffer may be quite large and printf is required to output at least 4095 bytes by the standard.
+
+# June 18
+
+## printf changes
+
+I will implement vsnprintf basically. The printf context will be created inside it.
+
+## Note about PnP
+
+I may need a 286 TSS to make PnP calls! Think about why though, I just read that sentence off OSDev.
+
+# June 19
+
+## printf updates
+
+I know the standard requires 4095 bytes to be printable by printf, but the kernel environment is a very unique situation. Nobody should be printing that much anyway, and a buffer will be allocated for sprintf already.
+
+### vsnprintf
+
+This is the core of printf. It will create the printf context inside its scope.
+
+Buffer generation is changed such that we can actually write directly to it, but as long as it is not overrun.
+
+There is no need for callbacks at all.
+
+Each format will potentially use a conversion buffer and also put characters into the output.
+
+write and dup become independent functions now.
+
+There are two ways to represent buffers:
+- start/end/current pointers
+- start/size/index
+
+Checking if we reached the end or if incoming output will overrun based on an offset can be done with `curr <= end`
+
+The second uses `index+num_to_write < size`.
+
+I will use pointers. Also the end pointer is the last byte, not the byte after.
+
+However, the calculations, are different when the buffer is overflowed and needs to be truncated.
+
+If the condition above is reached, the caulculation of the number of bytes to actually write is:
+* start + size - index
+* end - current
+
+Using pointers is simpler.
+
+### snprintf with NULL destination.
+
+This is in fact safe, but the size is required to be zero since there is no real need to truncate if we just want to know how long something will be.
+
+If the count of bytes to output is always zero, there is no problem.
+
+But we do have to keep track of the number of bytes printed total, which is related more to the printf family than the buffer, but it works that way too.
+
+Using only pointer arithmetic is not really reliable to get the number of characters that could have been printed, only the number that actually were.
+
+### Data fetching pipeline
+
+Basically there is a "fetch" or "eat" operation that gets the next value.
+
+The descrepancy between %lf and %l{i,u,d,x,X...} makes it impossible to know the size right away. I think the value should be fetched as it is needed.
+
+We have optimizations for integers to print small numbers fast, namely 32-bit ones. 64-bit numbers can be concatenated, although it is not that fast.
+
+The number of iterations output is no longer needed anymore since conversions have a heuristic way of avoiding iterations in such cases.
+
+Each conversion type should interface with the converter in the most optimal way, so decentralizing integral type reads makes sense somewhat.
+
+In effect though, we are either reading a 32-bit value or a 64-bit one. This can be optimized using assembly, where operations can be inside the table itself with full alignment, so no table is needed.
+
+Maybe use inline asm.
+
+### L and l and not the same for float
+
+Actually only %Lf is valid for 80-bit float. %lf is still double, which is 64-bit and the same as no length flag.
+
+So float and int are different.
+
+Anyway, I can have a function that outputs to a void pointer. convert_int will either grab a 32-bit value or a 64-bit value, and that is a condition is has to check for.
+
+But in effect, all it really does is copy the value to the destination.
+
+### Copy va_list?
+
+va_list is basically a pointer type on i386. It should be safe to copy it around.
+
+https://wiki.sei.cmu.edu/confluence/display/c/MSC39-C.+Do+not+call+va_arg%28%29+on+a+va_list+that+has+an+indeterminate+value
+
+This link has some guideline saying to avoid passing va_list because it is easy to make the mistake of putting in va_end or something like that.
+
+Actually no. While the standard library does do this, the va_list may have an "indeterminate value" or in other words, the arguments may be theoretically exhausted. The va_list may not actually be reusable.
+
+Normally one would have to va_copy.
+
+On the SysV ABI, things bay be different because va_args is just a pointer, which can be passed around.
+
+But consider the fact that it must be MODIFIED as it is used, so that the position is correct.
+
+When we use va_arg, it WILL increment the value, but an important thing to note is that it will only update if the value is in the structure, so it ends up being passed by reference but indirectly.
+
+Also, in my test code only pass by reference seems to work anyway.
+
+Point is, do not copy the va_list unless it is intended to be fully used by the callee.
+
+### Dispatching the conversions
+
+I will use a computed goto this time. It is presumably denser than function pointers and requires one less call/return. The struct will contain the va_list. There is no reason to pass to a function what it can get from one of its other arguments. Just makes no sense. Plus, va_list can be all the way at the top for minimal performance impact from immediate offsets, although putting the buffer there may be a good idea.
+
+# June 20
+
+## Components to work on
+
+(Copy this somewhere else)
+OS/90 has the opportunity to recieve widespread recognition and be a platform to build my reputation and future career, even if I am not making money from any of this. So I really need to put in more work. The other project can wait.
+
+I am trying to delinearize my approach to OS/90 by switching to different components every few days. So far I have been wasting huge amounts of time overperfecting printf.
+
+I need something else to work on.
+
+My OS will need:
+- An INI parsing library with support for destructive operations
+- A parser for ISA plug and play resource descriptors
+    - And a way to allocate the resources with respect to bit decode as well.
+- An executable format and loader
+
+## For today
+
+An INI parser is easy enough.
+
+There is no fixed standard, and the method of access introduces many possibilities of access.
+
+The functions it should have are:
+
+- int I_OpenINI(const char* path);
+- void I_CloseINI(int handle);
+
+- bool I_HasSection(const char* section);
+- bool I_HasKey(const char* section, const char* key);
+
+- int I_ReadKey(int h, const char* section, const char* types, ...)
+- int I_WriteKey(int h, const char* section, const char* types, ...)
+
+The data types supported:
+- Integer (32-bit signed, hex, binary, or decimal)
+- String (codepage 437 in theory)
+- Array (combination)
+
+The type of a key is defined as an integer if the string complies with the grammar of an integer representation (negative works as a unary operator).
+
+If it is wrapepd in quotes (single or double) it is always a string (must be whole thing until end of line for single value).
+
+If a comma is found in the key and no string quotes are found, the value it interpreted as an array.
+
+I_ReadKey and I_WriteKey operate with pointers and values respectively, except that write uses character pointers to write strings but otherwise uses integers to write content.
+
+```
+int i;
+I_ReadKey("[MY_SECTION]", "NUMBER_KEY", &i);
+```
+
+Structures cannot embed structures.
+
+The entire file is sanitized before any reads or writes can occur when it is opened. The file is also inspected to list lines with keys and clean the data.
+
+The following checks are done:
+- All characters are printable
+- CRLF is used.
+- All keys have no space between the equal sign
+- Keys are alphanumeric with no number at the start.
+
+It is better to sanitize text data before parsing it.
+
+The INI parser should be portable.
+
+# June 21
+
+## PnP ISA
+
+Plug and play ISA defined the resource format used by the PnP BIOS to describe motherborard devices.
+
+I can write a program using Open Watcom and access the PnP BIOS using either QEMU, DOSBox-X, or 86Box and get raw data for testing purposes.
+
+In pursuit of delinearization, there are many other things I can do without any dependency.
+
+Examples:
+- FAT driver
+- ATA disk driver (I should probably wait until I have a PnP architecture)
+- Keyboard and mouse driver
+
+I have written some code to use the keyboard and mouse with limitted success.
+
+dosbox-x has ISA PnP on it. I think working on it first is the best idea. I am not sure if the ISA hardware is PnP though. Probably is.
+
+BTW FS and disk drivers are low-priority because software exists that already improves the performance of IO in real mode.
+
+I can come up with some clever ideas, but now is not the time.

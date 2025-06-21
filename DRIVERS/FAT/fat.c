@@ -15,15 +15,20 @@ int fd;
 int ReadSectorsLBA(void *b, unsigned drive, unsigned base, unsigned sectors)
 {
 	off_t o = lseek(fd, base * 512, SEEK_SET);
-	read(fd, b, sectors * 512);
+	size_t nb_read = read(fd, b, sectors * 512);
+
+	assert( nb_read == sectors * 512 );
+	assert( o >= 0 );
+
+	return 0;
 }
 
-static void InitFat(
-	// BIOS drive number.
-	unsigned drive,
-	// FAT context structure.
-	FAT_REPR *f
-)
+static void EnumeratePartitions(unsigned drive)
+{
+
+}
+
+static void InitFat(unsigned drive, P_FAT_REPR f)
 {
 	// Read BIOS Parameter block into temporary buffer
 	// Then copy it to the structure but not as a full sector.
@@ -35,7 +40,7 @@ static void InitFat(
 		f->pb = _f;
 	}
 
-	// We need to perform anumber of calculations before we know what type
+	// We need to perform a number of calculations before we know what type
 	// of FAT there is.
 	// The only way to discern FAT16 and FAT12 is to count the number of
 	// clusters. FAT12 may not be more than 4084 clusters by definition and
@@ -52,7 +57,10 @@ static void InitFat(
 			DEB("Volume is FAT32");
 			f->type = FAT32;
 			f->fat_sectors = f->pb.f32.BPB_FATSz32;
-			// ADD GOTO
+
+			DEB("Sanity check: FAT 'signature' = %.8s\n",
+			f->pb.f32.BS_FilSysType);
+
 			goto FoundType;
 		}
 
@@ -72,5 +80,9 @@ int main()
 	fd = open("./IMGMAKE.IMG", O_RDONLY);
 	assert(fd != -1);
 
-	static FAT_REPR f;
+	P_FAT_REPR fr = malloc(512);
+
+	InitFat(0x80, &f)
+
+	InitFat
 }

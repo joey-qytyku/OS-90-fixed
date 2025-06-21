@@ -1,2 +1,2 @@
 all:
-	gcc-14 fat.c
+	gcc-15 fat.c

@@ -1,5 +1,14 @@
 #pragma pack(1)
 
+typedef struct MBR {
+	unsigned char _boot_code[446];
+	struct {
+		#define MBR_ATTR_BOOT_DISK 0x80
+		unsigned char attribute;
+
+	} partition[];
+};
+
 struct f1216 {
 	// Number to use for INT 13H. This is useless because the boot sector
 	// starts with CL=boot drive. Maybe useful for detecting if the disk is
@@ -141,6 +150,7 @@ void ReadFileClusters(void *b, unsigned fat_cluster, unsigned nclusters);
 
 unsigned ClusterIndexFromAbsFSeekBytes(unsigned seek_abs);
 
+// FLAG: Convert to static inline and insert assertions too.
 #define TIME(H, M, S)
 #define DATE()
 

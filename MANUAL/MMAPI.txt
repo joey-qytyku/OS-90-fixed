@@ -94,10 +94,11 @@ Returns an opmask componenet that enables/disables the page bit. These are macro
 > Maybe use a struct with bit fields.
 
 ................................................................................
-	PVOID M_XAlloc( PVOID   force_addr,
-			LONG    commit,
-			LONG    uncommit,
-			LONG    bits);
+	void* M_Alloc ( void*   force_addr,
+			UINT    commit,
+			UINT    uncommit,
+			UINT    bits
+			);
 ................................................................................
 
 Allocate a linear region of virtual memory and map a non-contigous set of pages to the location.
@@ -126,9 +127,9 @@ Conforming to:
 	- Allocation break page is used to section off.
 
 ................................................................................
-	BOOL M_PageOp(  PVOID base,
-			LONG page_count,
-			LONG opmask);
+	BOOL M_PageOp(  void* base,
+			uint page_count,
+			uint opmask);
 ................................................................................
 
 Change the page bits of page table entries.
@@ -144,25 +145,22 @@ Return:
 Example:
 
 ................................................................................
-	STAT M_XFree(PVOID base);
+	int M_Free(void* base);
 ................................................................................
 
-
 ................................................................................
-	STAT M_Copy(PVOID alloc_to, PVOID alloc_from);
-................................................................................
-
-Performs a non-temporal copy of all data from one allocation to another. If the sizes are problematic, no copy will occur and data remains the same. The page bits of the source must permit at least reading and the destination must permit writing or an error will occur and no copy will take place.
-
-No memory overhead occurs.
-
-................................................................................
-	PLONG M_LockPageTables(VOID);
+	uint* M_LockPageTables(void);
 ................................................................................
 
 Asserts the lock responsible for the page tables (it may be the same as MM).
 
 The page tables are laid out flat in memory. It is returned by this pointer.
+
+................................................................................
+	void CopyPages(void* d, void* s, uint size);
+................................................................................
+
+The pages must be present and committed. Performs a non-temporal copy of a large block. This also disabled caching globally for the duration for the whole copy and preemption.
 
 --------------------------------------------------------------------------------
 	Page Attribute Table

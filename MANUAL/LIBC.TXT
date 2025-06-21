@@ -10,19 +10,24 @@ OS/90 LIBC does not advertise to be 100% compatible with any ISO standard, but i
 
 It is not intended to be a replacement for the DJGPP library or newlib, it is designed for OS/90 in particular.
 
+JQ-LIBC is designed for high performance.
+
 --------------------------------------------------------------------------------
 	C99 Compliance
 --------------------------------------------------------------------------------
 
-C99 is the target.
+C99 is the target. All functions in C99 that are implemented are designed with the intent of 100% compliance.
+
+With that being said, JQ-LIBC is not to be relied on with scientific workloads. Also, there are features that are missing from some functions by the fact that other functions necessarily implied to exist in fact do not.
 
 --------------------------------------------------------------------------------
 	Features that Will Be Supported
 --------------------------------------------------------------------------------
 
+* Some useful posix or GNU extensions
 * dos.h, i86.h, and some other libraries may be supported.
 * Some compatibility for the DJGPP library.
-* math.h support.
+* math.h support built in.
 
 --------------------------------------------------------------------------------
 	Features Not Supported
@@ -30,4 +35,14 @@ C99 is the target.
 
 * All wide character functions (djgpp does not have them too)
 * Most GNU or POSIX extensions
-* Locales except for the C/ascii locale
+* Locales except for the C/ASCII locale
+
+--------------------------------------------------------------------------------
+	Technical details
+--------------------------------------------------------------------------------
+
+Each thread gets one C library context. This context is defined in a special way per-module in the source code.
+
+A section called `.c_thread_env` contains a context localized to each thread. It has a size that must be under 120 bytes.
+
+

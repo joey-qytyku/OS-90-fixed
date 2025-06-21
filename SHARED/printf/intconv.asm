@@ -28,8 +28,6 @@ extern _printf, _putchar
 
 section .data
 
-msg db "{%u:%u}",10,0
-
 ; I should set up architectural alignments around here.
 
 	align   32
