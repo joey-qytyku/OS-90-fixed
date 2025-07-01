@@ -55,6 +55,8 @@ Note that a byte is returned.
 
 No more than 16 devices will be returned currently. Do not rely on this.
 
+> FLAG: There should be another function that returns whether the limitation exists.
+
 ................................................................................
 VOID PCI_OpenDevices(   LONG            v_d,
 			HPCIDEV*        handles,

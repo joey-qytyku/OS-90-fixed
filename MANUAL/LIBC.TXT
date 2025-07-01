@@ -37,6 +37,8 @@ With that being said, JQ-LIBC is not to be relied on with scientific workloads. 
 * Most GNU or POSIX extensions
 * Locales except for the C/ASCII locale
 
+Do not ask me for wide character support. wchar_t is 32-bit on SysV, which is completely unlike DOS or Windows.
+
 --------------------------------------------------------------------------------
 	Technical details
 --------------------------------------------------------------------------------

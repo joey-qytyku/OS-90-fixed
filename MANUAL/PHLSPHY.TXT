@@ -6,4 +6,3 @@ Everything works out of the box. No "Linux mentality" here.
 Modular design, flat layout, independent components.
 No "big interface" for components to communicate, minimal dependencies.
 Features are cringe. They just increase development time.
-Flat is better than nested.

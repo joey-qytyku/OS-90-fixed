@@ -146,3 +146,58 @@ Dynamic structures should have this sort of hierarchy. Ask if one is sufficient 
 - Run tests with inline asserts and testing functions.
 - If unsure about the behavior of various hardware configurations or confused by datasheets, do tests and use asserts in debug code.
 - Avoid assembly language unless it is clearly better.
+
+--------------------------------------------------------------------------------
+        Other Conventions
+--------------------------------------------------------------------------------
+
+(Work in progress)
+
+Functions that convert one type or return a type based in some way on the input should have the return type or some other informative detail closest to the begining of the name. What it converts from comes after that closer to the end.
+
+The word "from" or "of" should relate the two.
+
+- FHANDLE FHandleFromPath(const char *path);
+- SumOfInts(int a, int b);
+
+This is actually contrary to how many C library functions are named.
+
+Function arguments must follow the following order if any arguments fit the listed descriptions, in this order:
+
+- Object currently working on (this->)
+- File handle
+- Destination buffer
+- Destination size/truncation limit (unless shared, only when transfoming)
+- Source buffer
+- Source buffer length
+- Pointers used for output
+- Pointers used for input ()
+- Any integer/float type
+
+If a pointer is used to return a value, then use a pattern more like `NewFHandleForPath(FHANDLE *)` to prevent confusion. Use Get/Set words.
+
+If stdio.h followed these rules:
+
+FILE *NewFHandleFromPathNMode(const char *path, const char *mode);
+
+Read does not need to change much, because the number of bytes actually written is not always significant and does not imply any kind of transfer of information to the new type based on what is in the input. A pointer is used to return infromation, so little needs to change. "Read" is analogous to "get" also.
+
+size_t FileRead(FILE* h);
+
+If a function operates on a particular type of object, that always comes first in the argument list as seen above. This should also occur in the name somehow. Avoid type capitalization.
+
+If creating a new object with a user provided pointer, use the term "Init"
+If creating with dynamic allocation, use the term New.
+Avoid the term Create but it is okay somtimes.
+
+Do not use excessively long names and abbreviate/use acronyms.
+The C function fclose conveys that it works with a file and closes it.
+No need for CloseFile or FileClose.
+
+To be more exact:
+- INTxH instead of HookableSVINT
+- M_Alloc instead of M_AllocatePages
+        - "M" and "Alloc" make it very clear it allocates memory.
+
+All of these conventions can be broken if it makes the code clearer.
+

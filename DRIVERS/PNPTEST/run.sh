@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 export WATCOM=$HOME/Desktop/open-watcom-v2/rel
 export LIBDOS=$WATCOM/lib286
 export LIB=$LIBDOS:$WATCOM/lib386
@@ -17,3 +19,5 @@ export "PATH=$PATH:$HOME/Desktop/open-watcom-v2/rel/armo64"
 $HOME/Desktop/open-watcom-v2/cmnvars.sh
 
 wcl main.c
+
+dosbox-x .

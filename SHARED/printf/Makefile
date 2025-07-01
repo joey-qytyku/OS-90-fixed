@@ -4,8 +4,7 @@ CC=~/Desktop/djgpp/bin/i586-pc-msdosdjgpp-gcc
 CFLAGS=-O2 -pg -Wall -Wextra -Wcast-align -Wcast-qual -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op -Wmissing-include-dirs -Wold-style-cast -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel -Wundef -Wno-unused -Wno-parentheses -fdiagnostics-show-option -Wconversion -Wrestrict -mgeneral-regs-only
 
 djgpp:
-	$(CC) $(CFLAGS) printf_tester.c
-	# $(CC) $(CFLAGS) printf_tester.c -c -o sizetest.o
+	$(CC) $(CFLAGS) vsnprntf.c
 	dosbox-x .
 
 intconv: intconv.asm intconv_test.c

@@ -1,14 +1,10 @@
-================================================================================
-	DOS Virtual Machines
-================================================================================
+# DOS Virtual Machines
 
 OS/90 creates a DOS virtual machine context which contains all states related to services controlled by the OS. It is impossible to use fixed parameters to define every option. Instead, a list of initialization options is passed to the kernel that is then parsed to set relevant options.
 
 This document specifies each option.
 
---------------------------------------------------------------------------------
-	Notes
---------------------------------------------------------------------------------
+# Notes
 
 No options are required. Each has an automatic default.
 
@@ -16,28 +12,28 @@ Subprocesses are currently subject to exactly the same rules as the parent proce
 
 OS/90 has no fixed restrictions on the number of threads that can be active in a DOS process (yes it can multithread), XMS handles (aside from 16-bit limits), file handles, and many other resources. The OS uses fixed arrays for data if they fit and more are allocated as needed.
 
---------------------------------------------------------------------------------
+
 	The Interface
---------------------------------------------------------------------------------
+
 
 CreateVM is the ultimate interface for creating virtual machines. It is available on userspace using a special DLL that remains undocumented but uses an INT vector.
 
-................................................................................
+```
 void *CreateVM
 (
 	const char *exec_path,
 	const char *command_tail,
 	void *init_array
 );
-................................................................................
+```
 
 This returns a VM ID as a void pointer, which is opaque and should not be modified or casted and then dereferenced.
 
 The result is OSNULL if it failed, which can be because the range of an argument was wrong or something was null that should not have been.
 
-................................................................................
+```
 	EXTENDED_PERCENT_MAX(/*percentage*/))
-................................................................................
+```
 
 The percentage of extended memory still available at the time is creating the process which can be allocated. The percentage is written as a simple integer.
 
@@ -46,9 +42,9 @@ This is approximate. The amount of extended memory allowed is not updated later.
 
 If zero, the program has access to no extended memory
 
-................................................................................
+```
 	CONVENTIONAL_KB(/*integer*/),
-................................................................................
+```
 
 Number of KB that can be allocated for the program. This INCLUDES the program segment. The value should be thought of as exact.
 

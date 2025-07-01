@@ -18,6 +18,10 @@ typedef struct {
 	INI_LOCK	_lock;
 	char*		_data;
 	size_t		_nbytes;
+
+	char**		lines;
+
+	unsigned short	nlines;
 }INI;
 
 // The line text is not null terminated. Probably should be though.
@@ -48,14 +52,6 @@ static bool LineIsValid(const char *ln)
 		{
 			return false;
 		}
-		// Check if the characters between are alphanumeric.
-		// The first must be alphabetical.
-
-		const char *p_lnchar = ln+1;
-		if (!isalpha(*p_lnchar))
-		{
-			return false;
-		}
 
 		// Spaces are allowed.
 		while (p_lnchar < p_endb)
@@ -78,7 +74,46 @@ static bool LineIsValid(const char *ln)
 	}
 }
 
-int I_OpenINI(INI* ini, const char* path, SYNTAX_ERROR_CB)
+static int ReprINI(INI* ini)
+{
+	// First, verify that there are no non-printable characters in the
+	// entire file. All must be ASCII and printable or newlines.
+	// Range is [32-126] and 10,13.
+
+	// FLAG: Switch to a packed 32-bit scan for better speed.
+
+	unsigned short lines = 0;
+
+	// We are scanning for
+	for (unsigned i = 0; i < ini->_nbytes-1; i++)
+	{
+		char c = ini->_data[i];
+		if (!isprint(c) || c != '\n' || c != '\r')
+		{
+			return -1;
+		}
+		if (ini->_data[i] == '\n' && ini->_data[i+1] == '\r')
+		{
+			// Zero the line terminator so we have a list of
+			// ASCIIZ strings.
+			ini->_data[i] = 0;
+			ini->_data[i+1] = 0;
+			ini->nlines++;
+		}
+	}
+
+	// Now that lines are counted, allocate space for pointers to each line.
+	ini->lines = malloc(lines * sizeof(char*));
+
+	// I could just use a resizable array. My realloc will be low-cost.
+	// FLAG: Do this. No need for two passes. Way too slow!
+
+	// Set each pointer to the correct string.
+
+	strchr()
+}
+
+int I_OpenINI(INI* ini, const char* path, SYNTAX_ERROR_CB se)
 {
 
 	ini->_path = path;

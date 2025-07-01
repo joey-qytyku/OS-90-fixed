@@ -33,6 +33,8 @@ Native OS/90 programs run as threads of a single DOS VM, an can create their own
 
 Processes have a context defined partially in the C library, and the rest is implemented as the other basic information that is not related to libc.
 
+LIBC contains OS/90-specific extensions too.
+
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------

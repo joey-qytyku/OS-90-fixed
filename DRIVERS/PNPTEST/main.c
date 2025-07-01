@@ -7,11 +7,9 @@ typedef _Packed struct {
 	unsigned __int8		sig[4];
 	unsigned __int8		revision;
 	unsigned __int8		length;
-	unsigned __int16	next_hdr_off;
-	unsigned __int8		_reserved;
+	unsigned __int16	control_field;
 	unsigned __int8		checksum;
 	unsigned __int32	event_ptr;
-	unsigned __int;
 	unsigned __int16	rm_entry_off;
 	unsigned __int16	rm_entry_seg;
 
@@ -39,7 +37,7 @@ static PNP_HDR __far * FindPnPHeader(void)
 	for (i = 0; i <= 0xFFF0; i += 16)
 	{
 		if (_fmemcmp(rom + i, pnp_sig, 4) == 0) {
-			hdr = (PNP_HDR* far)(rom + i);
+			hdr = 0xF000:>i;
 			printf("Found the PnP header at address %Wp\n", hdr);
 			break;
 		}
@@ -62,9 +60,10 @@ static ENTRY_POINT PNP;
 
 static ENTRY_POINT CreateRmEntryPoint(PNP_HDR __far* hdr)
 {
-	return MK_FP(hdr->rm_entry_seg, hdr->rm_entry_off);
+	void __far * r = MK_FP(hdr->rm_entry_seg, hdr->rm_entry_off);
+	printf("RM entry point = %Wp\n", r);
+	return r;
 }
-
 
 int main(int argc, char** argv)
 {
@@ -74,9 +73,8 @@ int main(int argc, char** argv)
 	PNP_HDR far* hdr = FindPnPHeader();
 	PNP = CreateRmEntryPoint(hdr);
 
-
 	PNP(0, &nn, &ns, hdr->rm_data_seg);
 
-	printf("%hu %u\n", nn, ns);
+	printf("%u device nodes with max size of %u bytes\n", nn, ns);
 	return 0;
 }

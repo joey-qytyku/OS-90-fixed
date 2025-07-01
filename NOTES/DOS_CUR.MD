@@ -1,3 +1,5 @@
+This document is operational but in need of updates.
+
 # OS/90 DOS+DPMI Compliance Strategy
 
 OS/90 is DPMI-compatible and supports most 1.0 features (with some exceptions). It reports 0.9 unless configured otherwise. it also is capable of simulating 16-bit DOS.
@@ -12,7 +14,11 @@ This document will be mostly useless for most OS/90 developers. It is for any no
 
 The PSP has many components that must function as expected. It is needed for some program-local operations.
 
-The entire get/set current PSP interface is fully hijacked. I do not know if DOS tries to access this interface????
+Extensions require the PSP calls to be supported because Windows uses PSPs to contain arguments and environments for multiple windows programs.
+
+The context contains a virtual PSP which is what GET will return and what SET mutates. Other than that, the actual PSP of the program is hidden.
+
+The PSP is only required to be part of the program segment if the program type is COM.
 
 ### Environment Segment
 
@@ -60,9 +66,11 @@ OS/90 does not support file control blocks. This is fine since Windows 95 also d
 
 A DTA is provided by default and the internal DTA address is set to this location.
 
+> The address of the DTA can reside in extended memory with extensions. Real mode and protected mode addresses are supported.
+
 ### Call 5
 
-This interface is supported. Some programs depend on it. Call 5 simply calls INT 21H.
+This interface is supported. Some programs depend on it. Call 5 simply calls INT 21H. It only works for COM programs.
 
 ### Command Line
 
@@ -74,7 +82,7 @@ DOS esentially executes programs like a stack. This is the PSP of the task that 
 
 ### Segment of First Byte
 
-DOS programs are totally contigious in memory upon initial execution.
+This is the first byte of the program segment. DOS loads programs flat in memory. The PSP can be anywhere unless it is COM where it is part of 64K.
 
 ## System File Table
 
@@ -267,28 +275,3 @@ There is little need for this interface. As far as I know, few programs ever use
 
 This API is independent of DPMI or VCPI and can use both. It allows for resident drivers to run in protected mode. Not currently supported. Existing implementations may still be able to run on top of built-in DPMI.
 
-# Creating DOS Virtual Machines (ALPHA/TODO/WIP)
-
-## API
-
-```
-LONG CreateDosVM(       PCSTR   path,
-                        PCSTR   arguments,
-                        PBYTE   env_block,
-                        PSHORT  default_fhandles_x5,
-                        SHORT   cmem_max_pgraphs,
-                        LONG    extended_dpmi_handles,
-                        LONG    extended_pages,
-                        BYTE    extended_percent_lockable
-                        PVOID   text_framebuffer_4k,
-                        PEMU_CONTEXT parent
-
-
-);
-
-SHORT CreateRedirHandle();
-
-VOID FreeRedirHandle();
-
-
-```

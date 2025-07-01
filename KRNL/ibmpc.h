@@ -1,3 +1,6 @@
+#ifndef IBMPC_H
+#define IBMPC_H
+
 typedef enum {
 	GSC_40x25 		= 0,
 	COL_40x25 		= 1,
@@ -96,3 +99,5 @@ BIOS ROM (where EBDA is).
 The only computer with 4 LPTs that can run OS/90 is the Compaq Deskpro 386.
 
 */
+
+#endif /* IBMPC_H */

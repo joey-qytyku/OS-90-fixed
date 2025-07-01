@@ -47,11 +47,16 @@ C99 introduced the strict aliasing rule, by which it is potentially dangerous to
 The SysV ABI is generally used. Structure layouts and most calling conventions conform to the rules found in this specification because GCC already adheres to it internally.
 
 --------------------------------------------------------------------------------
+	Exceptions to the C standard and SysV
+--------------------------------------------------------------------------------
+
+...
+
+--------------------------------------------------------------------------------
 	Data Types
 --------------------------------------------------------------------------------
 
 Because of SysV i386 compliance, data types have predictable sizes. int and long are 4 bytes. long long is 8 bytes. short is 16-bit and char is 8-bit and signed by default.
-
 
 
 --------------------------------------------------------------------------------

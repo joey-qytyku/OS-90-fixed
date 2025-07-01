@@ -11729,3 +11729,513 @@ dosbox-x has ISA PnP on it. I think working on it first is the best idea. I am n
 BTW FS and disk drivers are low-priority because software exists that already improves the performance of IO in real mode.
 
 I can come up with some clever ideas, but now is not the time.
+
+PnP ISA tags are a very simple format. They indicate the size in the header most of the time and do not seem to have any hierarchy.
+
+A structure is sufficient enough, with a fallback to dynamic memory, to store all teh requirements of the device.
+
+Tags more or less just say what the device is willing to accept rather that strictly define it.
+
+If it needs a memory range, it can say it takes any 24-bit memory range to indicate full PnP. If it requires a static range, perhaps for a VGA controller, it will request the typical range for that and specify that it needs all of it.
+
+For each IRQ it needs, it will specify several possibilities. Same with DMA too.
+
+This data is read only too. It is what the device requries to function.
+
+## ISA Limitations
+
+ISA has the tag format, but the actual control registers used similarly to PCI BAR registers is limited in such a way that the actual object representation of an ISA device is simplified.
+
+# June 22
+
+## Details about DPMI
+
+The Microsoft Confidential document says that the ^C handler must return and cannot be used to simply jump somewhere. Same with 24h. I think I already wrote this stuff down.
+
+## DMR
+
+The DOS Multitask Region is probably what I should do for efficient multitasking.
+
+It has one disadvantage and it is that many page table entries have to be copied to properly bank switch unless I create a page table for the first 4M.
+
+However, it only needs to match how many pages there actually are. Using page faults to manually replace the pages makes no sense BTW because it already necessitates changing the page tables.
+
+If a program needs 128K to run, 32 changes must be made to the page table.
+
+Also there is no way to avoid this even in protected mode, unless the program is explicitly prohibited from entering real mode at all, which makes no sense.
+
+At this point, full DOS memory virtualization does not sound too bad, aside from adding a 4K overhead for a total of 12K per process.
+
+This is not too bad because most programs will run as threads of a single process.
+
+## 32-bit Services with INTxH?
+
+With the register dump structure used by INTxH there is a way to find out if the context is in protected mode, which sometimes needs to be handled separately, such as when extending an interface.
+
+VM=1 in EFLAGS confirms the context is PM. All information is self-contained. The CS selector is checked for its bitness.
+
+INTxH however has a dillema of how stacks are to be used.
+
+## INTxH
+
+Each TASK, not the VM, will probably need some kind of stack for INTxH.
+
+I tested the V86xH code using the top of the HMA as the stack base.
+
+The stack is 100% needed. We simulate INT/IRET accurately except when exiting.
+
+But if the interrupt is hooked, things are very different.
+
+If a hook is found, there is still the possibility it will go to real mode, but within a call to a hook handler, there is not really a need for a stack. It can be zeroed out to indicate it is not used, and allocated only when needed.
+
+Only one thread can enter SV86 at a time, so there really should be one stack and no more.
+
+In the rare event that an interface requires the stack but also uses a PM handler, we won't even be using the real mode stack to begin with.
+
+And preemption is off only when going into SV86 or maybe while doing certain things with the capture list.
+
+## DOS Memory Multitasking
+
+On average, I doubt most people will run more than 4 or so DOS programs at a time.
+
+So multitasking the DOS memory is quite practical and a great idea overall.
+
+It just adds some complexity to INTxH and V86xH since those two require access to the real DOS address space.
+
+Just as with VMM32, one page table manages the entire first 4M of the address space.
+
+BUT, the HMA is NOT permitted to be accessed. We still have many structures there. Programs are required to operate normally if the HMA cannot be obtained. Only OS/90 actually demands it.
+
+Windows 2.0 actually also needed the entire HMA on 386 enhanced mode. I suppose it is an acceptable practice then.
+
+The HMA is currently used to contain the startup page tables, which are reclaimable and later used by the kernel instead of finding memory for it.
+
+Honestly, I don't think the HMA is that critical for most programs. I need it for the kernel's purposes.
+
+It will also contain an array of far call redirector codes, and it must supply enough for DPMI compliance.
+
+### Implementation
+
+There will be one new page table for the first 4M of the physical address space that is identity mapped. The PD must be changed to this when doing a V86 call.
+
+### Obstacles
+
+The BIOS data area is not at a page aligned boundary and some drivers need to access it.
+
+But there is a global BDA which some drivers may use for some reason, and a local one for each process.
+
+The interrupt vector table works differently. In this situation, things are a bit more orthogonal because using INT in real mode (or reflecting) jumps to an interrupt vector in an absolute location, and the memory for it is sort of implicit with no actual base address.
+
+Also, the whole DOS context can be put in the memory used by the program and reside in a predictable location. This means we can access it with zero pointer offsetting, kind of like how Java maps the heap to address zero.
+
+The BDA ends at 0x500. This is where the DOS context can reside.
+
+Getting to the DOS context is done by switching the page directory entry, which is done by the scheduler.
+
+There are a lot of challanges. The PSPs are no longer uniquely identifying unless created by DOS, and most system calls that require the PSP will not work unless they are hooked so that the PSP is set.
+
+Or, PSP get and set are hooked themselves and we hope the DOS kernel does not just directly access the current process. Windows surely hooked this call, so I don't think there is a problem.
+
+There is also no INVAR for the current PSP.
+
+
+I looked and cannot seem to find it. I am starting to think DOS just uses the special call for it. The fact it is already an internal function makes it appear to be the case. I will read the MS extensions doc for info.
+
+Get/set PSP is something that is virtualized for clients but the OS does have the use the real one.
+There is no way to get the current PSP otherwise.
+
+It can be hooked of course, but some features in DOS need to know what the current task is. At boot, it will be the bootloader.
+
+Hooking it in SV86 mode... interesting idea. But it is not a solution because DOS has its own representation of the current PSP. We do not know where it is.
+
+> How do we know if it is SV86 or a 16-bit DOS program???? <<<<
+
+# June 23
+
+https://gitlab.com/FreeDOS/base/kernel/-/blob/master/SOURCE/KERNEL/hdr/lol.h
+
+It appears there is a most recently executed PSP entry in the List of Lists.
+
+RBIL says it is not used for that if DOS is loaded low, which is will be in this case.
+
+I trust the FreeDOS source code more than RBIL honestly. Both locations line up.
+
+Also, the RBIL listing says DOS 5.0 or greater is required for it.
+
+Anyway, the implication of changing this value directly is that we no longer have to trust get/set PSP and how the kernel gets the current program.
+
+The PSP contains file mappings (file handles to global file records).
+
+I will write a program to confirm the correct behavior.
+
+## Multitasking
+
+Windows creates PSPs for each program it runs. We do not have to do what windows does, although there are reasons why Windows chose this.
+
+Because the API is implemented on top of DOS, it made sense to have a PSP contain the DTA and all the other information. It was convenient enough in this case.
+
+> BTW the kernel needs the current PSP to add a name string into memory blocks.
+
+For the kernel, we can create a real program segment prefix for it so that drivers and the kernel can open files safely and allocate memory, which both require a valid current PSP.
+
+The INIT will require destroying the bootloader's PSP, leaving the current one no longer valid.
+
+As for programs, the 256 file limitation of DOS is quite severe and ultimately unavoidable. In my approximation of Windows' KRNL386 operations, I will have to NOT create PSPs for each program and only have them run as threads of the same program. There is no need for "native" OS/90 programs to require any interaction with DOS programs except to execute them in separate VMs and monitor them.
+
+Also the PSP change function must be simulated in some way that permits Windows to work. Quarterdeck did it, and so can I, as long as the rules are followed.
+
+The current PSP can be virtualized, or the list of lists can be virtualized. GET/SET should be enough. The process will maintain a current PSP variable which is local, and creating a PSP is always hooked.
+
+### Thread-local data?
+
+Some things can be transfered to a thread context to enable enhanced multithreading. In UNIX for example, a thread is sort of a clone that may share some things but still maintains its own context.
+
+Linux has some settings to decide this, but the capability exists to allow threads to copy their current directory.
+
+The idea is that some data is shared and other data is copied.
+
+Because each thread represents a part or a whole of a program, some of the state must be moved to a single thread.
+
+I may need to change the concept of a task so that the DOS stuff is kept there.
+
+### Describing the DOS Context
+
+Part of the DOS context is thread local and the other part is process-local. The process-local part goes in the mapped conventional memory.
+
+Wondering, if we use an IVT, does that mean a program can call the BIOS directly? No, not quite. It is just slightly more accurate emulation for the IVT which is directly accessible in DOS.
+
+If the handler does not exist, then the OS gets involved and applies hooking. Plus, BIOS is not reentrant.
+
+### Memory
+
+To access the actual real mode memory and address space swap is required.
+
+## printf buffering
+
+How exactly should something like fprintf work? This can write any number of bytes to a file.
+
+It is actually quite complicated. Currently, the only way to know how many characters are needed in a buffer is to preprocess the format string and allocate enough memory.
+
+This can be done using snprintf with NULL/0 arguments, but is more efficient if a separate preprocess scanner exists, which can even be used to implement that special case of snprintf.
+
+This really does need to exist. vsnprintf needs a buffer and a size, and we have to know the size before calling it or the characters will be be correctly printed.
+
+Preprocessing does not require accessing any arguments, only the format. A %i or %u will add 10 characters to the buffer for example.
+
+A basic printf will also require this.
+
+## Was it a good idea to change buffering?
+
+My idea was that fprintf and vsnprintf could implement their own systems for buffering, and that it could be somehow optimized for the particular use case.
+
+fwrite and fputc could be used for fprintf within the buffer commit calls. The data could stay on the FILE buffer and extend it if needed.
+
+But the FILE representation of a buffer is very different.
+
+I am not going back though.
+
+## printf preprocess
+
+The size generated does not need to be exact.
+
+There is a problem though. Strings are impossible to predict. This may require actually reading the arguments in that case.
+
+The arguments CAN be read. On i386, it should be safe to just assign a va_list with equals, as it is just a pointer. va_copy should be avoided because it must duplicate the arguments.
+
+ChatGPT also says va_copy does not actually copy them. It makes very little sense why it would do this anyway.
+
+Reading arguments adds no major overhead. Counting the number of characters in certain format options is not necessary and is low-cost IMO.
+
+# June 24
+
+## printf 4095 bytes limitation
+
+A very interesting thing in the standard is the requirement that 4095 bytes must be printable by fprintf, and all other variants are defined in terms of it, so this is required by the standard.
+
+The strange thing is that trying to print more than 4095 characters is not explicitly called undefined behavior, but is tantamount to that because an implementation is permitted to fail the output if it wants to.
+
+Or rather, it is defined as "it might work or might not work".
+
+I think 4095 was selected because it can print an extremely large float value with most of the characters.
+
+Anyway, a program cannot simply assume that printing more than 4095 characters will work. Programs probably don't check though, but there would be implicit truncation and the library is permitted to do so and be compliant.
+
+The thing is, printing even more than 2K characters is possibly infeasible on OS/90 without heap memory allocation. I do not think 4095 is a serious limit.
+
+The preprocess will unfortunately require an strlen call for each string argument. This may not be too bad though. %s is less common than the other ones.
+
+> What does the 4095 limit do for the design.
+
+## printf limits
+
+4095 will probably be the limit for userspace. There is no real reason to print more than that.
+
+As for the kernel, I do not want to waste any stack space, so I will have a static buffer that is locked by a mutex.
+
+The only issue is not being able to log within an interrupt handler, but that can be solved by using a special log buffer for the ISR.
+
+ISRs should be as simple as possible. It is a very contrained environment that should just set some condition variable instead of doing any major processing.
+
+Or it may interact with devices...
+
+But then again, we can handle that already with a separate log buffer.
+
+Plus, we have to write the log results somewhere.
+
+## PnP Topics
+
+Can ISA devices be represented in one single C structure?
+
+Yes, they can actually. A similar thing can be done with PCI, but regardless, each bus can have its own representation.
+
+I am not doing any kind of Windows Device Manager things. Each bus should section off system resources for their subordinate devices.
+
+Resource allocation is not something that happens often. It happens when a device is inserted, perhaps from docking or just regular insertion, and we have ways of getting events like that.
+
+PnP BIOS is sort of its own bus with special on-board devices, although it will share code with ISA PnP. Even if no ISA devices are used, the PnP board devices are basically ISA devices.
+
+### Resource allocation
+
+Port decode must be handled. There is no way around it.
+
+Memory ranges should not matter since the bus is probably smart enough to deal with that if the PC has more than 16M of memory.
+
+My old idea was to allocate bits in a bit array, perhaps with respect to alignment (or just auto-align), and give ranges of ports to devices.
+
+In practice, I am not so sure this is needed. I can probably give 16 ports at a time for a total of 4096 port ranges in the best case.
+
+I don't think even ATA uses that many ports. I checked OSDev and it seems it only needs 8 bytes.
+
+Bit arrays can be used for compactness, but each bit can represent more than one port. This is not a major issue. A total of 512 bytes can be used to do it.
+
+The way that decode width is handled is that every possible combination of the higher bits must be set in the array as needed. Specifically, this must occur 64 times. It is really slow and should be avoided, especially with slow bit arrays.
+
+Instead, I can keep track of 10-bit or unfortunately, 12-bit (thanks to the ISA PnP READ_DATA port) allocations and check them for collisions first.
+
+That goes into the alternative, which is holding the ranges in some array or other structure and checking for collisions when adding a new one.
+
+I may want to have some method of sorting it for faster lookup. Of course, not with trees.
+
+### Memory Ranges
+
+To dynamically reserve a memory hole, it is possible although not advisable to copy physical pages to another part of memory which has to be allocated, and retain the virtual memory mappings. This manipulates the page tables and block-copies the physical RAM, maybe with cache disabled to avoid cache polution.
+
+This does reduce the amount of physical memory since that is all ISA understands.
+
+int M_PokeHole(unsigned page_frame, unsigned npages);
+
+# June 25, 2025
+
+## INTxH
+
+> I might want to make a new API call for this purpose.
+> Also, some operations are restricted for the userspace. Consider direct disk access. INTxH as described should not run like this
+
+> Another fun fact: the register parameters can be defined inside the thread context!
+
+I wrote this in the docs. Time to think about it.
+
+INT 13H may be called by the user and require different handling.
+
+I think the idea I was supposed to go with is actually provide a different service for userspace hooking.
+
+The only issue is that I want userspace to also be able to hook DOS to implement services needed for UI integration.
+
+This is done within the DOS services subsystem. INTxH is for supervisors.
+
+Then how does hooking actually work? Can we just have a way of knowing where the request came from?
+
+How about: ring-0 PM code/stack segment.
+
+It is only symbolic though.
+
+Maybe there can be two layers where userspace hooks act as filters.
+
+No, not quite. It is better to check what requested the INT. This can be a parameter too. Maybe the vector can have a bit for userspace.
+
+INTxH(INTUSER | 0x21, &regdump);
+
+Also, using a thread-local register dump is actually REALLY interesting, but it may require some interface changes.
+
+The idea is I can write code like this:
+```
+_ah = 0xE;
+_al = 'A';
+_bx = 0;
+INTxH(INT_USER|0x10);
+```
+
+It makes sense anyway. The user program, or the thread, is making the request here. Even with the kernel doing supervisor calls, there is nothing wrong with this because the data is thread-local.
+
+_ah and _al in this context are all in the TASK structure BTW. Common subexpression elimination and maybe some attributes on the current task inline function make this optimal.
+
+I should REALLY do this. It makes code look much nicer.
+
+# June 26
+
+## Ideas
+
+### The Other Project
+
+Consider the use of forks. This is possible on macOS and Windows, and Linux could support it with a clever kernel hack or different FS.
+
+### Dynamic Code Compression
+
+To make use of lower amounts of memory, I could use my code compression idea and use it to compress at run time instead.
+
+It needs some decision tree to figure out the most optimal start location.
+
+> Maybe use an opcode matrix to plan the opcodes for the compressor
+
+If it can compress to something smaller or small to the point of being worth compressing, maybe it is a good idea.
+
+To be exact, it probably needs to compress to half a page or less, such that it can be packed into one page with another block.
+
+Also, a common address table is not feasible, unless I use some kind of hash table to list them and to a preprocess for it too.
+
+It is a decent alternative to demand paging although not mutually exclusive. If it can cut memory use by code almost in half, paging can be avoided for code.
+
+This requires marks in a page table: Compression Feasible and Is Code.
+
+If it cannot compress to 50% of the original size, compression is not feasible.
+
+I am not sure how the memory will be condensed into a page though.
+
+## printf
+
+Floating point formats are not REALLY that hard. I just have to represent the parts of the number as scientific notation (base 10). Then I can do the same thing I would with integers.
+
+The conversions would be really slow though. FDIV is about 90 clocks and FPREM is over 110 on the 387.
+
+In the worst case, a conversion can take up to a million cycles, which is completely infeasible.
+
+Is there a faster way to divide by 10?
+
+Or is there a way to cut off at a certain point and just generate zeroes?
+
+Interestingly, djgpp libc crashing when I print DBL_MAX. Most likely it printed too many characters. Actually no, it can print lots of characters. Not about 4095 on djgpp yet though. But DBL_MAX is not too large.
+
+DJGPP actually has no limits on printable characters. In theory, we dont need to either, if we do the preprocess thing and allocate a large enough buffer.
+
+# June 27
+
+## char becomes unsigned?
+
+I do not want to deal with the possibility that char is signed because of the.....
+
+DJGPP is able to output signed chars. They can be encoded easily.
+
+The only issue is when passing them to %c.
+
+Actually, there is no issue with that either.
+
+It is all about interpretation. The character may be promoted, but it is then narrowed back to a char. I would like to see the compiler do it though.
+
+It really does not matter for arguments.
+
+Well, it does.
+
+Passing an explicit char argument has no promotion (keep that in mind), so if I try to return it or copy it, the compiler sign extends. Otherwise, it zero extends.
+
+The only way to safely convert a char or a promoted int to the real character is to convert it to unsigend char.
+
+The printf spec requires that the promoted character is casted to unsigned char...
+
+Okay, but how do you think UTF-8 would work? Signedness is just a compiler construct. The CPU knows nothing of it unless multiplying or dividing. The assembler, most arithmetic, and addressing also do not have such a concept.
+
+With the right casting, the compiler will do the right thing. But in theory, codepage 437 needs all 8 bits.
+
+Regardless, djgpp is able to print those characters because they are just bytes and it is the console driver that cares.
+
+The impetus for unsigned char as required is more theoretical. The standard also promotion to convery chars that are in the UCHAR range, such as getc, which on DOS can be used to fetch a full codepage 437 character. It relies on overriding char's signedness when it is signed.
+
+And Terry A. Davis said he didn't like "7-bit signed ASCII" so there is another reason.
+
+Also, unsigned char means I do not have to write unsigned and char is just a byte.
+
+I am working on printf and I think signedness of char should be handled there because that is what djgpp does.
+
+I wonder if DJGPP does this with a hack though. Is putchar(-1) actually correct?
+
+It probably must be because of unicode.
+
+GCC actually FAILS! When I try to print -1 and also 0x80, either signed or signed, it does not print the euro signed.
+
+It looks like extended ascii is not supported. I assume unicode probably works.
+
+It does of course.
+
+Really it does not matter though. All IO functions treat the extended int as an unsigned char. If I want consistency, I can always make char unsigned, but it is not needed and violates SysV.
+
+`putchar(0x80000000)` prints nothing because it prints a null character. That basically explains it.
+
+A char literal is different than an int literal. The promotion still preserved the full 8-bit unsigned range.
+
+It is just necessary to make it unsigned to avoid a sign extension and zero extend instead.
+
+Anyway, I moved printf so I can run some test suites later. I am going to work on that.
+
+# June 29
+
+## Markdown?
+
+I tried to use this DOS format, but I think I need to return to markdown. Nobody is going to have the same editor setup and the text can look strange on other computers.
+
+I can write a tool that does this in python.
+
+# July 1
+
+## PSP
+
+I have to implement the PSP so that Windows can get/set it, and DOS has to be able to access the PSP. This is a challenge.
+
+How about the actual function call for getting the PSP when executed by the kernel is hooked and setting is just an illegal operation.
+
+Then it returns the same exact PSP location which is just swapped out by processes.
+
+What?
+
+Okay, MAYBE I can do something like that, but the thing is, programs need to have a PSP that can be recognized by DOS. Maybe it can be copied to the same predictable location with 64 DWORD copies. Not really practical, but this would work. Not all bytes have to be copied though. Some are not important and the command tail has a size byte. Best case scenario: around 128 bytes are actually copied which is 32 copies or more. Keep in mind the args are terminated with '\r'. Some fields in the PSP are redundant and outdated, such as the FCBs which were considered deprecated even in the mid 80's.
+
+That takes away 36 bytes, so a best case of 23 copies with 25-30 being realistic.
+
+Or I can do some strange partitioning of memory. DOS does have internal MCBs and ways of detecting things that could potentially be reclaimed. I could detect the memory used by it, but this seems unlikely.
+
+Honestly, there is no reason to punch holes for DOS whatsoever. The program should have access to all the conventional memory it can get. Programs should run BETTER under OS/90, not just "as good" as DOS.
+
+> DOS also saves the SS:SP onto the PSP.
+
+## Job file table?
+
+The is a structure which exists in the PSP by default and maps local file handles to the SFT entry.
+
+The entry for Set Handle Count does not specify where the new JFT goes.
+
+Actually, there is a pointer to the JFT. It can be moved within the PSP.
+
+## What is the solution?
+
+The JFT being potentially separate from the PSP and other things make multitasking a bit problematic.
+
+How about the process context, which is part of the DOS address space, contains the PSP as part of the swappable address space and the address is the same?
+
+The "current PSP" basically always stays the same except when SV86 needs to call something on behalf of the kernel. Doing this has complications when IO and memory allocations are involved, but the kernel DOES create a PSP for that purpose. Resizing the JFT can also be done and is probably a good idea too.
+
+## Semaphore
+
+I though I would give up this idea, but if I hook INT 21h to wait on the DOS semaphore, it could be possible to make DOS multitask and each program could execute DOS kernel code.
+
+This may simplify the process of reflection to a simple emulation of the INT instruction, without the need to call EnterV86 or even disable preemption while in real mode. As long as DOS is not called again, we can do anything else in the background.
+
+This is actually a very good idea!
+
+The only difficulty is finding out what parts of the address space need to be hole-punched by DOS and it requires collecting ranges of memory that DOS is already using.
+
+> Also, copying the DOS kernel in some insane way to every VM is crazy but could actually work. As long as the BIOS is reentry-guarded, it is fine.
+> There are still many things that could go wrong.
+
+There is a way to get the DOS kernel segment, but it is not standard. I am not really talking about duplicating the kernel. This is just wasteful and the goal is to REDUCE the need for DOS and enhance it, not whatever that it.
+
+But there is a way to get the segment of the DOS kernel, I believe. There are also internal memory control blocks for drivers and private kernel data. This is not really standardized though.
+
+DOS 4.x and above has an internal data segment

@@ -1,0 +1,34 @@
+================================================================================
+	Resource Manager and Plug-and-play
+================================================================================
+
+The resource manager is part of the kernel and decides which drivers get control over which resources.
+
+Each driver is required to report if it is plug-and-play or not when it is loaded. This determination cannot be always be made statically, and sometimes drivers must support PnP and legacy operation after performing certain forms of detection.
+
+If it is not, the driver is marked to execute on the first runlevel to ensure all.
+
+--------------------------------------------------------------------------------
+	Bus Negotiation
+--------------------------------------------------------------------------------
+
+IRQs are the most scarce resource, along with DMA channels. This means there must be a way to allocate IRQs in a way that limits sharing in the case of interrupts.
+
+OS/90 PCI DOES handle sharing in a limited way, but it is best avoided. So at startup, it is best to report the resources requested by buses when they enumerate all devices.
+
+Only IRQs are handled this way. PCI has its own DMA subsystem and does not interfere with ISA.
+
+................................................................................
+	R_RequestIRLines()
+................................................................................
+
+--------------------------------------------------------------------------------
+	API
+--------------------------------------------------------------------------------
+
+
+................................................................................
+	R_ReservePorts(int base, int count);
+................................................................................
+
+Negative base means it can be anywhere.
