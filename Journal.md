@@ -12238,4 +12238,177 @@ There is a way to get the DOS kernel segment, but it is not standard. I am not r
 
 But there is a way to get the segment of the DOS kernel, I believe. There are also internal memory control blocks for drivers and private kernel data. This is not really standardized though.
 
-DOS 4.x and above has an internal data segment
+The best way to this is probably to allocate the largest possible block and do something like the DMR idea but with no fixed size.
+
+This means conventional memory allocations are not guaranteed to work. It makes it harder to allocate DMA buffers, but not impossible.
+
+Extended DOS interfaces become more complicated too, but not imposible.
+
+## Extended DOS Interfaces
+
+Normally buffers have to be allocated for each extended interface and copying must be done, but OS/90 does not need to copy, but simply split the transfer to 64K blocks for operations that need it.
+
+# July 7
+
+## DOS Multitasking
+
+First of all, the DOS semaphore does not need to be used. Only TSRs and other strange programs may use it.
+
+There are reentrancy issues with the BIOS too.
+
+So basically, we only execute real mode code iff the OS/90 internal semaphore permits that.
+
+This also prevents a theoretical deadlock if each vector has a semaphore because they could back-call each other. INT 21h could call INT21h or something that also does, and there is nothing wrong with doing that.
+
+As long as only one thread is in real mode software, nothing is wrong.
+
+Essential services like memory size determination or mode setting are more complicated though.
+
+How exactly is the kernel supposed to request services?
+
+It can run an INT on behalf of a process! I think I already discussed this, but this is necessary. There will be an initial task which is finalized at the end of initialization. The file handles and other resources of the INIT process are what the kernel uses to make calls.
+
+> Remember to implement yielding when doing this.
+
+Calling services in physical real mode must be added. What I have now only works for IRQs, so I need some other code block to deal with general purpose INT calls.
+
+Or it can be something based on V86.
+
+> BTW the idea for security is that the INIT program has elevated IOPL embedded in the flags register. This is essentially the kernel worker daemon. It may also implement userspace, but I am not so sure.
+
+Switching to actual real mode has some advantages, actually. There is no MMU overhead een though we still wipe the TLB. It allows the BIOS to switch to unreal mode or PM to run a service that accesses 32-bit memory ranges.
+
+Although I think PCI BIOS support probably moves the MMIO range to something RM addressible. Either way, 32-bit addressing may be used by the BIOS in a way outside our control. So making certain request really SHOULD be done in physical DOS/BIOS.
+
+Interrupts are something to consider here though. We have to go back to the IMR that was used at startup so we do not get an interrupt that cannot be handled. PnP software could change the IMR after detecting legacy devices properly.
+
+Other than that, interrupt will have to work as expected because the BIOS software does sometimes require them, such as for IO delays or getting data from devices.
+
+There are lots of problems with letting the BIOS touch a device while PM is already controlling it. The only reason I need to enter the BIOS/DOS in real mode is to run services before the scheduler and DOS subsystem are fully ready.
+
+I may need a general event for entering the physical BIOS, but caution should be used anyway.
+
+Also elevated IOPL is not the concept I need. Any program should be able to enter the BIOS or DOS and elevated IOPL is needed at that exact instance.
+
+## Is this necessary?
+
+Preventing freezes in the user experience is a benefit, but what happens is that we reduce the working memory that any program has to about 400K. Programs will run about the same as on DOS.
+
+Ideally we should eliminate all legacy drivers, but that obviously cannot happen. Some memory will be lost due to drivers for PMR.
+
+Allowing DOS programs to access over 600K means the software will run BETTER than it would on regular DOS because multitasking with extra memory is possible.
+
+The goal is also to eliminate the parts of DOS that are slow and probably 50% of what it does will be taken over by the OS in a full setup.
+
+Also I already have SV86 code that WORKS and was able to perform IO.
+
+So I will NOT do concurrent SV86.
+
+## Problem with multitasking
+
+> Windows 95 does allocate memory for the kernel under the name MSDOS. I am not sure if FreeDOS does the same, but it does show how much memory is used by the OS. OS/90 will have to do the same thing
+
+So we have to use only a window to perform multitasking.
+
+## Decision
+
+# July 8
+
+## The multitasking model
+
+The goal is to replace DOS for better multithreading and performance. I think I will keep the existing SV86 design.
+
+I have some things to figure out for that BTW.
+
+## How Does SV86 Work?
+
+I should have some terminology:
+
+- INTxH - The calling mechanism used by any protected mode/VM INT call
+- SV86  - Elevated V86 that runs in PMR
+- PRM   - Physical real mode
+
+One vexing issue is that of stacks. If we capture the INT, do we have to emulate the stack? No, because there is no need.
+
+But some function calls such as PnP require the stack to pass arguments. And if SV86 is used at all, the stack is accurately emulated.
+
+The PnP BIOS will probably be executed in real mode because doing that is much easier TBH.
+
+The point is that a stack may be required even if it is not handled in SV86. If SV86, we do not actually care which stack to use, only one can be used at a time anyway.
+
+Otherwise, there should probably be an option for it so that the stack can actually be used. Using PnP BIOS will probably require a LOT of stack space. I think 64K is required.
+
+Not true. 1024 bytes is the minimum for the OS to allocate or make available for PnP BIOS. It means that we will have a difficulty getting memory in PRM, but is better than 64K.
+
+There should probably be a flag for this:
+```
+INTxH(STK|KRNL|INT_FCALL, cs_ip);
+```
+
+Might work but not sufficient.
+
+This is better:
+```
+void GetPrmStkForThread(void);
+void GetPrmStkForRegDump(REGS*);
+```
+
+These will also always succeed and wait until something is available.
+
+The number and size of real mode stacks is configurable.
+
+Also, on SV86 we can just use the global one since it is not concurrent anyway.
+
+Did we sort out the PSP issue?
+
+## The PSP
+
+# July 10
+
+I will put the other project aside and work only on OS/90 until completion.
+
+Are you sure though? Should I make it public and generate attention from the public?
+
+Getting YouTubers to review it? Promoting it on forums? I am not sure all that is necessary. Plus I don't want to associate my OSDev screen name with my real name (unless I change it).
+
+I would prefer to share it with software professionals who can understand it better, and MAYBE promote it in certain DOS and retro forums.
+
+It will be a public project, but I am not sure I want it to go viral. People in real life that know who I am personally could start saying stuff if it goes super viral, and I don't want that.
+
+Plus it is just an OSDev project of hundreds. OS/90 is more of an oversized demoscene project just like any other hobby OS.
+
+So the purpose is not really fame, but to get the attention (hopefully) of people that know a thing or two about systems programming and software development in general.
+
+## Advanced Text Mode
+
+Remember that one game that had a really nice text mode exit screen? Try and immitate that somewhat for ATM.
+
+BTW ATM does not need proper keystroke handling in the early stages of development. Just set up the console to not output on the screen.
+
+Then I can use the keyboard to execute certain commands or step through operations.
+
+I got the exit screen of Raptor: Call of the Shadows. Looks like a good way to do popups and maybe buttons.
+
+## Note About Memory Operations
+
+When writing byte string ops, it is possible to list every address accessed and confirm they are exactly the same compared to the basic per-byte one.
+
+# July 11
+
+> Remember to implement disk drive letter allocation and detection.
+
+## Disk Drive Mapping Allocation
+
+Disk drives can be introduced by a driver upon recieving a newly inserted removable device that is not a floppy or a blockdev driver loads and detects new devices.
+
+This is what is problematic with even using drive letters. They are convenient, but changing the order in which partitions and drives are recognized changes the letters too.
+
+Some OSes will reserve some number of ATA/SATA drives starting from C and then put any disk drives after. Plus there is A and B.
+
+OS/90 has to be legacy compatible. There is a DOS driver for literally every device and entire websites that host them.
+
+DOS has an internal structure for this. I need to find a proper reference. It is the drive base table or something.
+
+It does exist in the drive parameter block, and it has a service that can be called.
+
+The DPB has a pointer to the driver header which has a structure I can write in C, among several other structures.

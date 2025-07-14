@@ -27,7 +27,7 @@ typedef _Packed struct {
 // The memory control block structure. This is used for freeing memory
 // upon forced program termination.
 //
-typedef _Packed struct {
+typedef struct {
 	BYTE    type;
 	USHORT  psp_seg;
 
@@ -38,6 +38,28 @@ typedef _Packed struct {
 //      Display name, not really used.
 	BYTE    name[8];
 }MEMCB,*P_MEMCB;
+
+// This may require at least DOS 4.0
+typedef struct {
+	// BYTE    drive_number; // 0 is A, ...
+
+	// // FLAG: I have no idea what this is
+	// BYTE    unit_number;
+	// WORD    bytes_per_sector;
+	// BYTE    highest sector number within a cluster
+	// BYTE    clus2sec_shift_count;
+	// WORD    reserved_sectors;
+	// BYTE    number_of_fats;
+	// WORD    root_dents;
+	// WORD    number of first sector containing user data
+	// WORD    highest cluster number (number of data clusters + 1)
+	// BYTE    number of sectors per FAT
+	// WORD    sector number of first directory sector
+	// DWORD   address of device driver header (see #01646)
+	// BYTE    media ID byte (see #01356)
+	// BYTE    00h if disk accessed, FFh if not
+	// DWORD   next_dpb_farptr;
+}DPB;
 
 typedef _Packed struct {
 //
@@ -61,7 +83,7 @@ typedef _Packed struct {
 	BYTE    call5[5];
 
 //
-//      These are mostly deprecated.
+//      These are mostly deprecated. FLAG: Are you sure?
 //
 	FPTR16  terminate;      /* These are supposed to be deprecated */
 	FPTR16  ctrlC;
@@ -120,7 +142,7 @@ typedef _Packed struct {
 	BYTE    int21h_retf[3];
 
 	BYTE    more_reserved[9];
-//
+
 //      OS/90 does not use file control blocks. They should generally
 //      work but there is no guarantee. Ever since the multitasking DOS
 //      craze of the mid 80's, FCBs were essentially no more.
@@ -147,7 +169,8 @@ typedef _Packed struct {
 	BYTE    fname_asciiz[13];
 }DTA;
 
-#define LOCAL_XMS_HANDLES 24 /* MUST BE MULTIPLE OF 8 */
+/* MUST BE MULTIPLE OF 8 */
+#define LOCAL_XMS_HANDLES 8
 
 
 /////
@@ -205,7 +228,7 @@ typedef struct {
 // Note that ^C does not require return in real mode.
 
 /* TODO: make this accessible from real mode */
-typedef _Packed struct {
+typedef  struct {
 	//
 	// A full local interrupt vector table. This is looked up first
 	// before reflecting the INT to actual real mode.
@@ -229,7 +252,7 @@ typedef _Packed struct {
 	// interrupts, it is necessary to separate them.
 	//
 	// The IRQ vectors can be anywhere that makes sense. In our case
-	// they coincide exactly with the actual INT vectors.
+	// they coincide exactly with the actual INT vectors used by the OS.
 	FPTR32  virtual_idt[256];
 
 //      DPMI requires 32 exception handlers to be supported for modification.
@@ -324,8 +347,9 @@ typedef _Packed struct {
 
 //      Memory deallocation is done by parsing the memory control blocks.
 
-//      OS/90 supports DOS multithreading. Crazy right?
-	PTASK    threads[32];
+	// If there are no pointers available, the last one is used as a pointer
+	// to a table to cascade and can be freed.
+	PTASK    threads[16];
 
 //      AH=4Dh uses this value. Set on subprocess termination.
 //      Actually 8-bit value.
@@ -345,14 +369,12 @@ typedef _Packed struct {
 	// This must be simulated. 1,664 bytes are used.
 	//
 
+	// MAX_PATH from windows is supported, but only 256 characters of the 260
+	// are used for the real path. C:\ and the '\0' use 4.
+	// This is required by the DOS LFN interface.
+	// Each path is malloc'ed.
+	char *cwd[26];
 
-	// THIS IS WRONG!!!. The path length is about 128 in reality.
-	BYTE    path[64][26];
-
-	// I shoudl REALLY reduce that. 64-byte path can easily be malloc'd.
-
-
-	// Bytes: 3,940
 }EMU_CONTEXT,*PEMU_CONTEXT;
 /*
 

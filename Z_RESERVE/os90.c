@@ -1,13 +1,3 @@
-
-/*
-
-WARNING! What you are about to see is the most unportable C code in exisitence.
-It is also as messy as one would expect from a DOS C program.
-Nothing here is the result of bad practice, just the requirements of the
-project being met.
-
-*/
-
 #include <stdint.h>
 #include <dos.h>
 

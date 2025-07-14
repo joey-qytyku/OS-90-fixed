@@ -81,7 +81,6 @@ LONG MemoryInUsePercent()
 
 > Conventional memory must always be 640K
 
-TODO: Vm_Alloc, Vm_Free, Vm_Realloc, Vm_PageOp
 
 ................................................................................
 	_pset(page_bit)
@@ -93,7 +92,7 @@ Returns an opmask componenet that enables/disables the page bit. These are macro
 > Maybe use a struct with bit fields.
 
 ................................................................................
-	void* M_Alloc ( void*   force_addr,
+	void* M_Alloc(  void*   force_addr,
 			UINT    commit,
 			UINT    uncommit,
 			UINT    bits
@@ -155,12 +154,13 @@ Asserts the lock responsible for the page tables (it may be the same as MM).
 
 The page tables are laid out flat in memory. It is returned by this pointer.
 
+Never pass the pointer to another thread. The pointer becomes invalid upon unlocking.
+
 ................................................................................
 	void CopyPages(void* d, void* s, uint size);
 ................................................................................
 
 The pages must be present and committed. Performs a non-temporal copy of a large block. This also disables caching globally for the duration for the whole copy, and preemption.
-
 
 ................................................................................
 	int M_PokeHole(uint page_frame, uint npages);
@@ -175,6 +175,23 @@ M_PokeHole may trigger page faults or uncommitted memory allocations, making it 
 This function blocks simultaneous access.
 
 Unless using this to block access to a static resource, NEVER call this function! Report to the user where the memory hole is so they can block it off in their config (OS/90 does this with PnP support). It is also okay to write to the config.
+
+................................................................................
+	void* malloc(size_t);
+	void free(void*);
+................................................................................
+
+Standard C functions that allocate (usually) unlocked memory regions.
+
+
+
+................................................................................
+	void* lmalloc(size_t);
+................................................................................
+
+malloc but this ensures the pages the allocation resides in are fully locked. free automaticaly takes care of how many locked regions are allocated in a given page so that the page can be unlocked as soon as possible and other allocations on the same page stay locked.
+
+Reentrant functions are advised to use memory regions allocated by lmalloc, but not inside it!
 
 --------------------------------------------------------------------------------
 	Page Attribute Table

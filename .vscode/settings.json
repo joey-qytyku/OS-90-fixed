@@ -96,7 +96,8 @@
         "PCI.C": "cpp",
         "PCI.H": "cpp",
         "FAT.H": "cpp",
-        "STDREGS.H": "cpp"
+        "STDREGS.H": "cpp",
+        "M_MAIN.C": "cpp"
     },
 "files.encoding": "utf8",
 "editor.wordWrap": "wordWrapColumn",

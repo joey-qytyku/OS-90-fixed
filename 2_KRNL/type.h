@@ -45,7 +45,12 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 #define unlikely(x) __builtin_expect(!!(x),0)
 #define likely(x)   __builtin_expect(!!(x),1)
 
-#define UINT unsigned int
+#define uchar unsigned char
+#define ushrt unsigned short
+#define uint unsigned int
+
+#define ulong unsigned long
+#define ullong unsigned long long
 
 // Rules about REGS:
 // - A pointer stored inside here must not point to a valid object in the given

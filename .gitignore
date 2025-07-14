@@ -2,7 +2,10 @@
 *.obj
 *.OBJ
 *.exe
+*.a
 *.EXE
 *.COM
+*.BIN
 .DS_Store
 __MACOSX
+a.out

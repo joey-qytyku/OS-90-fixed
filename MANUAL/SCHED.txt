@@ -28,7 +28,7 @@ o May never give control to any code made for other contexts.
 o In general, reentrant code is IRQ-safe but that may not always be the case depending on what the code does.
 o Not schedulable or restartable like the others.
 o MUST EXECUTE AND ACCESS LOCKED MEMORY ONLY. NO FAULTS EVER.
-o No faults should be caused while trying to enter TI (e.g. unlocked memory)
+o No faults should be caused while trying to enter TI (e.g. unlocked memory or exception while accessing the IDT or IDT entry)
 
 The other contexts are controlled by the transfer of state mechanism of the scheduler, which is implemented in TI itself, thereby making TI unschedulable.
 
@@ -38,10 +38,10 @@ The other contexts are controlled by the transfer of state mechanism of the sche
 o Voluntary interrupts disabled section
 o Entered from T1 or T2 by disabling interrupts
 o Preemption off
-o Exceptions are acceptable, including page faults
-o Yield is not allowed
+o Exceptions are not acceptable, including page faults
+o Yield is currently not allowed
 
-Be careful with this.
+Be careful with this. The main use is interacting with hardware devices.
 
 	  T1
 	~~~~~~
@@ -65,7 +65,11 @@ There is ONE exception to this system. The FPU IRQ#13 handler represents more of
 	How Do I Get the Current Context Type?
 	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The answer: you don't. It is already known, and code should be specified for specific contexts or recieve that information.
+The answer: you don't. It is already known, and code should be specified for specific contexts or recieve that information. The OS intends that T2 is the main mode of operation for almost all kernel-mode code.
+
+Sometimes, it is necessary for debugging.
+
+If interrupts are off, it is TI or T0. The distinction is not that important.
 
 	Yield Semantics In Detail
 	~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -94,9 +98,23 @@ o Never yield in T0 or T1.
 
 o Locked pages must be used for all kernel stacks and interrupt service routines. Never unlock such pages.
 
+o Reentrant functions can only be reentrant if the data they reference is thread-local. sprintf is reentrant in OS/90 but can be made non-reentrant if it outputs to a global buffer.
+	- It is fine to allocate memory before calling because it is reserved, but it should be locked right away.
+	- It is easy to lock memory allocated by the kernel malloc. lmalloc locks the entire page and maintains counts internally to automatically unlock upon free.
+
+o Reentrancy is violated if data owned in any way by another thread is accessed.
+	- A function is reentrant if it refuses to access data that it somehow knows to be inaccessible within the rules, perhaps by returning an error or indicator to try again.
+	- The only data that can be accessed is either read only memory or the kernel mode stack used by the caller.
+
+o Reentrant functions must only call other reentrant functions or functions that do not violate reentrancy given any input (failiure or refusal).
+
+o Reentrant functions can use unlocked stacks and memory in user mode. In the kernel, things are complicated. It is theoretically possible for the page fault handler to be invoked by a reentrant function, and that page fault handler calls the reentrant function! This is a hazard for any callbacks used by the memory manager.
+	- No OS/90 function provided by the developer(s) will EVER claim to be reentrant unless it uses only unlocked memory and fails otherwise deliberately or declares such behavior undefined. Third-party software does not need to follow this.
+	- Callbacks are generally quite dangerous for reentrancy. Be careful.
+
 o Atomic data structures such as locks must always exist on locked pages.
 	- The rationale is that a page fault handler will run in a preemptible context and there is no guarantee that the lock will behave properly because the access is deffered and the lock could possbly be accessed by an exception handler.
-	- For this reason, lock used outside the kernel have to be created dynamically.
+	- For this reason, lock used outside the kernel have to be created dynamically. You must create a lock and lock it by handle rather than by address.
 - Only functions capable of running in a certain Tx should be used in a given context.
 
 - Any user-provided atomics must call S_Yield somewhere.
