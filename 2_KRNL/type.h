@@ -31,9 +31,6 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 		rtype API name(__VA_ARGS__)
 #endif
 
-// This should be phased out
-#define BIT(n) (1U<<(n))
-
 #define OSNULL ((void*)0xFFFFFFFFU)
 
 #ifdef NULL
@@ -44,6 +41,9 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 
 #define unlikely(x) __builtin_expect(!!(x),0)
 #define likely(x)   __builtin_expect(!!(x),1)
+
+#define if_likely(x) if (likely(x))
+#define if_unlikely(x) if (unlikely(x))
 
 #define uchar unsigned char
 #define ushrt unsigned short
@@ -57,8 +57,9 @@ If not, it can be found at <https://www.gnu.org/licenses/>
 //   context if an existing pointer exists.
 //
 //
+#pragma pack(1)
 
-typedef struct __attribute__((packed)) {
+typedef struct {
 	#define I86_C		0x0001U
 	#define I86_PF		0x0004U
 	#define I86_AF		0x0010U
@@ -73,24 +74,17 @@ typedef struct __attribute__((packed)) {
 	#define I86_VM		0x00020000U
 	#define I86_AC		0x00040000U
 
-	union {
-		unsigned EAX;
-		unsigned short AX;
-		struct { unsigned char AL; unsigned char AH; };
+	#define R_81632(LTR) \
+	union { \
+		unsigned E ##LTR ## X; \
+		unsigned short LTR ## X; \
+		struct { unsigned char LTR ## L; unsigned char LTR ## H; }; \
 	};
-	union {
-		unsigned EBX;
-		unsigned short BX;
-		struct { unsigned char BL; unsigned char BH; };
-	};
-	union {
-		unsigned ECX; unsigned short CX;
-		struct { unsigned char CL; unsigned char CH; };
-	};
-	union {
-		unsigned EDX; unsigned short DX;
-		struct { unsigned char DL; unsigned char DH; };
-	};
+
+	R_81632(A);
+	R_81632(B);
+	R_81632(C);
+	R_81632(D);
 
 	union { unsigned ESI; unsigned short SI; };
 	union { unsigned EDI; unsigned short DI; };
@@ -114,6 +108,7 @@ typedef struct __attribute__((packed)) {
 	unsigned v86_FS;
 	unsigned v86_GS;
 }REGS;
+#pragma pack()
 
 #define _MAKE_PORT_IN(_ASM_TYPE_PREFIX, _TYPE)\
 static inline _TYPE in##_ASM_TYPE_PREFIX(unsigned short port)\
@@ -162,7 +157,5 @@ static inline void DecMemU32(void *m)
 
 // static inline void StoreMem()
 // {}
-
-#include "../SHARED/string/string.h"
 
 #endif /* TYPE_H */

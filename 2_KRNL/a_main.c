@@ -12,7 +12,7 @@
 // If not, it can be found at <https://www.gnu.org/licenses/>              //
 /////////////////////////////////////////////////////////////////////////////
 
-#include "l_segmnt.h"
+#include "L_SEGMNT.H"
 #include "centcom.h"
 
 #include "task.h"
@@ -55,6 +55,7 @@ extern char ISR_1, ISR_REST, IRQ0;
 extern char END_DATA;
 extern char BSS_SIZE;
 
+// FLAG: add to type.h
 #define ALIGN_CACHE __attribute__(( __aligned__(CACHE_LINE_BOUNDARY) ))
 
 ALIGN_CACHE SEGMENT_DESCRIPTOR	gdt[8];
@@ -105,9 +106,9 @@ SC(     GDT_RM_DS,   0xFFFF0,        0xFFFF,         access_dseg,    0     );
 	#undef SC
 
 	// Technically only 20 are supported ATM.
-	fromto(i, 0, 32) SetIsr(&EXC_0 + i*16, i);
+	fromto(i, 0, 31) { SetIsr(&EXC_0 + i*16, i); }
 
-	fromto(i, 0, 15) SetIsr(&ISR_1+(i)*16, i+0xA1);
+	fromto(i, 0, 15) { SetIsr(&ISR_1+(i)*16, i+0xA1); };
 
 	SetIsr(&IRQ0, 0xA0);
 

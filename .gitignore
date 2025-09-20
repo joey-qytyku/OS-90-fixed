@@ -9,3 +9,5 @@
 .DS_Store
 __MACOSX
 a.out
+.vscode
+.vscode/*

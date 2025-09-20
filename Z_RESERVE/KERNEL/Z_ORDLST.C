@@ -12,6 +12,11 @@
   If not, it can be found at <https://www.gnu.org/licenses/>
 *******************************************************************************/
 
+
+// I can't believe I ever actually wrote this. No idea what it's for.
+// I just saw Win386 has some kind of Linked_List so I misinterpreted it and
+// copied. Useless because we have a heap anyway.
+
 typedef struct {
     unsigned int value;
     void* prev;

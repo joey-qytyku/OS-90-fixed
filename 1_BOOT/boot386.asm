@@ -38,7 +38,7 @@ ALLOC           EQU     48h
         ORG	100h
         jmp	Main
 
-Weclome:        DB      "Starting OS/90.     Copyright (C) 2023-2024 Joey Qytyku",10,13
+Weclome:        DB      "Starting OS/90.     Copyright (C) 2023-2025 Joey Qytyku",10,13
 times 14        DB      X2LN
 DB      LNE
 

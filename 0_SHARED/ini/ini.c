@@ -13,6 +13,7 @@ typedef FILE *FHANDLE;
 #define Null 0
 
 typedef struct {
+	// FLAG: use PATH_MAX.
 	const char*	_path;
 	FHANDLE		_handle;
 	INI_LOCK	_lock;
@@ -119,6 +120,7 @@ int I_OpenINI(INI* ini, const char* path, SYNTAX_ERROR_CB se)
 	ini->_path = path;
 
 	{
+		// FLAG: make this portable
 		FILE* f = fopen(path, "rw");
 
 		if (f == 0) {

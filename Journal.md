@@ -275,8 +275,6 @@ The docs are very outdated. My memory and the source code are far better than it
 
 I probably should refrain from premature API documentation until I fully understand what I am doing.
 
-> TURN IN THE SPANISH ASSIGNMENTS AND PRACTICE THE SEGMENTS!
-
 ## Back to Scheduler Implementation, etc.
 
 In the immediate future, the following tasks must be completed:
@@ -3029,8 +3027,6 @@ I would estimate that four times the physical memory is about as large as the vi
 ## Swap Partitions
 
 If I add swap support, I should use swap partitions instead of swap files for performance reasons.
-
-> VFC tags: maybe add messages that explain why that tag was selected or where to find it? For example, a video can have a tag and a time with it to where in the video something is mentioned.
 
 # June 5
 
@@ -12412,3 +12408,1956 @@ DOS has an internal structure for this. I need to find a proper reference. It is
 It does exist in the drive parameter block, and it has a service that can be called.
 
 The DPB has a pointer to the driver header which has a structure I can write in C, among several other structures.
+
+# July 13
+
+## Kernel Logger
+
+The only purpose for zero/space padding and many other things printf has is pretty-printing for command line programs. Consider DOS MEM.EXE for example.
+
+This is way too large for the kernel, especially with the insane 4000 bytes lookup table.
+
+I can have a logger that uses a lot of macros and relies on concatenation, perhaps with implicit spaces.
+
+```
+LOG("var=" L_I32(var) L_CHR('\n'));
+```
+
+Or this:
+```
+LOG("$", 1000);  => "1000"
+LOG("#w, 0xABCD) => "0ABDCh"
+LOG("#w, 0x1BCD) => "1BDCh"
+LOG("#w, 0x00CD) => "00DCh"
+
+```
+
+Use the printf style.
+
+Hex literals will be translated to the MASM style, with zeroes added based on the size requested. Capital letters are default.
+
+^ is to print an integer
+
+~ is to print a C string.
+
+Numbers can be printed as b, w, or d.
+
+Placing two in a row prints the raw character.
+
+Also, newlines will automatically be inserted.
+
+## More on logging
+
+There should be a log buffer somewhere. Upon being overflowed, it should write to a log file.
+
+# July 14
+
+## Logging during interrupts
+
+This is just not really possible, unless the log buffer truncates upon running out. This is kind of bad, because it will inevitable overflow if it holds user information.
+
+It is better to have a log buffer for the interrupt and copy the data later.
+
+For that purpose, there can be a sprintf-style function call.
+
+This is actually not a great idea. The data has to be generated in the ISR and then printed at a better time, after which all kinds of hardware or software errors could occur and potentially render the system unusable.
+
+Which makes it pointless to snprintf. Might as well write to a variable and check it outside the ISR.
+
+ISRs do very little anyway, and are usually written in assembly. OS/90 does not even have a C callback for ISRs defined, IIRC. Logging is probably too much for an ISR.
+
+The T it runs in is determined by the log target.
+
+# July 17
+
+## Extensions
+
+I will require all INT hooks to implement address space extensions for the services they control, and support ring-0 callers.
+
+This means an extensions API is needed to make this easier.
+
+Also, there should be some way of checking if a service is controlled by PM. This can be used to detect the presence of 32-bit disk access in case we need to allocate buffers in real mode.
+
+INT 21H will be fully extended to the level required by the leaked Microsoft docs.
+
+There is also the possibility that I can use a GSE to ask if a certain feature is extended. It should support limited information, such as "the entire vector is extended" in the case where that is actually true of course, or "indeterminate". Maybe.
+
+Probably best to make it exact, but each service can use any registers it wants to.
+
+GE_INST_CHCK_ASE can be added.
+
+# July 19
+
+## SV86
+
+I am still not sure if I should make SV86 multitasking.
+
+Consider for example how INTxH would work. It would force a program to transfer to that context. More likely, it would use a daemon or init process and yield to it for immediate execution.
+
+The advantage is a marginal improvement in concurrency for services that are completely replaceable by PM software.
+
+This would be good if I had SMP, but that won't happen.
+
+## Disk backed pages
+
+I want to make swapping and memory-mapped files possible. This is difficult to do at the kernel level because I have to call some kind of procedure. INT 13H does not really cut it because some block devices do not even have INT 13H support and extending the drive mappings of INT 13H is not really feasible.
+
+I think a better idea is to store the MS-DOS 16-bit file handle. This would be executed with the kernel PSP, so no issue there.
+
+28 bits exist that can be accessed in a non-present page that happens to use the extened info. This leaves a 12-bit index to blocks of 4K, which is not really enough.
+
+Actually, the SFT cannot be more than 256 entries long, so only 8 are needed. This leaves a 20-bit value, which allows for full access to a 4G file, which is the FAT limit.
+
+## SV86 Continued
+
+I will use the simpler SV86 method.
+
+There will of course be the changes I wrote down earlier.
+
+Consider it a recursive algorithm. It will probably not recurse more than 3 times, and there is no need to replicate the register dump. It is now part of the thread block.
+
+Once again, my editor is getting painfully slow. Do I have to switch IDE now? I would rather not.
+
+I am tempted to try and roll my own IDE and that would not be too hard if I had an actual IDE to write it with without this annoying issue.
+
+It seems restarting the app clears the problem for a time.
+
+## Memory Manager
+
+Right now I think of memory as being three zones:
+- DMA addressable
+- Extra memory (up to ~1GB)
+- Page file
+
+File-backed storage is used for the page file. OS/90 does not use literal swapping.
+
+The way it was originally supposed to work is that there is a demand paging buffer that is continually mapped to where recent accesses have taken place. We obviously cannot access the disk directly.
+
+Can I use a different storage format for the pagefile? Some OS'es have a map for accessing regions inside it to avoid making it too large.
+
+A swap file being too large is bad because it makes accesses slower. We use the filesystem API and each access is non-temporal. The FAT has to be used to locate offsets in the file.
+
+It is probably not that big of a deal.
+
+My oldest concept of swapping, which is correctly called that, was to have a system where we copy some number of pages and store some information about where to locate it. There were MCBs that had indices so that entire entries could be removed but replaced with newly allocated blocks after eviction.
+
+Is there some way I can completely avoid virtual memory and do it later?
+
+Not really. It needs to be a consideration.
+
+> DPMI has demand paging support and also the ability to destroy an individual page, which is tantamount to deallocating it. Whatever DPMI does, I have to do.
+
+## GUI Discussion
+
+I am quite certain about designing a GUI. Other operating systems have done it, and it is not actually that much more complicated than a TUI.
+
+There is just difficulty with the planar projection used by the VGA controller.
+
+## New Approach To Development
+
+I need to get back to the kernel and use a linear approach now. Very little has been done for two whole months.
+
+## Logging
+
+- Logging will now use a mask so that there can be multiple targets.
+- Logging will use more user friendly format sequences similar to printf but with a different fmt char.
+- Logging will be line-buffered and entries are stored in a truncated format.
+
+The log buffer needs to be able to rotate as things are printed in case of overflow. That or dump it to the disk.
+
+There can be several logs.
+
+- Boot log: small log buffer that stays in memory and is entry-trunctated. Deallocated after boot and written to a file. We check if the file is sufficiently sized before trying to resize it. "Boot" is considered the process where all drivers and the kernel are loaded.
+    - The boot log it written to the screen
+    - Lines are 80-characters long
+    - Goes to BOOT_LOG.TXT in root directory
+
+- Debug log: written to emulator-specific output port, and dumped to a file when it runs out. Ignored on production builds.
+
+The way I can do it is:
+- Several distinct log levels
+- Combinable log target mask options
+
+The options can be:
+- Boot log and text display (not available after boot is finished)
+- Emulation debug log (the typical port E9)
+- Runtime log
+
+This is for the kernel only of course. Userspace will have its own logging based on fprintf.
+
+I can also make it simpler by making the logger write entries to a fixed buffer and have a callback for commit to disk if needed.
+
+The boot console can be detatched after boot.
+
+> Consider using 80x50 mode for maximum information.
+
+There should be actual log levels though. One would be user advice, or a suggested action the user should take, pehaps based on a heuristic configuration check.
+
+## Keyboard Driver
+
+I found a perfectly listed scan code set which also describes HID too. It comes from Microsoft so it should be reliable.
+
+Also, scan codes are NOT different when modifier keys are used under scan code set 2, which is the more common one.
+
+# June 22, 2025
+
+## COM and LPT may be used by real mode
+
+There is the possibility that a real mode driver is controlling the COM or LPT port. It can provide whatever API it wants. COM could be used by a modem driver that implements the packet driver interface.
+
+This is rare for COM but very common for LPT. Printer drivers exist for almost anything on DOS.
+
+This is basically impossible to detect. I may be able to know if the LPT or COM ports are connected but that doesn't mean the user wants to use them in real mode.
+
+## Change Naming Conventions?
+
+I think I can keep pascal case.
+
+Or I can try Capitalized_snake_case. This is used for classes in JSF++.
+
+
+I like being able to distinguish between API calls and local/inline functions. When I look at pascal-cased functions, I always think of some popular API like for Windows.
+
+I also think Hungarian notation but for logical rather than actual types may be a good idea and could make avoiding bugs easier.
+
+Let's try some examples:
+```
+Segment_set_limit
+Set_irq_mask
+```
+
+Snake case is harder to write but way easier to read. Capitalization of the first letter does aid in distinguishing it as a function.
+
+I think each major element of the code should have its own style.
+
+Honestly, this is just a sideshow that slows down progress for no real reason.
+
+I do think local functions should be snake_cased because it distinguishes them from public and API functions.
+
+The OS will have very few public and non-API functions, so I am not worried about confusing them with API functions.
+
+## Brackets and pointer symbol
+
+Pointers in structs and multitline argument lists should have it directly after the type because that is how arguments actually work, and structs need to have tab alignment and easily-readable types. I also do one declaration per line too.
+
+Variables will be written the normal way because that is what I am used to.
+
+### Brackets
+
+Brackets on the same line is by far the most readable. It just consumes many lines on long procedures. I will gradually convert my code to that.
+
+I have already been using brackets on the same line on loops for a while now.
+
+## Agenda for today
+
+I will work on the logger.
+
+BTW using the lookup table is not a bad idea. Other things will take much more space. Plus, it increases boot speed. Printing integers is very common.
+
+> I am doing this
+
+## Note about context switching.
+
+The time slice length is 1MS, which means it runs 1000 times every second.
+
+Suppose it takes 1000 clocks to perform a switch. That means the CPU will spend 1 million clocks doing zero useful work.
+
+So my attempts at speeding up switches is warranted.
+
+# July 24, 2025
+
+> Use a process table and not the current approach? It may actually simplify context switching!
+> OS/90 TODO: GE for configuration of devices ended or something, or GE_LEGACY_CFG_END. Or maybe a GE for DOS memory management activated, in case a driver wants a DMA buffer.
+
+> Also, how will translations access memory? I want to avoid wasteful copying.
+> By that I mean real mode calling a PM service. And no, copying IS required.
+
+## Context switching
+
+1MS is a very small time slice and will be hard for the 386. The 486 should be able to handle it. I think time slices were usually in 5MS granularity on Windows, maybe more.
+
+It is hard to count how long a context switch takes, but an INT from ring-3 takes 99 to enter ring-0 and 82 to return. I used to think it took 300 to switch rings, but that is not true.
+
+Context switching happens 1000 times every second.
+
+
+## Order of Calling Hooks
+
+Implementing extensions is difficult if it is the first thing in the chain. It means that extending INT 13H before sending it to a 32-bit disk driver is not possible.
+
+By extending, what do I mean? Data can come in using any addressing mechanism. Converting to real mode format to run SV86 is something that only happens as a last resort.
+
+Hooks can just implement or use a feature that checks the context of the process and uses the correct method of converting the data into a pointer.
+
+So the order of hooks should actually be in order of most recently added, so that additional drivers can extend or take over hooks made by other drivers.
+
+There may be a need for checking if a hook exists though, for rubustness. This can also be hacked in using GE.
+
+## Bus driver configuration system
+
+Bus drivers must somehow be loaded first, before any subordinate driver. The busdev drivers can even be loaded automatically, but I would prefer to avoid something like this.
+
+ISA, PCI, and other buses are allowed to have static resources that cannot be reconfigured on any of their devices.
+
+If there is a conflict, this is an error that the user must be informed about. One of the devices must also be uninstalled.
+
+Some resources are reserved at the boot level. ESCD is not used for this purpose. Any collision with one of those means an immediate removal of a PnP device from the bus. This is supported by all buses.
+
+ISA PnP and PCI both allow the removal of devices so that they do not respond to any transfers.
+
+> I should really make a separate driver for PnP. Or I can allow drivers to be linked into the kernel at build time.
+
+The problem is changes in the configuration, which must be detected by bus drivers. The PnP BIOS is a bus in itself, and it is capable of changes directed by the BIOS, and so is every other bus on the system.
+
+The bus drivers must detect that the bus has been changed. If a deviation exist between the current configuration and the one saved to the disk, this requires every bus driver to know a total reconfiguration is needed.
+
+I can also have the kernel deal with it automatically by managing the entire configuration. All allocations of resources can be compared against the kernel.
+
+## Not a good idea
+
+I am quite sure I need to do bus scans every time. Reading from the disk to get configurations is not fast.
+
+
+## Logging
+
+I do not think it is necessary to use width fields for the logger formats. int conversions are already very fast and hexadecimal can be made to work only with 32-bit values.
+
+64-bit can be hacked in either way.
+
+# July 26
+
+## Virtual Memory Inquiry
+
+I really need to think about how virtual memory will work in OS/90.
+
+Hard disks in the 80's and 90's were incredibly slow. They also require seeking and rewinding, which adds additional delay, and programmed IO is used most of the time, which partially blocks the transfer.
+
+Apparently drives back then required up to 29MS to seek to a different track.
+
+This means the disk scheduler can actually be aware of physical disk geometry and schedule operations to occur on one single track and avoid the physical seeking. This would have to be user-configured.
+
+This is more of a disk scheduling thing though.
+
+The transfer rate of the disk inself, for the IDE disk I am looking at, is 1MB per second, which may or may not be PIO/DMA. I am not sure.
+
+To be exact, I am looking at the CONNER: CP-342 42MB, which was actually made in 1989. so this is a good benchmark.
+
+Disk speeds have actually not changed as much as storage size. The biggest jump was between HDD to SSD.
+
+The Maxtor 7040A 40 MB had a transfer speed of even less, at about 0.8 MB/S.
+
+So back then, storage was slow but RAM also was not that fast, so the gap was actually a bit smaller.
+
+The memory bus of the Compaq Deskpro 386 was 8 MHz and synchronized with the CPU that ran at 16 MHz and needed 2 clocks to access memory. It was also 32-bit, which is important to note because ISA is also 8 MHz and much slower.
+
+So the RAM is 8 times faster than the disk, and even faster when considering the very long seek time between tracks.
+
+There are mid-90s disk drives that were way faster though, some reaching 10 MB per second using UDMA, but on such systems, the memory is also faster.
+
+There was a certain point when RAM did not follow the CPU clock anymore due to the hardware challenges, but it is still massively faster than a magnetic drive regardless.
+
+But the safe assumption is that the page file/swap space or anything else will be 8-16 times slower than the RAM on an old computer and the gap is much wider on newer ones.
+
+> Pin this for later, it is good info.
+
+## FreeCOM XMS Swapping
+
+This is standard and they do not even distribute non-XMS versions. They all check for availability and try to swap parts of FreeCOM and even inactive programs onto extended memory to save CM.
+
+This is VERY BAD for OS/90 because it has the tendency to overallocate.
+
+Even the nonstandard interface for getting the XMS handle table does not report which program allocated it. Conventional memory can easily be reclaimed however, because MCB chains have PSPs and even process names. It is possible to delete anything with COMMAND.COM.
+
+The only thing to consider is that the first COMMAND.COM program, which does not have a valid PSP as its parent program, is where we extract the environment from.
+
+The kernel can use the environment as a safe and simple way to set options, instead of INI. I have to think about that later.
+
+Anyway, it is impossible to free up the XMS swap used by FreeCOM.
+
+With 12,288K a total of 157K is used presumably by FreeCOM.
+
+This is totally unacceptable. 157K is a lot of memory that FreeCOM should not need.
+
+Even the /low option does not work. I really need a way of blacklisting FreeCOM from using any XMS memory.
+
+That means I need a driver loaded after XMS that checks the PSP, and if it finds COMMAND or COMMAND.COM, or any other indication that it is FreeCOM, it reports that no XMS exists.
+
+It is there just to hook the appropriate interrupt and that is all.
+
+> XMSBLIST.SYS
+
+## How do we unhook vectors?
+
+Hooking is done by taking the current handler and calling it when passing, and replacing it withthe new one.
+
+Uninstalling a vector... IS IT EVEN POSSIBLE!!!!!
+
+It actually is not possible to uninstall a V86 hook.
+
+Anyway, I thought about this because DOS software uses it all the time.
+
+But DOS drivers cannot be easily unloaded.
+
+The current callback return method works for stacking the hooks, but there is no practical way to fully remove.
+
+> Besides switching to a linked list, I can also add identifiers to the hooks to know what driver is using it.
+
+## XMS Blacklist
+
+> Can I use VME? OS/2 did so.
+
+## Changes to hooking
+
+A linked list is required to make removals possible.
+
+It only needs to be singly-linked because removal in place is less common. So a next pointer and a callback.
+
+## Can VME be used?
+
+VME is introduced on later 486 and some 586 processors. This was not officially documented, but OS/2 3.0 supposedly used it in 1994 to avoid freezing whenever programs disabled interrupts, because it actually masked all of them instead of virtualizing it.
+
+VME allowed OS/2 to simulate CLI/STI using the VIF instead.
+
+It also allows INT calls to be directed straight to the IVT! This allows unhooked calls to be passed to DOS with zero ring-switch overhead if I decide to change SV86 to be thread-local.
+
+The problem is that the IVT is not actually localized per process and the intent is to avoid using it entirely.
+
+The IVT and the BDA are less than 4K in size. The load address of the kernel and other modules is undefined and unknown, and other modules could be using memory between.
+
+Copying 1024 bytes for each process (not task) is inefficient, even if 256 DWORD values.
+
+This means we actually need shims somewhere in the real mode addressing range in order to make this feasible AND also somehow assert the real mode lock, since we would be doing it that way.
+
+I would have to allow real mode multitasking, with thread safety of course. Only one thread can be in elevated real mode, and others must wait
+
+Elevated real mode has other complexities, such as somehow changing the current IOPL to ring-3 so that real mode code works correctly.
+
+> BTW, it is true that VME is used by OS/2. Some people report errors on certain CPUs that implement it wrong.
+
+VME should serve as a simple enhancement to an existing process. The OS has the ability to simulate VME or have it physically, pretty much, but at the interface level.
+
+## Elevated real mode
+
+When a program calls INT or similar opcodes, it causes a fault and goes to a dispatcher.
+
+At this level, there are several checks that must be done which have caused performance and complexity concerns. First, we check if there is a handler available for the mode it is currently running in, based on the rules of DPMI.
+
+I actually considered using hot patches into the running program to enter the PM kernel in the fastest way possible based on the current mode.
+
+This actually is not impossible, but may require a fallback mechanism.
+
+Might be another diversion, but if it works, it could improve performance. I think VMM did this too.
+
+> Remember to add creation of mutexes.
+> Also, some threads should not be allowed to access the first 1M so null pointers are invalid. That would be userspace.
+
+# July 28
+
+I actually did consider live patching.
+
+A better idea for doing it is to handle only the first 128 vectors (enough for anybody) and have some backup plan for the rest.
+
+Then I use the top bit to transparently encode real mode/protected mode.
+
+This is problematic if the program needs to run code that is for 16-bit protected mode and then switch to real mode, maybe using the same segments.
+
+It seems unlikely. Very few programs even used 16-bit PM in DPMI.
+
+I highly doubt that a program ever needed to run the same exact code in different modes. Even if it used dual-mode code, it could easily decide the right mode to use.
+
+The problem is that this is actually a destructive operation and that it might actually be trying to call that interrupt in question rather than some fast entry mechanism.
+
+I could instead map a range of common vectors to some set that I reserve and prevent programs from using, after careful analysis of RBIL.
+
+Then if INT 21H is called, the program gets live patched at that location so that it calls an exceptionless ring transfer. 21H and 2FH are the most common, along with some of the BIOS ones.
+
+The improvement is that an exception is not triggered, and we can tag what mode we are in to avoid additional checks.
+
+DPMI mandates that when in real mode, all IRQs and INTs go to real mode, which can be done with a live-patched vector that implies the mode it is in.
+
+## Subprograms
+
+Subprograms are a complicated problem. What I can do is create new threads for them and stall the parent, and also create a full DOS program context.
+
+A subprogram requires a PSP and aside from that is just some memory with code.
+
+The issue with making it have a separate address space is that while it greatly increases available CM, it also uses a lot of XM, often much more than is needed. UCM could help with this, if I can have it work for under 1M.
+
+The other problem is that some programs used INT vectors to communicate information, which would cause catastrophic failure for any program on OS/90 if this is done.
+
+The idea however is not entirely bad, and can be improved, but it does make it impossible for subprograms to communicate with the parent program.
+
+So it should at least be an option. Consider a compiler being executed from an IDE as an example. Then it would be useful because the compiler does not talk to the IDE.
+
+Programs did use space optimizations to move as much memory as possible into XMS so that subprograms could run. I know that's what FreeCOM does.
+
+For truly valid behavior, a still have to properly simulate subprograms. That means there previous pointer should be valid or null.
+
+There is also the JFT which has to either be copied from the parent.
+
+It can be done though, and memory has to be allocated for it.
+
+The JFT is supposed to be shared by all programs to avoid wasting memory. It only needs 256 bytes or less depending on how many handles are supported, but a multitasking OS will need many more than the default.
+
+So that is not really an issue.
+
+> This is very important to do. RBIL is filled with vectors hooked by regular programs. These may be shared with subprograms, so it really is something to think about.
+
+# July 29
+
+## XMS Blacklist
+
+This has to be a DOS driver and it must load after XMS.
+
+It will detect the presence of command.com and report no XMS.
+
+The way it will work is that it will store the PSP and the handle as one record, allowing
+
+> When the program call something that has a single internal state, should there be exclusive access?
+> Also when drawing, it is enough to add to pitch down in a loop
+
+## Swapping
+
+Swapping is quite complicated and there are lots of ways it can be optimized and implemented.
+
+On Win386, it is not even part of the kernel. Microkernels also do this, but using userspace IPC, which is not actually tha
+
+Consider the DPMI function that marks a page as a demand paging candidate. There is also the discard one, which can be used in many places.
+
+
+> Programs can enter exclusive tasking and the IRQ#0 handler can actually be swapped out for a different one.
+> Wait can I actually do this in general? Change the IRQ handler dynamically?
+
+## Global State in the DOS Kernel is a problem!
+
+Things like extended errors, the list of lists, and various other things make program malfunctions and catastrophic failure much more likely.
+
+People on stack overflow have reported the higher chance of glitches and errors when multitasking DOS programs in Windows 3.x and 9x.
+
+The extended error is impossible unless I do the extremely slow and hacky solution of hooking every INT 21h call that returns an error code and calling the get extended error state so I can preserve it in a thread-local context.
+
+Consider that there is an undocumented function that gets the DS of the kernel.
+
+FreeDOS only needs 46,256 for the kernel, and
+
+> I should add a GE for when it is safe to allocate a real mode DMA buffer. It can take drivers some time to know how much they need.
+> The physical conventional memory can be identity mapped for one program to make maximum use of the RAM.
+
+I can also go for a more OS/2 approach and build DOS VMs as a real virtualization interface. I can decide which DOS calls are supported and translate them to a safe call to physical DOS.
+
+It may not even cost that much in RAM and storage, but adds major robustness.
+
+In general, if we do not control an interface in a safe way, anything could happen due to potential internal state, which the whole replicated DOSSEG thing aims to avoid.
+
+These two models are not quite compatible with each other.
+
+> I would have to simulate some calls on the VMs behalf to set up the internal state of DOS for program execution.
+
+I think it is better and more flexible to do the duplication thing. I thought it was insane prior, but it is 100% workable.
+
+The BIOS ROM may be an issue, but is not a deal-breaker.
+
+## The Instance State
+
+- Initialization data (allocated using specialized MCB chain)
+- DOS Data Segment
+- The INDOS semaphore (most likely in DOSSEG)
+- List of lists
+- BIOS data area (slightly special)
+- Interrupt vector table (also special)
+
+The idea is that each VM creates a full instance of the modifiable data components used by DOS, while code/mixed components are shared globally.
+
+The instance state is copied into a template snapshot created soon after startup and is partially modified as needed to support MCBs and other things.
+
+The BDA is a challenge and many programs actually use it to get certain information, such as the port addresses of COM/LPT and other things.
+
+It also contains global state that requires specialized emulation, such as the caps-lock state and the keyboard buffer, which are impossible to realistically duplicate across VMs.
+
+The keyboard driver would not deal with the BIOS at all, but maybe it could somehow handle it. Probably not because of the scan code used by default.
+
+I should write some code with Open Watcom that tests some of this stuff, but the idea is not actually that bad.
+
+> Duplicating DOS data makes VME useful on Pentium processors, because reentrnacy is less of a problem
+> The problem is that drivers are not actually duplicated. I wonder if they should be.
+
+## Duplicate drivers?
+
+Drivers have to access physical resources which require arbitration and provide no real benefit when doing DDR (DOS data replication) since only one can be active at a time.
+
+Drivers also have data segments, so duplication is kind of required.
+
+So basically: some 64k-200k of memory is always duplicated?
+
+The advantage is more accurate emulation and easier use of VME.
+
+And BTW it is possible to unregister drivers by manipulating the linked list in the headers. I may not actually need HIMEM anymore after boot, which saves 6K of memory, if that matters. Very few drivers will be needed, and a 32-bit ATAPI driver can easily delete the memory used by MSCDEX or equivilent.
+
+Keep in mind that MSCDEX is a TSR and it actually creates a network drive using the redirector.
+
+## The other model
+
+I can also have a hooking layer which properly handles everything that matters and acts like an actual VM monitor.
+
+Plus the thing about the extended error is not actually that important. We can just call the real function as part of a hook. This is only needed for errors, and not otherwise.
+
+## How It Would Work
+
+Unless a function code is explicitly supported, it cannot be called by a program, whether it has other handlers or not.
+
+This the the "VM" approach. Implement a layer on top of the DOS API.
+
+The DOS kernel does everything in 40k of memory, and 32-bit programs are actually not that much bigger, so a simple layer cannot be that much of a problem.
+
+As far as ASE goes, it only needs to happen at the end of the chain for functions that need it and in that particular situation when we are in protected mode.
+
+Extensions when fully controlling an interface happen by converting the segment and offset into a linear address and possibly validating counts. There are instructions that make this simpler, such as VERR, VERW and LSL.
+
+There may need to be additional validation in case there is a buffer overflow, but I would not bother with this unless it is something important like disk/file access which could cause data loss if a crash were to happen.
+
+The extended error state will be thread local and when passing to DOS, and can be set after a hooked and consumed function like `DSS_SetExtError`.
+
+## Array of function code info
+
+INT 21H can have an array to get information about function codes using bit flags.
+
+- FC_SUPPORTED      Is the function supported for multitasking DOS sessions?
+                    Program is forcefully terminated if not.
+
+- FC_SEND2DOS       Can this be sent to DOS at the end of the chain
+                    or does it need to run a special routine?
+
+- FC_ASE_EXT_DS_DX  DS:(E)DX is used as the address.
+
+DOS usually uses DS:DX for addresses but there are exceptions.
+
+Anyway, this is just some ideas. The actual central dispatcher will be very different.
+
+To avoid code duplication, I considered that DS:(E)DX addressing is standard with exceptions.
+
+I may want to futher group the functions into defined types based on the kinds of parameters they take.
+
+For example,
+
+the read/write group:
+- DS:(E)DX for buffer, ECX for buffer size
+
+the keyboard input:
+- DS:(E)DX is the buffer, and the length is encoded inside the structure.
+
+register-based:
+- The majority
+
+variable-length string (null or $):
+- AH=9
+- open file with ASCIIZ name
+
+Some are strange but also uncommon enough to special case on their own.
+
+Remember that buffers in the DOS meaning have segments, offsets, and sizes, all of which are extended for protected mode.
+
+Exceptions to the rules can be switch/cased or if-ed out.
+
+This all will require a full listing of some sort.
+
+Also, whether or not it has an error code is another thing.
+
+# July 31
+
+## PCI Bus scans by user software?
+
+I wonder if some games do PCI bus scans to detect graphics cards and other devices.
+
+It is theoretically possible to do the equivalent of PCI passthrough to a DOS session. The device can then be released after the program finishes.
+
+This is a bus-specific feature that I would not make available to other buses as part of any interface, but there is nothing stopping PCI.DRV from trapping configuration register access.
+
+As long as nothing is modified, there are no problems.
+
+Consider that there is the Oak CDROM driver, which does scan the bus. It does not modify anything most likely, which is acceptable.
+
+# August 1
+
+## Load kernel in HMA
+
+This is really disappointing in a way because I will have to retire my current bootloader.
+
+But I cannot really argue against it. The only problem is limiting the kernel to 64K of memory.
+
+However, it ensures I make maximal use of the HMA rather than allocating the whole thing or whatever.
+
+I will still have the kernel in the higher half for very obvious reasons. The reason being that I do not really want the kernel being directly accessible by V86 processes.
+
+That is something I can consider though, because sharing the RM addressible range means slightly streamlined communication with real mode.
+
+> BTW whatever I have for creating the segment descriptors is totally dumb and needs to be size-optimized.
+
+Some pages have to be ring-0 or everything will obviously not work, so I am not really conerned.
+
+I think HMA load fullfills the essential features of a higher-half kernel without not being higher-half. It is always mapped and the address range is reserved.
+
+ATM I am not even considering putting drivers in their own address space. They will just get ring-0 pages from the same virtual address pool as userspace.
+
+The only downside is the inability to know if a pointer is ring-0 or ring-3, but this can be checked correctly by comparing against the page tables.
+
+Not a bad idea, really. It limits the kernel size, but the boot process and memory detection is massively streamlined.
+
+The only issue is the GDT and LDT which have to be ready right away.
+
+I think the LDT can be dynamically resizable with a simple malloc. It does not event have to be available right away, and only user programs need it. I would designate it as part of the DPMI/DOS subsystem.
+
+The IDT and GDT are essential and will be a bit large. The IDT is 8K and all 256 vectors are required in order to get the correct index and place the IRQ vectors at a safe place.
+
+BSS cannot be in the kernel though, and I also do not think that write protecting the kernel image will work either.
+
+BSS can be mapped to a different virtual address for safety reasons and to use less HMA space.
+
+The sections will be the usual code and data.
+
+BTW the BSS should not be in conventional memory, although the IDT may have to be for size reasons.
+
+### HMA Load Continued
+
+Switching to real mode for IRQ reflection is a bit easier. It is also possible to insert all structures necessary for VME shims (if I decide to do that) in the binary itself.
+
+# August 2, 2025
+
+The BSS section is a challenge. Normally, BIOS ROMs just zero out data like this in the image because they have to be self-contained.
+
+The amount of BSS space that needs to be allocated is a matter of programming practices. If it must take up space, I should take measures to avoid having to auto-generate things.
+
+There are things that unfortunately take up a lot of space.
+
+- IVT: 8192
+- GDT: 64
+- V86 chain array: 1024
+- Init PTables and PD: 8192
+
+The chains can take up more if I try to have a stub for redirection, but this is probably not needed.
+
+Only 1 page table is needed because everything can be mapped in the first 4M. PDir remains the same.
+
+So in total, 17,472 are completely unavailable.
+
+## Alternative
+
+I wonder if I could actually not HMA load at all, do the same thing I am currently doing, but not depend on the HMA for the init page tables and instead generate them in real mode memory. The kernel can replace them once the memory manager takes control.
+
+Then we can use DOS=HIGH,NOUMB to save as much conventional memory as possible.
+
+The modifications to the bootloader are simple enough. Generate the page tables in the program address range (three still needed), calculate their physical addresses and set them, and then do the rest the same way.
+
+This is not that easy but is done for the GDT, so this must happen.
+
+## What to do with the HMA after
+
+DOS=HIGH,NOUMB will be the standard setup. The whole HMA wis expected to be used.
+
+## Changes to reflection
+
+Reflecting interrupts will have to be rewritten, unfortunately. It currently assumes its position, and this may not actually be possible.
+
+## New Idea: EMM386 compatibility
+
+If I can hijack EMM386, there can be support for loading DOS drivers in a UMB.
+
+There are different options:
+- Use a VCPI-compatible EMM and enter protected mode
+    - Then I do some detection on the page tables to find out where the EMBs are mapped
+    - It should be possible
+- Require the use of a GEMMIS EMM like that of Microsoft
+
+I will probably use jemmex instead. It is open source, so I can package it with OS/90.
+
+## jemmex
+
+It can be loaded and unloaded at any time, and requires that no XMS driver is currently installed. It is much more managable that anything else.
+
+As long as I disable DMA buffering, it should be a net gain.
+
+On FreeDOS, a jemmex configuration with COMMAND moved partly to extended memory, 500K are available for programs.
+
+This does not include DOS=HIGH.
+
+I was able to get it to have 620K available! The kernel also allocated some disk buffers (the BUFFERS directive) in the UMBs too.
+
+This is really quite important because it makes maximum use of conventional memory for multitasking DOS sessions.
+
+Disk buffers don't need that much memory though. I would rather load drivers there if possible.
+
+I will probably need to develop a setup program for all this.
+
+## How to do this
+
+I will need to reconfigure the bootloader substantially. Most code cannot really be reused.
+
+First of all, I have to use VCPI to switch to protected mode. Then I have to use its services to allocate enough memory for the kernel or use XMS (either is fine)
+
+> btw jemmex is only 30K in size. It has XMS and EMS in one driver
+> It has to be DEVICE loaded or it
+
+There are different ways to get memory. In this sceme, everything is handled by one single support driver.
+
+VCPI actually makes allocation easy, because it allows allocating any number of pages from extended memory (all of them actually).
+
+The allocation must be done by repeatedly calling a function to map a free page to a virtual address. Each one can fail.
+
+The idea is I do a loop where I allocate and map pages to 0xC0000000.
+
+Copying the kernel is difficult though because I cannot access the memory directly.
+
+## Actually that is wrong
+
+It only returns the physical address and does not map the memory. That has to be put in the page tables into a special mode switch structure.
+
+VCPI just won't work. XMS is available, so just use that ATP.
+
+## The changes to the loader
+
+VCPI must be used to perform the mode switch. I also need to generate the page tables differently so that it uses enough memory.
+
+It is really sad, but I may have to scrap the current bootloader. It can be used for other purposes.
+
+> Or I can use UMBs in the kernel and load any drivers after boot.
+
+Not all drivers work on the UMB, btw.
+
+DOS allows literally anything to go in the UMBs.
+- Buffers
+- LASTDRIVE drive tables
+- Certain drivers
+- Stacks
+
+It is something that must be done at startup.
+
+There can be several UMBs.
+
+Anyway, I should really recognize the importance of all this. Putting things high saves a lot of space for DOS programs.
+
+jemmex should have an API entry point so I can get the information. It is really good at getting UMB locations and detecting memory.
+
+> I don't need mtools to build on macOS. I can just mount it.
+> Linux can do this too, but a partition offset is required. I already know this information and it can be obtained.
+
+## Better configuration
+
+UMBs don't seem to work correctly unless DOS=HIGH,UMB is used. This means the HMA is theoretically possible to use, but it is also used by buffers.
+
+If I want to salvage some code, it really needs to be available.
+
+
+## Information about pusha
+
+Apparently this instruction executed in 5 clocks on the pentium and 11 on the 486.
+
+Okay, but the 486 and pentium are also pipelined and the pipeline gets flushed on an interrupt.
+
+pushad will still require 4 clocks overhead, so it is not actually that fast on either.
+
+But also consider that this way before they really optimized the stack operations, and push/pop caused an interlock.
+
+https://people.computing.clemson.edu/~mark/330/colwell/case_486.html
+
+There is some information there about the pipeline here.
+
+The pipeline used by the i486 is not actually a classic RISC one.
+
+It goes:
+- Fetch
+- Decode 1
+- Decode 2
+- Execute
+- Register writeback
+
+The clocks in the manual are probably referring to the execute phase, which iis the best case scenario of how long it will take.
+
+So less instructions is actually GOOD for the 486.
+
+On the other hand, a set of push instructions requires an address calculation at D2, and may require waiting for the ESP to change. This means each push will take 3 clocks instead of one.
+
+I highly doubt that register writeback needs to happen before the ESP is accessible. That would have been a terrible decision.
+
+Anyway, to sum it up, pushad should be faster than a series of pushes on the 486.
+
+The pentium has a different pipeline, but it is extremely fast.
+
+Point is that interrupts can use pushad and popad.
+
+Not quite. popad is extremely slow on the 386, but pops are just slow anyway.
+
+# August 1
+
+I need to find the Jemmex API entry point.
+
+> I may really need to support Virtual DMA Services, on top of emulating the DMA controller for programs.
+
+https://github.com/Baron-von-Riedesel/Jemm/blob/5f902082b4fd222ae2d47a92118e11236084c17f/src/JEMM.INC#L100
+
+This seems to have some of the function codes. Both are supposed to use a special file name, but Jemmex seems to use IOCTL codes.
+
+Here is some official information on this:
+https://www.lo-tech.co.uk/wiki/LIM_Expanded_Memory_Specification_V4:_Appendix_B
+
+IDK they make it really difficult and a very long procedure is detailed to access some simple data. Plus the format of it is not even standardized and jemmex uses a different format.
+
+## Different approach
+
+Once I enter ring-0, I am basically in control, and can perform reclaimation of memory at some point.
+
+Somehow I need to enumerate the UMBs and take control of them. The bootloader can fullfill this requirement.
+
+It's really a total mess. XMS needs to be eliminated eventually and full control must be taken as some point of memory. Eventually XMS calls will be illegal.
+
+I REALLY need to enumerate all the things that need to be loaded high. Jemmex provides useful services but makes it all difficult with the IOCTL interface.
+
+The main purpose of this EMM device string is to confirm installation.
+
+> I can actually call programs like jemmex.exe or mem to enumerate memory regions. They can be copied to a file and then the kernel can scan the data
+
+> I might as well support GEMMIS now.
+
+> Is this all even necessary? I can allocate UMBs after startup easily. Allocations and programs can even allocate this memory transparently and I can also have real mode translations to avoid the pointer normalization of DOS.
+
+BTW there were computers with special patches that allowed for a non-compatible 720K mode, all transparently.
+
+## Better Idea?
+
+A better idea is to not offer UMBs since programs that use them probably handle XMS too.
+
+I have considered this a while ago, but here is the idea. Transparently allocate memory in the upper memory area!
+
+This allows programs to access up to 630K of memory without needing to do all that EMS stuff.
+
+The only thing I have to confirm is that DOS does not do normalization of pointers in the UMA. If it does I have to perform translation.
+
+> Try printing hello world at a location in the HMA.
+
+The memory has to use MCBs but this is completely doable. A text mode only program should be able to use 98,304 bytes underneath the mode 3 text buffer.
+
+It means programs can actually get more memory than 640K under unusual configurations.
+
+This achieves the same thing as whatever else I was planning to do, but without the complexity. The working space is still extended to the full theoretical maximum.
+
+Segment C000 is where the video BIOS usually is. Some BIOSes require more than the usual 4K though and only E820 can detect this.
+
+Anyway, the memory available in the UMA to map is 0xA0000-0xB7FFF. The text buffer only needs 8K and maybe more for some unusual text modes.
+
+0xBA000-0xC0000 is 24,576 bytes.
+
+In total, we can reliably allocate 122,880 bytes transparently, which is larger than any typical DOS configuration.
+
+Even with only 327,680 (half) of conventional memory left, this gives a total of 450,560.
+
+I tested it and the HMA is 100% accessible. I printed hello world from the HMA and it worked!
+
+I am not sure if file IO would work, especially if the BIOS is involved. DOS should use its own buffers for IO though.
+
+## Text Mode Interface?
+
+> libcaca?
+
+I found a nice font that allows for 106x40 text graphics. This may be doable.
+https://int10h.org/oldschool-pc-fonts/fontlist/font?dos-v_re_jpn12
+There is also a 7x15 one, but the M looks really bad on it.
+
+With 640x480, I can display 106x40, which is better than the default DOS, and still maintain readability.
+
+The difficulty will be writing the code that can blit it onto the screen despite the poor alignment.
+
+There will be an issue with how much UMA space I get on the main process, but it won't matter at all.
+
+Graphical modes will probably be recommended or standard because the cursor is easier to support.
+
+## Fast Drawing?
+
+Drawing at 6-pixel boundaries with that font will be difficult to optimize, and it negates the predictable boundaries advantage of a typical TUI.
+
+There are actually even smaller fonts at 6x8! I probably won't take it that far though.
+
+Anyway, the idea is we have to fetch bit lines for the glyphs and also render the background colors too.
+
+So yeah, text is extremely suboptimal. But VGA does not support glyphs with less than 8 columns.
+
+Well, there is TM.EXE and I have no idea what magic it does, but it supports 90x80 text mode (not 4:3 so don't use). I wonder if it works on real hardware.
+
+TM.EXE works in 86Box, which is a more accurate emulator. It should be possible to do modesetting with it, but this software is unfortunately freeware.
+
+I can do some execution tracing and reverse engineer a mode set to a 4:3 with 90 columns. It has to be carefully calculated though, so that the font does not get truncated and is either 8x16 or 8x8.
+
+## Info on UMA
+
+The video BIOS is not actually needed most of the time. Most of the operations do not use memory addresses and are entirely register based. In the event that they do, it is rare enough that copying to some other location to make an INT 10H call for one program is enough.
+
+Several INT 10H functions are controlled by the supervisor for performance reasons. The rest can be accessed using this method.
+
+Using this hack, I can guarantee that modern computers with larger VGA ROMs can work correctly and free 32K more memory
+
+That leaves us at 152K which is added to the conventional memory. The user can use this much under DOS and still have 639K of memory.
+
+It is also entirely possible to have MORE memory that is normally allowed. This means programs like MEM can actually fail if they assume there can only be 640K or that this memory must be in the low region only.
+
+Time will tell, and if it is a problem, I can detect MEM.EXE and direct it to something better.
+
+# August 4
+
+## The DOS Configuration format
+
+- Transparent Upper Memory Area [AUTOUMA]
+- Allow more than 640K of conventional memory if available [CMINCOMPAT]
+    - Allows a single block to be larger too.
+    - The 16-bit paragraph count 100% of the DOS memory to be addressed, so there should not be any problems. Programs may allocate 640K to get the amount that is free, and may not notice all the memory, but it is still more than could be available under plain DOS.
+- Conventional memory size restrict (can be disabled) [CMSIZE]
+- Maximum XMS handles (XMSHNDS)
+- Extended memory pages accessible
+- Extended memory pages lockable
+- Extended memory pages pre-locked
+
+The user-level options are:
+- Can run in background window
+
+Something like that. It could be specified in as struct or set of headers.
+
+## Swapping or Demand Paging
+
+The idea of having a demand paging buffer is not actually bad, although it is not as optimal for memory-mapped files.
+
+The alternative to a buffer is removing data from memory to the swap and deallocating the memory. Instead, we can access the swap through a window, instead of having to create multiple "windows" and delete them too.
+
+The buffer is a list of page frames that get mapped to wherever disk-backed memory is being accessed. The page frames can go to different threads too because multiple sectors can go in each.
+
+The buffer size must be modifiable at run-time.
+
+This will be the approach taken. It avoids reallocation, which will not be that fast.
+
+## Kernel strategy
+
+The strategy will need updates.
+
+Here is a new one:
+
+- Implement logging through port E9
+-
+
+> I can get even more memory for DOS if I use the HMA! The only problem is the A20 gate, but I already don't care about that.
+
+## HMA For more memory?
+
+The HMA is already being used by several things. However, there is no reason why page tables should be resident there permanently if programs are never supposed to access them.
+
+The real mode IRQ reflection code 100% needs to be there.
+
+> What ring were the pages??? Makes me wonder, can the CPU execute R3 pages in R0?
+
+The reflector is reserved 8K of memory, and it has to reserve RAM for the IRQ handling.
+
+However, DOS has its own stacks that it switches to upon interrupts, so I can probably reduce this to maybe 4K.
+
+I could give 1K for the startup INIT stack. Then I need some memory for far calls.
+
+Implementing far call interfaces will be done using the INT instruction to access the monitor. Each segment goes to an INT instruction, and the saved CS:IP when recieving a hooked INT call represent the far call in question.
+
+That would be used to dispatch to some table, which does not have to be in the HMA at all.
+
+1K is enough to provide 512 callbacks to all programs. I consider this to be sufficient.
+
+Only about 6K really needs to be used. The rest can allocatable pages after reclaimation.
+
+## UMA Strategy
+
+Programs like MEM.EXE will probably not work correctly because they assume a standard DOS layout. I probably have to catch attempts to run MEM and use a custom one.
+
+Will memory control blocks exist?
+
+There is little reason to access the MCBs directly unless it is to implement something like MEM.EXE. Keep in mind that JEMMEX actually does not use an MCB-style allocation system for UMBs, which is actually incompatible with MS-DOS internals, but client software does not care.
+
+> Instead, is uses XMS memory to contain the allocation information.
+
+Most likely I will keep allocation information in high memory.
+
+## DOS Functions Using Each Other?
+
+EXEC for example needs to allocate memory.
+
+So does this mean that DOS functions need to be implemented with a regular C function?
+
+VMM32 did things like this. It had simulate calls which were done on the VM.
+
+As for the file-related part of EXE loading, I am quite sure that programs access the same space of file handles and share the same mappings except for special handles.
+
+```
+Vdk_Alloc
+Vdk_Free
+Vdk_Read
+```
+
+There can be layers to it, to prevent having to theoretically have a program execute an INT out of band.
+
+But some programs hook things, so there really is not much of a choice.
+
+```
+void StealthInt(DOSPROG* d, uint vector);
+```
+
+This will simulate an INT instruction on the behalf of a task, which will actually run the code in question as needed, but no modifications happen to the registers, hence the name Stealth.
+
+Doing this without enhanced SV86 would be very strange, but completely possible. It is basically just SV86 but we use a local hook instead if available. SV86 only changes the thread local call buffer, not the actual saved user context.
+
+I have not yet decided, but VME support is better that way.
+
+Actually VME is not really good at all. It redirects to the LITERAL interrupt vector table. This is not a thread-local context. Unless I copy the real interrupt vector table.
+
+The IVT and BDA cannot be mapped using a single page table.
+
+## VME
+
+VME was documented in Appendix H, which required signing an NDA. That is why IBM was able to add it to OS/2 Warp.
+
+The fact it uses the IVT makes it infeasible, and the only thing it actually makes faster is INT calls which are not trapped by the monitor, which is almost none of ones that are commonly used. INT 21H will always fault.
+
+The advantage is that the virtual interrupt flag is kept in EFLAGS. In fact, I can support VME just for that, and capture all INT calls.
+
+It is also possible to have some slipstream method to add real mode modules into a program's address space, and use this kind of like how Linux uses VDSO.
+
+Things like memory allocation of even text mode IO can be implemented inside a compact module, and provide enhanced performance under VME. I can have the kernel reduce the size of it by providing certain services.
+
+Yeah, it is basically vDSO. Not a bad idea actually, but not useful for a 386.
+
+And also, the IVT is still at address zero, so it does not help much.
+
+I probably have to copy the IVT and add additional memory for the DOS machine context. The BDA also poses a major problem, but it is necessarily unsafe for multitasking, so if some unhooked function modifies it out-of-band, we are already screwed.
+
+Actually, there is no problem with a global interrupt vector table. It already is global, and modifiable though not directly by clients. SV86 uses it currently.
+
+But as stated before, the benefit is non-existent for most INT calls due to hooking, so the vDSO approach is the way to go.
+
+## More on vDSO-style modules
+
+The things I would insert into it would be primarily related to string and character output for general smoothness. Not every program is very efficient with character output.
+
+Memory allocation could theoretically be there too, but I prefer to keep that in the kernel.
+
+Overall, not that many opportunities. VME is not that useful.
+
+But the idea of inserting modules into the local address space of a program is not too bad.
+
+But keep in mind that text output is suboptimal in real mode. DOS will likely call INT 10H for each character. If the screen is not overflowed and there is no need for scrolling, the data can just be copied with a simple loop. DOS does not word wrap.
+
+# August 5, 2025
+
+VME should not be that hard to add. I will not think about it that much for now.
+
+## Logger
+
+The logger is the next component I will work on.
+
+Remember the features:
+- 80-character lines for log records.
+- printf-like format options
+- size specifiers too (maybe different)
+
+```
+trace("Hello, world" XWORD(value))
+```
+
+Why not do the implicit space concatentation?
+
+## Memory manager allocator
+
+I am thinking of using a tagged bit array structure where the population count is part of an entry.
+
+The size of an entry is therefore arbitrary, because bit scanning is done with a 256-byte lookup table.
+
+The difference is that we know if the entry is worth looking at or not.
+
+110,592 bytes of memory can be represented in a 32-bit entry with 5-bit tag.
+
+However, the 32-bit size is arbitrary and does not matter if it is larger.
+
+It can be a structure of bytes instead, with the first one being special and containing the count.
+
+6-bit count and 58-bit map means 237,568 bytes are covered by one counted entry.
+
+Having too many may negate certain advantages though.
+
+### Alternative way
+
+Why not just allocate blocks contiguously until it is no longer possible, and bind them using linked lists?
+
+Because an allocation binds virtual addresses to physical ones permanently, page table entries can convey the usual information but with some extra data.
+
+Yeah, but the page tables have nothing to do with physical memory. So no, that is not true.
+
+> Or group several pages together into variable length but limited size segments. Win16 did this on the 286 and it made swapping easier because every segment is no larger than 64K.
+> No, just do the linked list thing. Just keep fragmentation in check.
+
+### With linked list
+
+This is WAY faster in the majority of cases. It completely avoids per-page allocation and is WAY faster due to best case complexity being based on the number of allocations (assuming to fragments) rather than pages, which is WAY better.
+
+Based on how programs will usually access memory, this is the best.
+
+The memory block structure of older designs can be repurposed and include a count field. The memory use will pretty much be exactly as before, but with speed enhancements.
+
+Here will be some enhancements:
+- Keep track of the top of memory at all times, or register it as a block itself like DOS does
+- Count trapped page frames after each alloc/dealloc in that area
+
+The second one is not really needed. But after freeing blocks, they can just be linked with each other to form a chain of free ones. So we don't even have to iterate through allocated ones. Right?
+
+## SV86?
+
+I demonstrated earlier that VME has very limited benefits, and this is the case for SV86 being process local.
+
+VME has the ability to boost display updates of CPUs that are fast enough for that not to matter, and only on command line text programs!
+
+So VME may not even be used at all. Remember that OS/2 used it but it also is its own operating system much more so than Windows or OS/90.
+
+# August 6
+
+## Strategy
+
+I intend to make some changes to the kernel design:
+- Improved linked list method of XM allocation
+- Full support for multiple real mode address spaces.
+
+Getting full DOS programs to does not have to be that far from now. A working scheduler and some way of controlling the active screen, like a really primitive desqview, could actually work.
+
+The lack of a keyboard driver would mean I have to use INT 21H from the kernel, which is REALLY weird, but there is no real difference if I just stay in text mode.
+
+(reading a key with no echo is supported)
+
+I need a way to allocate memory suitable for the conventional area. The current idea for M_Alloc does not really work because it returns an address.
+
+However, it can be used to allow for access to the process address space from different threads, so it can work.
+
+The memory manager is not that complicated. I just need OOM killing capability and for the allocation to work as expected using most of what I already have.
+
+I have no plans to change the existing API, maybe just a few updates and clarifications.
+
+BTW supporting more than 14M of XM above the ISA hole is NOT of prime importance. It can be added later if I write good good.
+
+MM is really holding me back from doing the DOS stuff, so I should finish up the specs for it soon.
+
+Also, I need a scheduler whitepaper. I have some good ideas to make 1MS time slices viable.
+
+## The scheduler idea
+
+I can change the IRQ#0 handler in the IDT to a particular handler that does it based on the necessary switch action.
+
+Right now the scheduler is all about avoiding the typical push/pop ISR handling and instead uses direct register transfers based on the current mode of the thread.
+
+> The scheduler does not currently handle the low 1M. Each thread will copy this, but it is not thread-local, only process-local.
+
+The switch action is based on where we are switching from and what is being switched to. Currently, it requires the use of a table to find a handler for that exact situation.
+
+Because I control all attempts to change modes, it is possible to have tasks contain dependent information about the next one. The switch action can be set to depend on the next task.
+
+And this switch action can take the form of an IRQ#0 handler optionally, although I am not so sure that is necessary.
+
+Threads (called tasks in code) are in a circular linked lists and I control every insertion or deletion. It is a bit slower to create and delete tasks, but it can also be WAY faster to context switch, without the initial overhead, which may save time for time slice calculation which I have been struggling to fit into it.
+
+```
+S_SwitchToV86Mode
+S_SwitchToProtMode
+```
+
+This may be private entirely. DOS APIs that are listed in RBIL seem to have a tendency toward spilling out all the internal details. VMM32 also does this.
+
+There are advantages in early design to this, such as allowing for future flexibility, and  understanding how it all comes together without having to worry too much about abstraction.
+
+Anyway, I do not think that functions for changing the switch action should be used.
+
+That is quite literally all these functions do. For that reason, they should NEVER be exported or used by anything other than the kernel.
+
+Tasks however cannot literally switch mode, that is turn VM on or off in EFLAGS, because doing so without updating the switch action would break context switching.
+
+So NO, these functions do actually finalize a mode switch.
+
+While we are in the kernel though, there is no concern with turning off interrupts except when changing the thread blocks. The user context can be modified and prepared for the switch and it won't be scheduled until leaving the kernel.
+
+
+
+> Volatile for thread block?
+> Consider .90 as a file extension for drivers
+
+```
+FAT.90
+
+DIRCACHE.90
+DSKCACHE.90
+FIOCACHE.90
+
+PCI.90
+ISA.90
+
+```
+
+## Implementing switch actions
+
+The switch code needs to save some common registers and perform time slice checking. We just increment a count and if it does not exceed the count, we can early out without unique code at all.
+
+> I changed the regdump structure slightly. It should be the same size, but I used macros to shorten it. Verify the size btw.
+
+The complexity is added when we start creating tasks. They can start in any mode, so that has to be part of the interface.
+
+FYI, a task be in 3 different scheduler modes with a total of 9 switch actions
+
+This means 9 procedures to implement.
+
+3 modes means 2 bits to represent, although 2 bits can allows for 4 options ofc.
+
+16-entry table can be used which just uses the value as a direct offset. Preferably it can even have the base added into it so we can just jump to it after doing the preliminary time slice logic.
+
+## Strategy again
+
+First of all, the kernel needs to compile and do something. All systems need to be tested, including SV86 to make sure I don't have any weird code rot.
+
+YK it is actually quite tempting to put everything in reserve and start from stratch. But I will not.
+
+Anyway, further development will be strictly linear and active. The OS must "run" somehow. I will also add things incrementally.
+
+First of all, I need a logger.
+
+# August 8, 2025
+
+Do I even need time slices at all?
+
+In the context of a UI, I can just have a background task and a foreground task. Some tasks can mark themselves as background so that their threads are suspended (IE cut out of the chain).
+
+The OS will also yield when performing IO.
+
+We will still have preemptive multitasking, but I am saying that there are many opportunities to do scheduling implicitly and with higher granularity than a time slice.
+
+Most DOS programs for example literally just wait for IO unless they are command line apps.
+
+> It is not really that safe to suspend a VM while it's in supervisor mode.
+> This could cause deadlocks, because the thread could already be holding a mutex.
+> There should be a wait to wait for the program to reach user mode before suspending it, although I wonder if that is safe also.
+
+Good information to keep in mind. Terminating or even suspending a client is important to support.
+
+I still don't think threads should be suspended for any reason. THey should just have priority dropped.
+
+## VBE?
+
+VBE used defined mode numbers up to 1994, and most video cards supported them even after.
+
+I got a CL GD543X specsheet and it confirms the existence of the 1024x768 8bpp resolution.
+
+# August 9
+
+## Human interface and latency
+
+Interrupts are kind of required, but if the CPU is under heavy use (such as running a fullscreen game) then it is not viable.
+
+I have not really talked about how KM input actually will work that much.
+
+My preferred workflow is:
+- IRQ goes to driver
+- Program which "controls the keyboard" is context switched to in the hopes that it polls the keyboard at some point and catches the event.
+- This program then redirects the keyboard input to ANOTHER program, such as a virtual DOS session, or uses it internally.
+
+I cannot allow the keyboard to be accessed directly, which is fine.
+
+But I am concerned that if the CPU is maxed out, I need a way of recieving and dispatching keystrokes in all the various ways that DOS programs require.
+
+But if a program is running in full screen, I think it should somehow be given priority so that it can recieve keystrokes quickly.
+
+I am just thinking about how most operating systems can have thousands of threads in the background (can still be done with some changes) and have a totally responsive mouse cursor and minimum input lag.
+
+I believe most games specifically poll the keyboard though. All games have a main loop which makes it look like things are going on at once. This means they will make a system call that gets what is on the keyboard.
+
+I think I have the wrong picture of things. Keyboard IO is not some kind of "event" and it requires software polling, which is done by every program that needs input.
+
+The IRQ handler queues each keystroke until the keys pressed are drained (usually at once) from the buffer and taken wherever else.
+
+A game will repeatedly call the kernel and ask for the recent keystroke. That is if it does not directly control the keyboard, but that seems unlikely. The BIOS should be capable of non-blocking IO.
+
+INT 16H AH=1 does exactly that. It returns in the zero flag
+
+## Extended BIOS Data Area
+
+This actually causes some major problems. 128K is the official size, which is HUGE. There is no specification of the size and if the system has no E820 or equivalent for accurate detection, there really is no way.
+
+Actually, that is not really accurate. It has a header with a size. I should test this though.
+
+> Note: I can call the conventional memory "base memory" which is closer to BIOS terminology and is shorter.
+
+> BTW you DON'T yield when the software is polling for characters. This would cause pointless context switching. It is much better to let the program keep processing, it has other things to do.
+
+## Tests on EBDA
+
+I found a map of the header and I wrote a program which I tested on 86Box.
+
+It is 1024 bytes on the Pentium BIOS, which is the minimum size. The segment also makes sense too.
+
+The EBDA cannot be reclaimed like the VGABIOS though.
+
+## Can the whole BIOS ROM be reclaimed?
+
+First of all, the video BIOS may handle IRQs. There is no way to prove otherwise. In this case, there are no problem because we switch to real mode with no paging.
+
+Theoretically, OS/90 should be able to provide a full 1M minus the usual things which cannot be used.
+
+By that logic, even DOS can be mapped out and then we do translation. But this is WAY too much work.
+
+But the BIOS is also extremely complex.
+
+So bad idea.
+
+> YK the "latch" thing can actually be used
+> Write mode 1 does this. All reads full a 32-bit (maybe more) latch register, which can accelerate bitblitting.
+> Writes under mode 1 store what is in the latch register.
+> This bypasses the 16-bit data bus.
+> It is faster on real hardware. Not sure if alignment is a factor though.
+
+> Really though?
+
+## Latch registers?
+
+In theory, using the 32-bit internal bus of the VGA card should be an immediate improvement. The memory used by the VGA card is much slower than main memory. The was part of the reason for...
+
+# August 10
+
+I will not write any UI notes here anymore. But I will consider using the latch.
+
+## Important note
+
+The EBDA detection code was WRONG!
+
+The segment returned is 1024 bytes below the end of the base memory. This makes no sense.
+
+I know the memory detection call returns 639K but that is because it excludes the IVT because it was in the ROM originally.
+
+Actually that is WRONG.
+
+According to RBIL, it is the number of 1K blocks after 0000:0000. Which means it includes the IVT.
+
+In fact, the MEM command in FreeDOS actually counts the IVT in the total when running `MEM /P /D`.
+
+OSDev also confirms this.
+
+The EBDA on most vintage computers is 1024 but Smo
+
+> So no, it is 100% correct. The EBDA cuts into conventional memory, leaving the upper memory layout intact.
+
+## More on upper memory
+
+The VGA BIOS is not used that often, so it can be reclaimed to allow for more extended memory. (This requires VESA too)
+
+> Random note: the EBDA may not actually exist at all. It was added on the PS/2 and older 386 system will not have it. A simple sanity check can confirm if it exist or not, or the conventional memory size function, which DOES include the IVT.
+
+# August 16
+
+## Alternative designs and the current one
+
+OS/90 is currently headed toward being a DOS multiplexer at the fundamental level. It makes different programs think they are the only thing running, and passes requests through a single real program.
+
+For stability reasons, I have to incrementally support things. If certain function calls are not supported from common APIs, errors may be generated.
+
+My theory is:
+- Some DOS/BIOS system calls are register-based and are like "library" calls. They can be made 32-bit for speed and are not dependent on anything like the PSP or files.
+- Some calls do file/device IO and we have to impersonate the virtual DOS session. The real JFT is always the same and so is the real current PSP.
+    - The get/set PSP interface is simulated for user programs and not when the kernel/SV86 call it.
+- Functions that return extended error codes are "post-hooked" upon completion to check if they caused any error at all, and the error code is captured. It is a global context, sadly.
+
+My idea is that everything else is 100% context-independent. Even if it does have global state, it won't matter because all requests are serialized/protected by the non-preemptive nature of SV86, and in the case of hooks, thread-safety is guaranteed.
+
+I do worry about the execution of INT calls happening within a hook. It could theoretically cause a deadlock scenario.
+
+
+
+### The other ideas
+
+1. .SYS driver that bootstraps the entire OS from there.
+2. Take over the entire boot process
+
+They don't really provide any real advantages.
+
+### Continuing
+
+There are APIs that need process-local contexts, post-hooks, calling other INT calls, and other things. It is not as clean as I would like, but I chose this.
+
+I will need much more detailed specs though. That means documenting INT 21H and INT 2Fh and explaining how it is handled.
+
+## INT 21 U - DOS 3.0+ internal - GET ADDRESS OF DOS SWAPPABLE DATA AREA
+
+AX = 5D06h
+
+This thing is crazy!!!!
+
+It returns exactly that, the DOS swappable data area. It literally has everything. More than anything in the List of Lists.
+
+Current PSP, current DTA, driver stuff, LITERALLY EVERYTHING.
+
+It is the full non-reentrant state of DOS. It is NOT the non-reentrant state of the drivers though, nor the BIOS.
+
+That is fine. The goal is not reentrancy, but the ability to control the internal context of DOS efficiently. I do wonder if FreeDOS supports it though.
+
+I also wonder how safe it is overall. It should cover basically every local context. Reentrancy is not the goal here at all. Global variables are still allowed, I just need to control the things that cannot be shared safely.
+
+# August 17
+
+## Analyzing the Swap Data Area More
+
+I could in theory do DOS duplication and swap the entire region, but the size is extremely large, so this is not feasible.
+
+Instead, it is acceptable enough to only touch the fields that matter.
+
+This includes the current PSP, DTA, and many other things which do not really multitask well.
+
+These can either be changed upon system calls, which makes sense because they are meant to store that sort of temporary information, or they can be written in and forget everything else. Only certain fields really matter.
+
+I think the former is fine.
+
+The structure has useful fields which can bypass having to call DOS for certain information. The current PSP is one example.
+
+The PSP is a complicated issue. Windows uses PSP segments to represent Windows programs (no idea why). This actually allowed DOS to run out of memory even on Windows 95.
+
+Windows gets/sets the current PSP. This is a bit of an issue, because we rely on swapping the address space to switch between DOS sessions.
+
+The begining of the multitasking region is a PSP (which is swapped too) that represents the parent process of the VM.
+
+I can either switch the current PSP to the current one local to the process or hook the calls and virtualize them.
+
+Regardless, the PSP's are localized.
+
+The list of lists or the swap data must convey the correct data.
+
+But the LoL contains only things that basically never change in normal operations.
+
+## Handling of PSP
+
+Subprocesses get local PSPs which are set directly in the SDA before INT calls.
+
+## Programs that access the SDA
+
+This is required for SHARE. The best fix is to make it think this is totally not necessary. I cannot tolerate anything that tries to manipulate this data. And as stated before, it CANNOT be simply copied.
+
+Well actually it can, even if it is not page-aligned nor granular.
+
+It involves duplicating the unaligned or extraneous data into extended memory and including it as part of the local mapping. The data around it is included too and read/write.
+
+Okay, but would this work for the BDA?
+
+The BDA can also be virtualized, so long as the memory after it is not being used for memory allocations.
+
+The problem with the BDA is that it kind of needs to exist. The BIOS WILL depend on it. Simulating it for programs is great, but it does need to be physically present for certain operations to work.
+
+But in a way, the BDA is kind of the BIOS version of the SDA, although I have to be careful with the BIOS.
+
+Okay, but the problem is that the data which is NOT being "hooked" cannot be directly accessed at all.
+
+That data which is not being controlled needs to still be global in scope.
+
+Using page not present does not work because there is no way to reset it.
+
+> There has to be some way to get the size of the DOS data segment, in case I ever decide to do that.
+> I thought I was not doing that?
+
+# August 18
+
+## Critical problem with DPMI approach
+
+I considered doing subprocesses as entirely separate programs for a while, and that is for good reason.
+
+I need to reconsider this.
+
+A DPMI program can execute another DPMI program, and both start in real mode and go to protected mode. They also have instance information that is NOT shared, such as the protected mode interrupt vectors, virtual interrupt flag, and other things.
+
+Far pointer callbacks and memory handles do not need to work this way, but others things do.
+
+So a VM, session, or whatever I want to call it needs to have a concept of a subprocess or create new processes with some ability to share resources.
+
+Multiple DOS address spaces makes this complicated.
+
+A note on the IVT though. I do not think DPMI specifies this specifically, but the IVT may be an exception and different than the PM handlers.
+
+# August 28
+
+## Back to OS/90
+
+I need to solve a vexing problem. The handling of drive letters for BIOS/DOS compatibility and protected mode extensibility is a challenge.
+
+## How does DOS represent drives?
+
+DOS returns a structure for drive parameters and it is passed by reference, so it can be modified if needed.
+
+The AH=32h function should NOT be used because the LoL has it and 32h requires an immediate disk access, which is not desirable.
+
+It contains a bunch of FAT parameter block things. It also has the driver header pointer.
+
+This can be used to enumerate each drive and their drivers (which may be IO.SYS or the BIOS, somehow).
+
+### A solution
+
+One way to deal with drive letters is to prevent the drive letter from being used by any other block device.
+
+This alone cannot work because each accessible disk is already using a blockdev driver.
+
+So we have the ability to reclaim a drive letter and get rid of a driver entirely. This would also be non-reentrant and require a lock.
+
+It is also necessary to tell the driver to flush all buffers and prepare to be disabled (there is an API for this provided by DRIVER.SYS).
+
+There are also drivers which need to be reclaimed by name. For example, OAKCDROM or something like that.
+
+Then there is the issue of a redirector, but technically this is not that bad.
+
+MSCDEX is a TSR that implements the filesystem used by the CD and also provides the drive letter.
+
+The way it works is still unknown.
+
+## Reading DOS Internals...
+
+I found out that DOS returns special key combinations with a null byte as an escape when using getch.
+
+I also learned that a driver called CON is responsible for console IO.
+
+Apparently this driver calls a Windows/386 specific 2Fh call to set the focus of keyboard IO to handle these key sequences.
+
+I never really considered this. But the CON driver is still active and accessible, and it really does do complex input cooking worth looking at.
+
+Most of the time we interact with console IO using standard handles or functions for that purpose.
+
+But CON is technically a special device with an actual driver WITH A HEADER BTW and apparently needs to handle a multitasking environment as with windows.
+
+I think it even has a file name. Chardevs also have driver names which carry significance.
+
+CON is a reserved device. It works like `/dev/stdout`.
+
+I am not sure this will be a major problem, but keyboard IO has to be handled in the cooked DOS manner. I do NOT know how that works at the moment.
+
+This is a major TODO.
+
+I found the source code from FreeDOS. It is written in assembly.
+
+https://github.com/FDOS/kernel/blob/master/kernel/console.asm
+
+Actually, I am not so sure this is so complicated. I think only CTRL-P has the special encoding, and these require special handling. That should be enough.
+
+## Drive letters continued
+
+There is a function for redirection which takes a pointer to a drive letter character with a colon after it, or null for other uses (automatic?).
+
+# August 30
+
+I made some very significant changes to the source code. First of all, source files are now captialized and mostly DOS-cased.
+
+Also, the names of each module is changed with numeric order based on relevance or position on the overall software stack.
+
+This happened a while ago, but the main OS/90 repository cannot be immediately used.
+
+There are a few changes to be made to the "build system":
+- Update to use the new naming
+- Maybe change build.sh to run.sh, which I am doing in other projects
+
+# August 31
+
+I do not like how the current initialization code works...
+
+NO. It barely takes up any space and uses procedures that the DOS subsystem will also use. No need to bother with that.
+
+There is also no other way to deal with some things like interrupt vectors.
+
+There is a problem though. INT 32 or INT 20H has an incorrect vector which is the DOS exit program call before AH=4Ch. It should be the range 0,31.
+
+All other vectors except the IRQ one are to be assigned the fast system entry vector, which applies to all DOS calls but not the BIOS.
+
+Anyway, I should also clearly state that I am very proud of my initialization code and I really like how I wrote it.
+
+## DOS swappable data
+
+I am really concerned about how SHARE.EXE uses the SDA. It does return an error code. I assume it is used to make it possible to cancel an operation by hooking an interrupt handler and catching some keyboard event.
+
+Cannot really think of another reason why it would be used.
+
+DOS also has a critical section flag which makes SDA swapping impossible, so if I decide to leverage it for safer multitasking, this has to be caught and count as a global preemption disable.
+
+The SDA is part of the DOS data segment. It CAN be instanced and does not have the same problems as the BDA.
+
+The SDA and any extraneous data can be paged as R/W data.
+
+But the problem is that we have to deal with drivers which must be replicated as well.
+
+Drivers can actually be destroyed and simulated if I feel like going that far. Using the SDA may improve stability but I do not want to duplicate driver data because a lot of it is redundant.
+
+And at that point I might as well manually insert them into individual programs and let the user configure this. Something like ANSI.SYS can be added to a program that needs it while not wasting CM for each program.
+
+That would be an improvement over Windows.
+
+> This does complicate drive letters (or maybe simplify depending on how I handle it)
+> How can I check if an INT call was made directly by a program or by DOS?
+> This can be used to debug programs that use unsafe or undocumented calls.
+> Can I save all registers for kernel calls? VMM uses this for calling conventions, and so does Linux and DOS for userspace. I know push/pop are not that fast, but they are also not that slow and have to be done anyway.
+
+> Also, pusha/popa is not slow on old CPUs, and is good for code density.
+> In fact, pushad is literally 5 clocks on the pentium, which is quite ideal. The 386 is a bit slower than manual pushing but on 486 it is worth it.
+> But on the pentium pushing is also quite fast.
+
+## The SDA
+
+SHARE.EXE cannot be allowed to access the SDA. If it is accessed directly, it MUST fail, along with any attempt to access the DDS.
+
+Critical sections are fine though and have to be controlled by the kernel. Windows consumes INT 2Ah by default so I will do the same.
+
+Critical sections are used quite frequently by DOS, especially when calling the BIOS. Printing a character for example requires one because the OS is executing BIOS code which cannot possibly be made reentrant.
+
+## Can non-page-granular regions be swapped safely?
+
+Whether this can work or not in the context of the SDA requires some considerations of where the SDA may be and if the pages it is part of may overlap with other data we don't want it to overlap with. Some of this data may be accessed by other software such as the BIOS or drivers and not actually be instancable.
+
+A quick not on instancing: it makes VME viable because DOS can be arbitrarily reentered. The nuance is that once again critical sections have to be trapped and disable preemption as well.
+
+DOS has a way of allocating initialization memory.
+
+What about things like buffers and drivers?
+
+DOS uses things like this which are not at all reentrant-safe. That is why critical sections exist, and depending on the DOS version, they can be quite frequently used.
+
+Those types of things CANNOT and SHOULD NOT be instanced. That is, the data inside non-instanced data should be preserved across task switches.
+
+# September 1
+
+DOS will always assert the critical section flag when it is required. This is done before calling BIOS functions for example, because those are 100% non-reentrant.
+
+> BIOS code also usually disables interrupts entirely except when it explicitly yields. This allows BIOS code to be exectuted in an ISR but has obvious problems for system performance. The BIOS can obviously wait for a specific IRQ as well. Not required but commonly done.
+
+I think I should clarify what the SDA exists for. It is intended to contain all global data used by DOS that is not directly accessible, which makes it non-reentrant.
+
+Reentrance from an ISR can be done by swapping the SDA with a totally different one and DOS will basically use it like a long list of parameters and variables to do whatever operation.
+
+The SDA could permit multitasking in theory.
+
+It does NOT make VME that viable in fact, because even the simplest IO requires the assumption that INT 10H is non-reentrant and needs a critical section.
+
+Critical sections basically say that software should not reenter DOS by changing the SDA because it is executing code that uses global data which is not included in the SDA, such as the BIOS and drivers.
+
+DOS is very careful about this and real software has been using the features for a long time.
+
+Drivers do not have to be replicated or anything like that because they are not accessed outside a critical section. Any IO will Use INT 2AH.
+
+The purpose of using the SDA is not to make VME more viable. It cannot be of any use when it will have to assert the critical section flag most of the time.
+
+The SDA is in the DOS data segment. It is not page aligned or page granular. The fact that uninstanced data can exist after this data means we somehow cannot replicate it and allow different threads to have different uninstanced data.
+
+The SDA is also way too large to be copied and may even be multiple pages long.
+
+Is copying extraneous data actually bad? The problem is that it must be preserved across entrances to DOS. Duplicating more data could cause an incoherency, but I do not yet have an example of how it could fail.
+
+> Consider a fictitious DOS call that just prints "Hello, world!" (default) from a string in memory that is set by another call, and this memory is NOT in the SDA, but MAYBE the SDA points to it.
+
+References are a major problem though. The SDA or the LoL, the latter not being swappable...
+
+The whole idea of the SDA is that it is self-contained though. So I doubt this is a problem.
+
+## The way it works
+
+DOS reports regions of the SDA by how many copies there are (probably just one) and if it's swap always or swap in DOS.
+
+The SDA itself is a contiguous chunk and the descriptors are only for information.
+
+Swap-always means it remains valid between calls to INT 21H, meaning that it is not merely used as a temporary variable.
+
+We are still trying to switch the entire thing though.
+
+Also, the problem with instancing data outside the SDA is that certain INT calls may theoretically malfunction because of the virtual address space.
+
+Maybe go back to the previous example.
+
+But I am suggesting the possibility that instancing the entire DOS data segment could be incorrect.
+
+Yes, but DOS uses a critical section any time it has to access data outside the SDA. SO this is basically a non-issue?
+
+If I want to instance the entire DOS data segment, there should be ways of finding how much memory the kernel is using.
+
+I do wonder if disabling preemption can be a choice, so if the kernel calls an INT that goes to SV86, it can leave preemption on until DOS signals it to be turned off.
+
+Yes, but the plan is that it is a ring-3 context running as a subset of kernel mode, and the scheduler cannot handle this.
+
+We need a way to disable preemption and return to ring-3 though.
+
+Okay, I know DOS gets a critical section, but there are still things which could be problematic, such as differences in the address spaces causing uninstanced data to vary between threads.
+
+What that implies is that duplicating the entire DOS data segment, assuming no further granularity issues, supposedly would NOT work.
+
+Actually there is a potential issue with the data that comes before the official SDA. It contains the printer echo flag, switch character, and other things.
+
+The DTA also may have to be copied to a private buffer, except we don't need that because it only uses virtual addresses in the banking region.
+
+But the unofficial components of the SDA which come before it must somehow be instanced, for example.
+
+So why not instance the entire DOS data segment?
+
+No we don't instance drivers or caches. Instancing DOS is needed because of other reasons.
+
+And what would those be? I understand preventing race conditions are failures to multitask, but DOS is non-reentrant anyway. Most operations can be done regardless of what is in the SDA using wrapper hooks.
+
+I also have not specified what the SDA is supposed to contain anyway, upon program startup.
+
+I don't know what Windows does, but I know it uses some MS-DOS specific features which are not fully documented and I cannot depend on when writing a free software OS.
+
+# September 2
+
+The wrapper hook idea could work but also consider that INT 21H has a lot of undocumented calls which may use features I am trying to control, such as PSPs or the extended error state. The network actually uses both.
+
+DOS may use these internally. DOS instancing avoids this problem.
+
+# September 3
+
+> Switching out the BDA may actually need to happen. Some programs access the keyboard buffer or check them flags in it, especially GUI-like ones. Windows standard mode almost certainly accesses it. In fact, it even reserved a segment for it to be accessed in real and standard mode with 40h as the selector.
+> The BDA is immensely complicated but could in theory be switched out. I may need to use a safe cloning method, or write/map the bootstrap BDA when doing SV86 calls.
+> It is also assumed to work correctly in all situations.
+
+Interesting notes here. The BDA contains bits related to drive motors, screen dimensions and a bunch of other things. Not sure if all of it matters though.
+
+The size of the BDA is 256 bytes.
+
+There are problems that can occur when programs use the BDA to get mode information. The FreeDOS editor can handle different text mode parameters.
+
+It is not entirely robust, but still possible. And different programs having different setting either requires changing this as part of multitasking or instancing the whole BDA.
+
+# September 4
+
+Some things actually SHOULD be kept coherent in the SDA. It contains information about CHS parameters and free/used clusters.
+
+This needs to be the same or malfunctions could actually occur. Free space determination uses these values and updating across SDAs is actually wrong.
+
+Information about drives also needs to be global.
+
+Some things which the DOS kernel may used internally without calling itself by INT but has in the SDA include:
+- Current PSP
+- JFT location
+- DTA location
+- DOS semaphore (maybe because used by some TSRs)
+
+These can be updated in real time without having to add them to the task switch mechanism. It is enough to check if they are already updated upon system entry.
+
+The BDA can also be patched as awell. The only things I am concerned about are video mode and text mode dimensions. There is the keyboard buffer though.
+
+Windows most likely did not rely on the buffer. I am quite sure it had input drivers for KB/M.
+
+So I do not think it is important.
+
+I am not sure MOUSE.COM necessarily used the BDA for the screen parameters though. These had to be manually changed by the program.
+
+MOUSE.COM will NOT be used by the OS though. I have no intention to have a real mode driver at all.
+
+> DOS allows character devices to have special names. They can be added in by drivers. CON is one example. But also remember that EMM also creates a character device too.
+
+# September 6
+
+## How to test DOS multitasking
+
+It is difficult to test true concurrency, such as when interfaces are used at the same time. Regardless, having a basic task switching functionality is a good start.
+
+I need some way of interactively switching programs. Most likely before I even develop a keyboard driver. OS/90 will start off as a preemptive full screen glitchy task switcher.
+
+I could have a command that switches a program. It can call a trapped function that toggles the current window.
+
+In the background, it will be 100% time sharing.
+
+As said before, it will be extremely basic and run the simplest programs. No UI and the keyboard is still controlled by just one program exclusively.
+
+> The keyboard will still block the whole OS though. Not great for testing concurrency or performance. Not be mention the shell will literally freeze everything until it is exited. Really bad stuff. I need an actual keyboard driver.
+
+# September 7
+
+## Keyboard driver?
+
+I cannot really think of a way to have the PS/2 mouse use a different driver than the keyboard considering the same controller is used. It is obviously possible, as it is with MOUSE.COM.
+
+MOUSE.COM is interesting because it actually seizes an IRQ to operate, and can actually claim an entire serial port as well.
+
+There is no way a 16-bit mouse driver will ever be used. I have no reason to support that.
+
+A feature of OS/90 is that aside from being able to use legacy drivers in protected mode, I can also have PM drivers basically eject legacy drivers once they are no longer needed.
+
+That is why IRQs are considered reclaimable and 16-bit.
+
+The mouse driver itself can also be completely ejected, but there are concerns such as having two mice in the computer (bad idea) and one is serial and the other is PS/2.
+
+I don't think even MOUSE will support something like this.
+
+### Polling vs IRQ
+
+Polling is a waste of CPU cycles, but IRQs are not that great either.
+
+It depends on several factors that decide which one makes the most sense:
+- User mode or kernel mode driver
+- Preemptive or cooperative UI
+
+IRQs are 100% not viable for user mode because IRQs will not be passed directly to the program. This is just impossible.
+
+Cooperative multitasking for the UI (not command line apps) changes things because each program will have a main loop that is asking for new events to process. In this case, polling isn't too bad because the program cannot get events unless it is requesting it.
+
+Although events like strokes from the keyboard require some kind of queueing. The UI is not the only thing running in the system.
+
+So in the end, we do need IRQs. They need to access locked memory and write recent keystrokes. Programs then drain the queue to get keystrokes.
+
+The IRQ is used to send every single byte. There are times in which input cannot be processed at all because the data is incomplete.
+
+The thing that should be considered here is latency. Some people type really fast. I do not, but latency still needs to be controlled properly.
+
+Input processing requires some kind of host serving the data to a client. Processes waiting for input will enter the kernel and wait for input to be sent somehow.
+
+One part of the keyboard driver is a hook for anything that could ever request keyboard input, which includes the BIOS routines...
+
+> VMM32 had so such problem with direct access to the keyboard in this theoretical situation. I have no plans to emulate the keyboard and I don't think VMM did this either.
+> In fact V86 could be multithreaded and required a critical section for safety reasons.
+> SV86 as it is now is NOT multitaskable because it runs from ring-0 and switched to ring 3 V86 mode.
+
+## SV86
+
+This is a theoretical situation where the keyboard IO calls of the BIOS do not block the whole system, or potentially real mode IO or drivers.
+
+Windows could do this back then so I am not sure why OS/90 shouldn't.
+
+Well the BIOS actually disables interrupts for the duration of its execution most of the time. The only time it does not is when "yielding" such as when it is awaiting an interrupt (which is useful).
+
+That is why my old version of a mouse driver was able to print to the screen correctly when moving.
+
+> DOS .SYS drivers can be added into the VM dynamically. They are actually just a chain anyway.
+
+I think the way VMM did real mode calls is that a critical section was aquired and then the context was altered to switch control flow. This would prevent task switching and a subsequent race condition.
+
+In OS/90, this could be disabling preemption and letting the program execute the INT call.
+
+But OS/90 cannot really do this safely. Disabling preemption cannot be done for long due to the higher reliance on preemptive multitasking.
+
+That is not really the issue. It just gets really complicated after that.
+
+## Keyboard driver structure
+
+A queue in the logical data structure to use, or a backward stack read from the start in memory.
+
+Each key stroke in scan code set 2 is broken by a F0 code with few exceptions.
+
+## Advanced scheduler design
+
+Like a microkernel design, the part that decides time slices and CPU can be in the userspace and make decisions on a secondly basis.
+
+Scheduling can be done by collecting statistics on the following things:
+- Disk IO bandwidth on hardware side
+- Requested disk IO bandwidth from software side
+- Total system calls per second
+- Instruction pointer bytes delta (this may need a higher sample frequency)
+
+The disadvantage is that 1 second is a very large quantum.
+
+> I can work on the UI using SDL and the back-end rendering.
+
+# September 9
+
+## Process control block allocation
+
+There are two types of records: thread blocks (TASK) and DOS processes. Both require 4K blocks.
+
+I think there should be a special address space for these. They should not waste linked list entries in the global allocator and slow down the system.
+
+> My journal has reached 640K in size! I think it is time to move to volume 2.
+
+## DMA emulation
+
+Virtual device drivers need to emulate transfers using the DMA subsystem. Sometimes, buffers used for DMA must be entirely on the software side.
+
+Consider a soundblaster emulator. DMA transfers have to be simulated for that to work. SB emulation was used to allow DOS programs to play sounds while using incompatible devices.

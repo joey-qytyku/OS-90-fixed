@@ -1,5 +1,7 @@
 > This is good but not really operational at the moment.
 
+> Making a new one
+
 # TODO
 
 Remember that it may be better to use resizable arrays rather than linked lists. A resizable array will have faster lookup times in all cases.

@@ -1,0 +1,11 @@
+# CONFIG.SYS
+
+> On FreeDOS, this file is named FDCONFIG.SYS, but the standard name is supported if the former is not present.
+
+OS/90 cannot tolerate the presence of EMM386 or any other expanded memory manager. REMOVE THIS.
+
+Everything must be loaded low. Set FILES to a higher count, such as 100 and increase the number of buffers if 32-bit FS is not being used.
+
+> Do not be concerned. OS/90 is able to transparently allocate UMBs as if they were regular DOS memory. If you use 120K of conventional memory, each program can reach the full 640K.
+
+

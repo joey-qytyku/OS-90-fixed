@@ -39,11 +39,88 @@ typedef struct {
 	BYTE    name[8];
 }MEMCB,*P_MEMCB;
 
-// This may require at least DOS 4.0
+// There are two calls used to obtain the reentrant data of DOS.
+// It is undocumented and used by utilities like SHARE to allow DOS to be
+// reentered from an interrupt handler by swapping this data region
+// so long as the critical section flag is not enabled.
+// This is not how we use it though.
+//
+// 3.0 and 4.0+ use different formats. OS/90 most likely requires 5.0+.
+// It is like the list of lists but WAY more detailed.
+// This structure contains the current PSP+DTA, driver stuff, the DOS semaphore,
+// extended error states, etc.
+//
+// It is required to do this. DOS does not use INT 21H to get the current drive
+// or the DTA address. It just reads a variable from DS.
+//
+// When OS/90 recieves an entry to DOS (any of the official INT 2xH calls)
+// the instanced data is copied if it has not been already. This happens before
+// any entry to real mode occurs, but is not a concern of any further hooks by
+// drivers.
+//
+// INT21 AX=5D06h is used to get the address. It is from 3.0 but the newer
+// format is used. This call is illegal for user code.
+//
+// DRIVERS DO NOT USE!!!!! TODO add ifdef.
+//
+typedef struct {
+	// Variable names and comments are derrived from FreeDOS KERNEL.ASM
+	// and RBIL(?).
+	//
+	// The fields included are the relevant ones only
+	//
+	uchar	_ErrorMode       // 00 - Critical Error Flag
+	uchar	_InDOS           // 01 - Indos Flag
+	uchar	_CritErrDrive    // 02 - Drive on write protect error
+	uchar	_CritErrLocus    // 03 - Error Locus
+	ushort	_CritErrCode     // 04 - DOS format error Code
+	uchar	_CritErrAction   // 06 - Error Action Code
+	uchar	_CritErrClass    // 07 - Error Class
+	ulong	_CritErrDev      // 08 - Failing Device Address
+	ulong	_dta             // 0C - current DTA
+	ushort	_cu_psp          // 10 - Current PSP
+	ushort	break_sp         // 12 - used in int 23
+	ushort	_return_code     // 14 - return code from process
+	uchar	_default_drive   // 16 - Current Drive
+
+_break_ena      db      1               ; 17 - Break Flag (default TRUE)
+                db      0               ; 18 - flag, code page switching
+                db      0               ; 19 - flag, copy of 18 on int 24h abort
+
+}SDA40;
+
+// DOS data segment contains further information. KERNEL.ASM from FreeDOS
+// claims that some TSRs rely on the format, but RBIL has little info except
+// that offset 4 identifies the version.
+//
+// This is quite important and is a superset of the commonly published
+// "list of lists" or DOS invars structure.
+//
+// The current directory pointer is relevant because drives maintain the
+// CWD across processes in DOS, but this is impossible when multitasking
+// and must be localized to each VM.
+//
+typedef struct {
+
+}DOS_DSEG;
+
+// How do I maintain things like the text cursor
+//
+// The DOS current directory structure. Used internally.
+// (FLAG: still need to figure this out)
+// BTW do I have to emulate MCBs accurately?
+// DOS may try to allocate memory using internal functions.
+// Same logic as the rest of this.
+// I don't think the problem is that bad though.
+//
+typedef struct {
+}DOS_CDS;
+
+// Drive parameter block. This is stored by the DOS kernel.
 typedef struct {
 	// BYTE    drive_number; // 0 is A, ...
 
-	// // FLAG: I have no idea what this is
+	// A unit is a partition. This is used by .SYS drivers.
 	// BYTE    unit_number;
 	// WORD    bytes_per_sector;
 	// BYTE    highest sector number within a cluster
@@ -114,13 +191,17 @@ typedef _Packed struct {
 //
 	LONG    _saved_stack;
 
-//      Size of the JFT in bytes, or how many handles
+// Size of the JFT in bytes, or how many handles. It is 256 in OS/90 regardless
+// of the SFT size.
 	SHORT   jft_size;
 
-//      SEG:OFF pointer to the JFT. This will not be within the actual PSP.
-//      OS/90 resizes it and sets the same value for every program.
-//      This is necessary to prevent any kind of catastrophic situation
-//      where the same file is opened.
+// SEG:OFF pointer to the JFT. This will not be within the actual PSP.
+// OS/90 resizes it and sets the same value for every program.
+// This is necessary to prevent any kind of catastrophic situation
+// where the same file is opened.
+//
+// The standard handles are hooked and allow stdio to be directed to a monitor.
+//
 //
 	FPTR16  jft_ptr;
 
@@ -157,7 +238,7 @@ typedef _Packed struct {
 }PSP,*P_PSP;
 
 // Note: The Disk Transfer Area is always at offset 80h of the PSP by default.
-// This is for CP/M compatibility.
+// It can be moved, including to the extended memory.
 // Also note: OS/90 does not support file control blocks!
 
 typedef _Packed struct {
@@ -180,6 +261,8 @@ typedef _Packed struct {
 
 //
 // Called when a ^C is encountered at some point in execution.
+// Normally only IO functions can be ^C'ed and programs can refuse to handle it.
+// AH=33h can turn off break checking and this is localized.
 //
 //
 #define CTRL_C_VECTOR    0x23
@@ -209,6 +292,8 @@ typedef _Packed struct {
 //
 #define EXIT_VECTOR 0x22
 
+// Only the first one is required at all.
+// Unused fields must be set to 0xFFFFFFFF
 typedef struct {
 	LONG    largest_free;
 	LONG    max_unlocked_pgalloc;
@@ -228,6 +313,11 @@ typedef struct {
 // Note that ^C does not require return in real mode.
 
 /* TODO: make this accessible from real mode */
+// Why would I do that?
+
+//
+// This the context of a DOS program.
+//
 typedef  struct {
 	//
 	// A full local interrupt vector table. This is looked up first
@@ -253,6 +343,8 @@ typedef  struct {
 	//
 	// The IRQ vectors can be anywhere that makes sense. In our case
 	// they coincide exactly with the actual INT vectors used by the OS.
+
+	// FLAG: how are these getting packed?
 	FPTR32  virtual_idt[256];
 
 //      DPMI requires 32 exception handlers to be supported for modification.
@@ -312,11 +404,12 @@ typedef  struct {
 //      The data in MS-DOS that contains the current PSP is totally
 //      internal. The INT 21H interface is the only way to control it.
 //
-	P_PSP   psp;
+	P_PSP   psp; // TODO: This will change
 
 //
-//      This state is normally global, so it must be kept here.
-//      It is obtained using INT 21H, AH=
+// The extended error state is obtained from DOS after any call that uses it
+// directly from the swappable data region. It is copied here after any INT 21H
+// call that fails and has an ExtErr.
 //
 	LONG    extended_error;
 
@@ -327,7 +420,19 @@ typedef  struct {
 //
 	PVOID   parent_prog;
 
-//      TODO: define
+	// Allocate memory in the UMA transparently though the standard DOS call.
+	#define PFL_TRANSPARENT_UMA
+
+	// Disable ^C. Used by INT 21h, AH=33h
+	#define PFL_BREAK_DISABLED
+
+	// The VGA memory range is fully reserved.
+	// Regardless, only VGA text modes are supported without direct arbitration.
+	// I may want to change this. Consider for example running standard mode
+	// windows in a DOS prompt with a high-res display.
+	#define PFL_HIGH_GFX
+
+	// Allow reporting more than 640K of memory to programs
 	LONG    prog_flags;
 
 //
@@ -355,10 +460,13 @@ typedef  struct {
 //      Actually 8-bit value.
 	SHORT   subprog_retcode;
 
-	//
-	// Directly convertible to BIOS disks addresses because the IBM PC
-	// only has two floppies.
-	//
+//
+// Directly convertible to BIOS disks addresses because the IBM PC
+// only has two floppies.
+//
+// This exists in the DOS swap area but there is no need to use it since
+// IO functions are all trapped.
+//
 	SHORT   current_drive; // A=1, B=2, ...
 	// DOS only supports 64-byte paths.
 	// See INT 21h,AH=47h for more details.
@@ -375,9 +483,10 @@ typedef  struct {
 	// Each path is malloc'ed.
 	char *cwd[26];
 
+	void *framebuff;
+
 }EMU_CONTEXT,*PEMU_CONTEXT;
 /*
 
->>> Use page table-style file caching approach?
 */
 #endif /* E_DOS_H */

@@ -1,0 +1,136 @@
+--------------------------------------------------------------------------------
+	API
+--------------------------------------------------------------------------------
+
+................................................................................
+	_pset(page_bit)
+	_pclr(page_bit)
+................................................................................
+
+Returns an opmask componenet that enables/disables the page bit. These are macro definitions.
+
+> Maybe use a struct with bit fields.
+
+................................................................................
+	void* M_Alloc(  void*   force_addr,
+			UINT    commit,
+			UINT    uncommit,
+			UINT    bits
+			);
+................................................................................
+
+Allocate a linear region of virtual memory and map a non-contigous set of pages to the location.
+
+`force_addr` is the address to force the allocation into. It is fully validated by iterating through page tables in reverse to confirm there is no overflow.
+
+A buffer overflow detector page is allocated after it.
+
+	Notes
+	~~~~~
+
+This is NOT a general purpose malloc function. Is is quite slow and will take maybe 500 to thousands of clock cycles to run.
+
+Uncommitted pages are also not fast and require physical memory to be allocated, but may end up being disk-backed if there is none. Furthermore, uncommitted memory also requires iteration to find the allocation in need of extension.
+
+- T2 only
+- Quite slow, mainly for supporting DPMI
+
+Conforming to:
+- DPMI 1.0, 0504H: https://delorie.com/djgpp/doc/dpmi/api/310504.html
+	- Address specification (limited)
+	- Page granularity
+	- Commit/uncommit
+- DPMI 0.9, 0501H
+	- Handle corresponds with base address.
+	- Allocation break page is used to section off.
+
+................................................................................
+	BOOL M_PageOp(  void* base,
+			uint page_count,
+			uint opmask);
+................................................................................
+
+Change the page bits of page table entries.
+
+No runtime checks are done to confirm if the CPU handles the PAT.
+
+The top 16 bits are the "change which" mask and the bottom 16 are the values to set them to.
+
+Return:
+- 0 if OK
+- 1 if base is not aligned or invalid, page_count is infeasible, or opmask changes special system-reserved page bits.
+
+Example:
+
+................................................................................
+	int M_Free(void* base);
+................................................................................
+
+................................................................................
+	uint* M_LockPageTables(void);
+................................................................................
+
+Asserts the lock responsible for the page tables (it may be the same as MM).
+
+The page tables are laid out flat in memory. It is returned by this pointer.
+
+Never pass the pointer to another thread. The pointer becomes invalid upon unlocking.
+
+................................................................................
+	void CopyPages(void* d, void* s, uint size);
+................................................................................
+
+The pages must be present and committed. Performs a non-temporal copy of a large block. This also disables caching globally for the duration for the whole copy, and preemption.
+
+................................................................................
+	int M_PokeHole(uint page_frame, uint npages);
+................................................................................
+
+This is a function which facillitates the creation of memory holes primarily for talking to ISA devices.
+
+It copies all page frames in the range specified to another allocated set of page frames, and then adjusts every single page table entry related to it so that whatever program which was using it does not notice.
+
+M_PokeHole may trigger page faults or uncommitted memory allocations, making it extremely slow, along with the large transfer of pages.
+
+This function blocks simultaneous access.
+
+Unless using this to block access to a static resource, NEVER call this function! Report to the user where the memory hole is so they can block it off in their config (OS/90 does this with PnP support). It is also okay to write to the config.
+
+................................................................................
+	void* malloc(size_t);
+	void free(void*);
+................................................................................
+
+Standard C functions that allocate (usually) unlocked memory regions.
+
+................................................................................
+	void* lmalloc(size_t);
+................................................................................
+
+malloc but this ensures the pages the allocation resides in are fully locked. free automaticaly takes care of how many locked regions are allocated in a given page so that the page can be unlocked as soon as possible and other allocations on the same page stay locked.
+
+Reentrant functions are advised to use memory regions allocated by lmalloc, but not inside it!
+
+--------------------------------------------------------------------------------
+	Page Attribute Table
+--------------------------------------------------------------------------------
+
+The PAT has many useful applications:
+- Faster framebuffer access with write combining
+- Reduced cache polution for memcpy-style operations
+
+Enabling PAT turns bits `PCD PWT` into an index to a table of other options, which are by default set for compatibility with OS'es that use the PAT bit but have no knowledge of it. There are four possible options.
+
+The PAT options are:
+- 0: UC- or uncached [1]
+- 1: WC: Write-combine [2]
+- 2: WP: Write-protect [3]
+- 3: UC+
+
+[1] The reason for this is that the MTTRs are often set by the BIOS and we do not want to interfere with it. Use this most of the time
+
+[2] WC is best for memory regions that are frequently written into non-sequentially and over existing data. It stores the writes in a lower cache level and writes back the results in a burst access. Framebuffers are a notable example, although
+
+[3] Not sure how different this is from writethrough
+
+Uncached regions are very useful for performance as not all computers have non-temporal operations. memcpy-style operations could in theory be faster this way because cache is not wasted.
